@@ -5,11 +5,6 @@
 #include "hip/hip_runtime.h"
 #include "hip-wrappers.h"
 
-hipblasStatus_t hipblasSetPointerMode (hipblasHandle_t handle, hipblasPointerMode_t mode)
- {
-	return HIPBLAS_STATUS_NOT_SUPPORTED;
- }
-
  hipblasStatus_t hipblasHgemm    (hipblasHandle_t handle,
                                 hipblasOperation_t transa,
                                 hipblasOperation_t transb,

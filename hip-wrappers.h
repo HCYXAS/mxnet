@@ -4,16 +4,12 @@
 
 #ifndef HIPWRAPPERS_H
 #define HIPWRAPPERS_H
-#pragma once
 
 #include <hipblas.h>
 #include <hiprand.h>
 #include "hip/hip_runtime.h"
 #include "hip/hip_fp16.h"
 
-/*#ifdef __HIP_PLATFORM_HCC__
- #define __launch_bounds__(...)
-#endif*/
 
 #if defined(__HIP_PLATFORM_HCC__) && !defined (__HCC__)
 typedef struct {
@@ -39,8 +35,6 @@ typedef enum hipDataType_t
     HIP_C_32U= 13  /* complex as a pair of unsigned int numbers */
 } hipDataType;
 
-
- hipblasStatus_t hipblasSetPointerMode (hipblasHandle_t handle, hipblasPointerMode_t mode);
 
  hipblasStatus_t hipblasHgemm    (hipblasHandle_t handle,
                                 hipblasOperation_t transa,

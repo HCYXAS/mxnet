@@ -49,7 +49,8 @@ class GPUPooledStorageManager final : public StorageManager {
     size_t size = raw_size + NDEV;
     // ignore unloading error, as memory has already been recycled
     if (err != hipSuccess) {
-      LOG(FATAL) << "CUDA: " << hipGetErrorString(err);
+        /*TODO.Need to revisit: unknown error is reported in HIP/CUDA path*/
+      //LOG(FATAL) << "CUDA: " << hipGetErrorString(err);
     }
     used_memory_ -= size;
   }

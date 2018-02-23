@@ -52,13 +52,9 @@ else
 	CFLAGS += -O3
 endif
 
-ifeq ($(HIP_PLATFORM), hcc)
-	HIPINCLUDE += -I../Thrust
-else ifeq($(HIP_PLATFORM), nvcc)
-        HIPINCLUDE += -I../Thrust
-endif
+HIPINCLUDE += -I../Thrust
+HIPINCLUDE += -I. -I/opt/rocm/hipblas/include -I/opt/rocm/hiprand/include -I/opt/rocm/hipfft/include
 
-HIPINCLUDE += -I.  -I. -I/opt/rocm/hipblas/include -I/opt/rocm/rocblas/include -I/opt/rocm/hiprand/include -I/opt/rocm/rocrand/include -I/opt/rocm/hcfft/include
 CFLAGS     += $(HIPINCLUDE) -I$(ROOTDIR)/mshadow/ -I$(ROOTDIR)/dmlc-core/include -fPIC -I$(NNVM_PATH)/include -Iinclude $(MSHADOW_CFLAGS)
 LDFLAGS    =  -pthread $(MSHADOW_LDFLAGS) $(DMLC_LDFLAGS)
 
@@ -222,14 +218,15 @@ ifeq ($(USE_CUDA), 1)
 	ifneq (, $(findstring nvcc, $(HIP_PLATFORM)))
 		LDFLAGS += -L/opt/rocm/hipblas/lib  -lhipblas
 		LDFLAGS += -L/opt/rocm/hiprand/lib  -lhiprand
-		LDFLAGS += -L/opt/rocm/hcfft/lib -lhipfft
+		LDFLAGS += -L/opt/rocm/hipfft/lib -lhipfft
 		LDFLAGS += -lcudart -lcuda -lcufft -lcublas
 	else
+		HIPINCLUDE += -I/opt/rocm/rocblas/include -I/opt/rocm/rocrand/include
 		LDFLAGS += -L/opt/rocm/hipblas/lib  -lhipblas
 		LDFLAGS += -L/opt/rocm/rocblas/lib  -lrocblas
 		LDFLAGS += -L/opt/rocm/hiprand/lib  -lhiprand
 		LDFLAGS += -L/opt/rocm/rocrand/lib  -lrocrand
-		LDFLAGS += -L/opt/rocm/hcfft/lib   -lhipfft
+		LDFLAGS += -L/opt/rocm/hipfft/lib   -lhipfft
 	endif
 
 	SCALA_PKG_PROFILE := $(SCALA_PKG_PROFILE)-gpu
