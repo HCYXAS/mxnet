@@ -206,9 +206,7 @@ struct Kernel<OP, gpu> {
   inline static void Launch(mshadow::Stream<gpu> *s, int N, Args... args) {
     using namespace mshadow::cuda;
     int ngrid = std::min(kMaxGridNum, (N + kBaseThreadNum - 1) / kBaseThreadNum);
-    #if defined(__HIP_PLATFORM_NVCC__)
-    hipLaunchKernelGGL(HIP_KERNEL_NAME(mxnet_generic_kernel<OP, Args...>), dim3(ngrid), dim3(kBaseThreadNum), 0, mshadow::Stream<gpu>::GetStream(s),N, args...); //TODO HIP .error for HCC 
-    #endif
+    hipLaunchKernelGGL(HIP_KERNEL_NAME(mxnet_generic_kernel<OP, Args...>), dim3(ngrid), dim3(kBaseThreadNum), 0, mshadow::Stream<gpu>::GetStream(s),N, args...);
   }
 };
 #endif  // __HIPCC__

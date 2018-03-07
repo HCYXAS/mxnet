@@ -96,27 +96,19 @@ __global__ void BilinearSamplerBackwardKernel(const int i_c, const int i_h,
       DType bottom_right_v = 0;
       // calc input grad
       if (between(top_left_x, 0, i_w-1) && between(top_left_y, 0, i_h-1)) {
-      #if defined(__HIP_PLATFORM_NVCC__)
-        atomicAdd(&g_input[data_index], *(grad + grad_index) * top_left_y_w * top_left_x_w);//TODO. Fix compilation issue for HCC
-      #endif
+        atomicAdd(&g_input[data_index], *(grad + grad_index) * top_left_y_w * top_left_x_w);
         top_left_v = *(data + data_index);
       }
       if (between(top_left_x+1, 0, i_w-1) && between(top_left_y, 0, i_h-1)) {
-      #if defined(__HIP_PLATFORM_NVCC__)
-       atomicAdd(&g_input[data_index + 1], *(grad + grad_index) * top_left_y_w* (1.0 - top_left_x_w));//TODO. Fix compilation issue for HCC
-      #endif
+       atomicAdd(&g_input[data_index + 1], *(grad + grad_index) * top_left_y_w* (1.0 - top_left_x_w));
         top_right_v = *(data + data_index + 1);
       }
       if (between(top_left_x, 0, i_w-1) && between(top_left_y+1, 0, i_h-1)) {
-      #if defined( __HIP_PLATFORM_NVCC__)
-       atomicAdd(&g_input[data_index+ i_w], *(grad + grad_index) * (1.0 - top_left_y_w)* top_left_x_w);//TODO. Fix compilation issue for HCC
-      #endif
+       atomicAdd(&g_input[data_index+ i_w], *(grad + grad_index) * (1.0 - top_left_y_w)* top_left_x_w);
         bottom_left_v = *(data + data_index + i_w);
       }
       if (between(top_left_x+1, 0, i_w-1) && between(top_left_y+1, 0, i_h-1)) {
-      #if defined(__HIP_PLATFORM_NVCC__)
-       atomicAdd(&g_input[data_index+ i_w + 1], *(grad + grad_index) * (1.0 - top_left_y_w)* (1.0 - top_left_x_w));//TODO. Fix compilation issue for HCC
-      #endif
+       atomicAdd(&g_input[data_index+ i_w + 1], *(grad + grad_index) * (1.0 - top_left_y_w)* (1.0 - top_left_x_w));
         bottom_right_v = *(data + data_index + i_w + 1);
       }
       // calc weight grad of top_left_w, then multiple -1 is the grad of grid_src

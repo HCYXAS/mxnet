@@ -336,9 +336,7 @@ __global__ void unpool_max_1d_gpu_kernel(const int nthreads, const DType* out_gr
     // In the case where pad > 0 and kernel = 1, for example,
     // max_idx can be -1 reaching this step.
     if (max_idx >= 0) {
-      #if defined(__HIP_PLATFORM_NVCC__)
-       atomicAdd(&in_grad[in_offset+max_idx], out_grad[index]); //TODO. Fix compilation issue for HCC
-      #endif
+       atomicAdd(&in_grad[in_offset+max_idx], out_grad[index]);
     }
   }
 }
@@ -394,9 +392,7 @@ __global__ void unpool_max_2d_gpu_kernel(const int nthreads, const DType* out_gr
     // max_idx can be -1 reaching this step.
     if (max_idx >= 0) {
 
-      #if defined(__HIP_PLATFORM_NVCC__)
-       atomicAdd(&in_grad[in_offset+max_idx], out_grad[index]); //TODO. Fix compilation issue for HCC
-      #endif
+       atomicAdd(&in_grad[in_offset+max_idx], out_grad[index]);
     }
   }
 }
@@ -460,9 +456,7 @@ __global__ void unpool_max_3d_gpu_kernel(const int nthreads, const DType* out_gr
     // In the case where pad > 0 and kernel = 1, for example,
     // max_idx can be -1 reaching this step.
     if (max_idx >= 0) {
-      #if defined(__HIP_PLATFORM_NVCC__)
-       atomicAdd(&in_grad[in_offset+max_idx], out_grad[index]); //TODO. Fix compilation issue for HCC
-      #endif
+       atomicAdd(&in_grad[in_offset+max_idx], out_grad[index]);
     }
   }
 }
@@ -621,21 +615,44 @@ inline void pool(mshadow::Stream<gpu>* s, const DType* in_data, const TShape& is
   if (kernel.ndim() == 1) {
     if (pool_enum::kMaxPooling == pool_type) {
       // NOLINT_NEXT_LINE(whitespace/operators)
-      hipLaunchKernelGGL(HIP_KERNEL_NAME(pool_max_1d_gpu_kernel), dim3(cuda_get_num_blocks(oshape.Size())), dim3(mshadow::cuda::kBaseThreadNum), 0, mshadow::Stream<gpu>::GetStream(s), 
-                                   oshape.Size(), in_data, ishape[1], ishape[2],
-                                   oshape[2], kernel[0], stride[0], pad[0], out_data);
+      hipLaunchKernelGGL(HIP_KERNEL_NAME(pool_max_1d_gpu_kernel), dim3(cuda_get_num_blocks(oshape.Size())), dim3(mshadow::cuda::kBaseThreadNum), 0, mshadow::Stream<gpu>::GetStream(s),\
+		static_cast<const int>(oshape.Size()),\
+		static_cast<const DType*>(in_data),\
+		static_cast<const int>(ishape[1]),\
+		static_cast<const int>(ishape[2]),\
+		static_cast<const int>(oshape[2]),\
+		static_cast<const int>(kernel[0]),\
+		static_cast<const int>(stride[0]),\
+		static_cast<const int>(pad[0]),\
+		static_cast<DType*>(out_data));
       MSHADOW_CUDA_POST_KERNEL_CHECK(pool_max_1d_gpu_kernel);
     } else if (pool_enum::kAvgPooling == pool_type) {
       // NOLINT_NEXT_LINE(whitespace/operators)
-      hipLaunchKernelGGL(HIP_KERNEL_NAME(pool_sum_1d_gpu_kernel), dim3(cuda_get_num_blocks(oshape.Size())), dim3(mshadow::cuda::kBaseThreadNum), 0, mshadow::Stream<gpu>::GetStream(s), 
-                                   oshape.Size(), in_data, ishape[1], ishape[2], oshape[2],
-                                   kernel[0], stride[0], pad[0], out_data, true);
+      hipLaunchKernelGGL(HIP_KERNEL_NAME(pool_sum_1d_gpu_kernel), dim3(cuda_get_num_blocks(oshape.Size())), dim3(mshadow::cuda::kBaseThreadNum), 0, mshadow::Stream<gpu>::GetStream(s),\
+		static_cast<const int>(oshape.Size()),\
+		static_cast<const DType*>(in_data),\
+		static_cast<const int>(ishape[1]),\
+		static_cast<const int>(ishape[2]),\
+		static_cast<const int>(oshape[2]),\
+		static_cast<const int>(kernel[0]),\
+		static_cast<const int>(stride[0]),\
+		static_cast<const int>(pad[0]),\
+		static_cast<DType*>(out_data),\
+		true);
       MSHADOW_CUDA_POST_KERNEL_CHECK(pool_sum_1d_gpu_kernel);
     } else if (pool_enum::kSumPooling == pool_type) {
       // NOLINT_NEXT_LINE(whitespace/operators)
-      hipLaunchKernelGGL(HIP_KERNEL_NAME(pool_sum_1d_gpu_kernel), dim3(cuda_get_num_blocks(oshape.Size())), dim3(mshadow::cuda::kBaseThreadNum), 0, mshadow::Stream<gpu>::GetStream(s), 
-                                   oshape.Size(), in_data, ishape[1], ishape[2], oshape[2],
-                                   kernel[0], stride[0], pad[0], out_data);
+      hipLaunchKernelGGL(HIP_KERNEL_NAME(pool_sum_1d_gpu_kernel), dim3(cuda_get_num_blocks(oshape.Size())), dim3(mshadow::cuda::kBaseThreadNum), 0, mshadow::Stream<gpu>::GetStream(s),\
+		static_cast<const int>(oshape.Size()),\
+		static_cast<const DType*>(in_data),\
+		static_cast<const int>(ishape[1]),\
+		static_cast<const int>(ishape[2]),\
+		static_cast<const int>(oshape[2]),\
+		static_cast<const int>(kernel[0]),\
+		static_cast<const int>(stride[0]),\
+		static_cast<const int>(pad[0]),\
+		static_cast<DType*>(out_data),
+		false);
       MSHADOW_CUDA_POST_KERNEL_CHECK(pool_sum_1d_gpu_kernel);
     } else {
       LOG(FATAL) << "Unknown pooling type " << pool_type;
@@ -643,24 +660,59 @@ inline void pool(mshadow::Stream<gpu>* s, const DType* in_data, const TShape& is
   } else if (kernel.ndim() == 2) {
     if (pool_enum::kMaxPooling == pool_type) {
       // NOLINT_NEXT_LINE(whitespace/operators)
-      hipLaunchKernelGGL(HIP_KERNEL_NAME(pool_max_2d_gpu_kernel), dim3(cuda_get_num_blocks(oshape.Size())), dim3(mshadow::cuda::kBaseThreadNum), 0, mshadow::Stream<gpu>::GetStream(s), 
-                                   oshape.Size(), in_data, ishape[1], ishape[2], ishape[3],
-                                   oshape[2], oshape[3], kernel[0], kernel[1],
-                                   stride[0], stride[1], pad[0], pad[1], out_data);
+      hipLaunchKernelGGL(HIP_KERNEL_NAME(pool_max_2d_gpu_kernel), dim3(cuda_get_num_blocks(oshape.Size())), dim3(mshadow::cuda::kBaseThreadNum), 0, mshadow::Stream<gpu>::GetStream(s),\
+		static_cast<const int>(oshape.Size()),\
+		static_cast<const DType*>(in_data),\
+		static_cast<const int>(ishape[1]),\
+		static_cast<const int>(ishape[2]),\
+		static_cast<const int>(ishape[3]),\
+		static_cast<const int>(oshape[2]),\
+		static_cast<const int>(oshape[3]),\
+		static_cast<const int>(kernel[0]),\
+		static_cast<const int>(kernel[1]),\
+		static_cast<const int>(stride[0]),\
+		static_cast<const int>(stride[1]),\
+		static_cast<const int>(pad[0]),\
+		static_cast<const int>(pad[1]),\
+		static_cast<DType*>(out_data));
       MSHADOW_CUDA_POST_KERNEL_CHECK(pool_max_2d_gpu_kernel);
     } else if (pool_enum::kAvgPooling == pool_type) {
       // NOLINT_NEXT_LINE(whitespace/operators)
-      hipLaunchKernelGGL(HIP_KERNEL_NAME(pool_sum_2d_gpu_kernel), dim3(cuda_get_num_blocks(oshape.Size())), dim3(mshadow::cuda::kBaseThreadNum), 0, mshadow::Stream<gpu>::GetStream(s), 
-                                   oshape.Size(), in_data, ishape[1], ishape[2], ishape[3],
-                                   oshape[2], oshape[3], kernel[0], kernel[1],
-                                   stride[0], stride[1], pad[0], pad[1], out_data, true);
+      hipLaunchKernelGGL(HIP_KERNEL_NAME(pool_sum_2d_gpu_kernel), dim3(cuda_get_num_blocks(oshape.Size())), dim3(mshadow::cuda::kBaseThreadNum), 0, mshadow::Stream<gpu>::GetStream(s),\
+		static_cast<const int>(oshape.Size()),\
+		static_cast<const DType*>(in_data),\
+		static_cast<const int>(ishape[1]),\
+		static_cast<const int>(ishape[2]),\
+		static_cast<const int>(ishape[3]),\
+		static_cast<const int>(oshape[2]),\
+		static_cast<const int>(oshape[3]),\
+		static_cast<const int>(kernel[0]),\
+		static_cast<const int>(kernel[1]),\
+		static_cast<const int>(stride[0]),\
+		static_cast<const int>(stride[1]),\
+		static_cast<const int>(pad[0]),\
+		static_cast<const int>(pad[1]),\
+		static_cast<DType*>(out_data),\
+		true);
       MSHADOW_CUDA_POST_KERNEL_CHECK(pool_sum_2d_gpu_kernel);
     } else if (pool_enum::kSumPooling == pool_type) {
       // NOLINT_NEXT_LINE(whitespace/operators)
-      hipLaunchKernelGGL(HIP_KERNEL_NAME(pool_sum_2d_gpu_kernel), dim3(cuda_get_num_blocks(oshape.Size())), dim3(mshadow::cuda::kBaseThreadNum), 0, mshadow::Stream<gpu>::GetStream(s), 
-                                   oshape.Size(), in_data, ishape[1], ishape[2], ishape[3],
-                                   oshape[2], oshape[3], kernel[0], kernel[1],
-                                   stride[0], stride[1], pad[0], pad[1], out_data);
+      hipLaunchKernelGGL(HIP_KERNEL_NAME(pool_sum_2d_gpu_kernel), dim3(cuda_get_num_blocks(oshape.Size())), dim3(mshadow::cuda::kBaseThreadNum), 0, mshadow::Stream<gpu>::GetStream(s),\
+		static_cast<const int>(oshape.Size()),\
+		static_cast<const DType*>(in_data),\
+		static_cast<const int>(ishape[1]),\
+		static_cast<const int>(ishape[2]),\
+		static_cast<const int>(ishape[3]),\
+		static_cast<const int>(oshape[2]),\
+		static_cast<const int>(oshape[3]),\
+		static_cast<const int>(kernel[0]),\
+		static_cast<const int>(kernel[1]),\
+		static_cast<const int>(stride[0]),\
+		static_cast<const int>(stride[1]),\
+		static_cast<const int>(pad[0]),\
+		static_cast<const int>(pad[1]),\
+		static_cast<DType*>(out_data),
+		false);
       MSHADOW_CUDA_POST_KERNEL_CHECK(pool_sum_2d_gpu_kernel);
     } else {
       LOG(FATAL) << "Unknown pooling type " << pool_type;
@@ -668,27 +720,74 @@ inline void pool(mshadow::Stream<gpu>* s, const DType* in_data, const TShape& is
   } else if (kernel.ndim() == 3) {
     if (pool_enum::kMaxPooling == pool_type) {
       // NOLINT_NEXT_LINE(whitespace/operators)
-      hipLaunchKernelGGL(HIP_KERNEL_NAME(pool_max_3d_gpu_kernel), dim3(cuda_get_num_blocks(oshape.Size())), dim3(mshadow::cuda::kBaseThreadNum), 0, mshadow::Stream<gpu>::GetStream(s), 
-                                   oshape.Size(), in_data, ishape[1], ishape[2], ishape[3],
-                                   ishape[4], oshape[2], oshape[3], oshape[4],
-                                   kernel[0], kernel[1], kernel[2], stride[0],
-                                   stride[1], stride[2], pad[0], pad[1], pad[2], out_data);
+      hipLaunchKernelGGL(HIP_KERNEL_NAME(pool_max_3d_gpu_kernel), dim3(cuda_get_num_blocks(oshape.Size())), dim3(mshadow::cuda::kBaseThreadNum), 0, mshadow::Stream<gpu>::GetStream(s),\
+		static_cast<const int>(oshape.Size()),\
+		static_cast<const DType*>(in_data),\
+		static_cast<const int>(ishape[1]),\
+		static_cast<const int>(ishape[2]),\
+		static_cast<const int>(ishape[3]),\
+		static_cast<const int>(ishape[4]),\
+		static_cast<const int>(oshape[2]),\
+		static_cast<const int>(oshape[3]),\
+		static_cast<const int>(oshape[4]),\
+		static_cast<const int>(kernel[0]),\
+		static_cast<const int>(kernel[1]),\
+		static_cast<const int>(kernel[2]),\
+		static_cast<const int>(stride[0]),\
+		static_cast<const int>(stride[1]),\
+		static_cast<const int>(stride[2]),\
+		static_cast<const int>(pad[0]),\
+		static_cast<const int>(pad[1]),\
+		static_cast<const int>(pad[2]),\
+		static_cast<DType*>(out_data));
       MSHADOW_CUDA_POST_KERNEL_CHECK(pool_max_3d_gpu_kernel);
     } else if (pool_enum::kAvgPooling == pool_type) {
       // NOLINT_NEXT_LINE(whitespace/operators)
-      hipLaunchKernelGGL(HIP_KERNEL_NAME(pool_sum_3d_gpu_kernel), dim3(cuda_get_num_blocks(oshape.Size())), dim3(mshadow::cuda::kBaseThreadNum), 0, mshadow::Stream<gpu>::GetStream(s), 
-                                   oshape.Size(), in_data, ishape[1], ishape[2], ishape[3],
-                                   ishape[4], oshape[2], oshape[3], oshape[4], kernel[0],
-                                   kernel[1], kernel[2], stride[0], stride[1], stride[2],
-                                   pad[0], pad[1], pad[2], out_data, true);
+      hipLaunchKernelGGL(HIP_KERNEL_NAME(pool_sum_3d_gpu_kernel), dim3(cuda_get_num_blocks(oshape.Size())), dim3(mshadow::cuda::kBaseThreadNum), 0, mshadow::Stream<gpu>::GetStream(s),\
+		static_cast<const int>(oshape.Size()),\
+		static_cast<const DType*>(in_data),\
+		static_cast<const int>(ishape[1]),\
+		static_cast<const int>(ishape[2]),\
+		static_cast<const int>(ishape[3]),\
+		static_cast<const int>(ishape[4]),\
+		static_cast<const int>(oshape[2]),\
+		static_cast<const int>(oshape[3]),\
+		static_cast<const int>(oshape[4]),\
+		static_cast<const int>(kernel[0]),\
+		static_cast<const int>(kernel[1]),\
+		static_cast<const int>(kernel[2]),\
+		static_cast<const int>(stride[0]),\
+		static_cast<const int>(stride[1]),\
+		static_cast<const int>(stride[2]),\
+		static_cast<const int>(pad[0]),\
+		static_cast<const int>(pad[1]),\
+		static_cast<const int>(pad[2]),\
+		static_cast<DType*>(out_data),\
+		true);
       MSHADOW_CUDA_POST_KERNEL_CHECK(pool_sum_3d_gpu_kernel);
     } else if (pool_enum::kSumPooling == pool_type) {
       // NOLINT_NEXT_LINE(whitespace/operators)
-      hipLaunchKernelGGL(HIP_KERNEL_NAME(pool_sum_3d_gpu_kernel), dim3(cuda_get_num_blocks(oshape.Size())), dim3(mshadow::cuda::kBaseThreadNum), 0, mshadow::Stream<gpu>::GetStream(s), 
-                                   oshape.Size(), in_data, ishape[1], ishape[2], ishape[3],
-                                   ishape[4], oshape[2], oshape[3], oshape[4], kernel[0],
-                                   kernel[1], kernel[2], stride[0], stride[1], stride[2],
-                                   pad[0], pad[1], pad[2], out_data);
+      hipLaunchKernelGGL(HIP_KERNEL_NAME(pool_sum_3d_gpu_kernel), dim3(cuda_get_num_blocks(oshape.Size())), dim3(mshadow::cuda::kBaseThreadNum), 0, mshadow::Stream<gpu>::GetStream(s),\
+		static_cast<const int>(oshape.Size()),\
+		static_cast<const DType*>(in_data),\
+		static_cast<const int>(ishape[1]),\
+		static_cast<const int>(ishape[2]),\
+		static_cast<const int>(ishape[3]),\
+		static_cast<const int>(ishape[4]),\
+		static_cast<const int>(oshape[2]),\
+		static_cast<const int>(oshape[3]),\
+		static_cast<const int>(oshape[4]),\
+		static_cast<const int>(kernel[0]),\
+		static_cast<const int>(kernel[1]),\
+		static_cast<const int>(kernel[2]),\
+		static_cast<const int>(stride[0]),\
+		static_cast<const int>(stride[1]),\
+		static_cast<const int>(stride[2]),\
+		static_cast<const int>(pad[0]),\
+		static_cast<const int>(pad[1]),\
+		static_cast<const int>(pad[2]),\
+		static_cast<DType*>(out_data),\
+		false);
       MSHADOW_CUDA_POST_KERNEL_CHECK(pool_sum_3d_gpu_kernel);
     } else {
       LOG(FATAL) << "Unknown pooling type " << pool_type;
@@ -724,24 +823,46 @@ inline void unpool(mshadow::Stream<gpu>* s, const DType* out_grad, const DType* 
   if (kernel.ndim() == 1) {
     if (pool_enum::kMaxPooling == pool_type) {
       // NOLINT_NEXT_LINE(whitespace/operators)
-      hipLaunchKernelGGL(HIP_KERNEL_NAME(unpool_max_1d_gpu_kernel), dim3(cuda_get_num_blocks(oshape.Size())), dim3(mshadow::cuda::kBaseThreadNum), 0, mshadow::Stream<gpu>::GetStream(s), 
-                                     oshape.Size(), out_grad, in_data, out_data,
-                                     ishape[1], ishape[2], oshape[2], kernel[0], stride[0], pad[0],
-                                     in_grad);
+      hipLaunchKernelGGL(HIP_KERNEL_NAME(unpool_max_1d_gpu_kernel), dim3(cuda_get_num_blocks(oshape.Size())), dim3(mshadow::cuda::kBaseThreadNum), 0, mshadow::Stream<gpu>::GetStream(s),\
+		static_cast<const int>(oshape.Size()),\
+		static_cast<const DType*>(out_grad),\
+		static_cast<const DType*>(in_data),\
+		static_cast<const DType*>(out_data),\
+		static_cast<const int>(ishape[1]),\
+		static_cast<const int>(ishape[2]),\
+		static_cast<const int>(oshape[2]),\
+		static_cast<const int>(kernel[0]),\
+		static_cast<const int>(stride[0]),\
+		static_cast<const int>(pad[0]),\
+		static_cast<DType*>(in_grad));
       MSHADOW_CUDA_POST_KERNEL_CHECK(unpool_max_1d_gpu_kernel);
     } else if (pool_enum::kAvgPooling == pool_type) {
       // NOLINT_NEXT_LINE(whitespace/operators)
-      hipLaunchKernelGGL(HIP_KERNEL_NAME(unpool_sum_1d_gpu_kernel), dim3(cuda_get_num_blocks(ishape.Size())), dim3(mshadow::cuda::kBaseThreadNum), 0, mshadow::Stream<gpu>::GetStream(s), 
-                                     ishape.Size(), out_grad,
-                                     ishape[1], ishape[2], oshape[2], kernel[0],
-                                     stride[0], pad[0], in_grad, true);
+      hipLaunchKernelGGL(HIP_KERNEL_NAME(unpool_sum_1d_gpu_kernel), dim3(cuda_get_num_blocks(ishape.Size())), dim3(mshadow::cuda::kBaseThreadNum), 0, mshadow::Stream<gpu>::GetStream(s),\
+		static_cast<const int>(ishape.Size()),\
+		static_cast<const DType*>(out_grad),\
+		static_cast<const int>(ishape[1]),\
+		static_cast<const int>(ishape[2]),\
+		static_cast<const int>(oshape[2]),\
+		static_cast<const int>(kernel[0]),\
+		static_cast<const int>(stride[0]),\
+		static_cast<const int>(pad[0]),\
+		static_cast<DType*>(in_grad),\
+		true);
       MSHADOW_CUDA_POST_KERNEL_CHECK(unpool_sum_1d_gpu_kernel);
     } else if (pool_enum::kSumPooling == pool_type) {
       // NOLINT_NEXT_LINE(whitespace/operators)
-      hipLaunchKernelGGL(HIP_KERNEL_NAME(unpool_sum_1d_gpu_kernel), dim3(cuda_get_num_blocks(ishape.Size())), dim3(mshadow::cuda::kBaseThreadNum), 0, mshadow::Stream<gpu>::GetStream(s), 
-                                     ishape.Size(), out_grad,
-                                     ishape[1], ishape[2], oshape[2], kernel[0],
-                                     stride[0], pad[0], in_grad);
+      hipLaunchKernelGGL(HIP_KERNEL_NAME(unpool_sum_1d_gpu_kernel), dim3(cuda_get_num_blocks(ishape.Size())), dim3(mshadow::cuda::kBaseThreadNum), 0, mshadow::Stream<gpu>::GetStream(s),\
+		static_cast<const int>(ishape.Size()),\
+		static_cast<const DType*>(out_grad),\
+		static_cast<const int>(ishape[1]),\
+		static_cast<const int>(ishape[2]),\
+		static_cast<const int>(oshape[2]),\
+		static_cast<const int>(kernel[0]),\
+		static_cast<const int>(stride[0]),\
+		static_cast<const int>(pad[0]),\
+		static_cast<DType*>(in_grad),\
+		false);
       MSHADOW_CUDA_POST_KERNEL_CHECK(unpool_sum_1d_gpu_kernel);
     } else {
       LOG(FATAL) << "Unknown pooling type " << pool_type;
@@ -749,27 +870,61 @@ inline void unpool(mshadow::Stream<gpu>* s, const DType* out_grad, const DType* 
   } else  if (kernel.ndim() == 2) {
     if (pool_enum::kMaxPooling == pool_type) {
       // NOLINT_NEXT_LINE(whitespace/operators)
-      hipLaunchKernelGGL(HIP_KERNEL_NAME(unpool_max_2d_gpu_kernel), dim3(cuda_get_num_blocks(oshape.Size())), dim3(mshadow::cuda::kBaseThreadNum), 0, mshadow::Stream<gpu>::GetStream(s), 
-                                     oshape.Size(), out_grad, in_data, out_data,
-                                     ishape[1], ishape[2], ishape[3],
-                                     oshape[2], oshape[3], kernel[0], kernel[1],
-                                     stride[0], stride[1], pad[0], pad[1], in_grad);
+      hipLaunchKernelGGL(HIP_KERNEL_NAME(unpool_max_2d_gpu_kernel), dim3(cuda_get_num_blocks(oshape.Size())), dim3(mshadow::cuda::kBaseThreadNum), 0, mshadow::Stream<gpu>::GetStream(s),\
+		static_cast<const int>(oshape.Size()),\
+		static_cast<const DType*>(out_grad),\
+		static_cast<const DType*>(in_data),\
+		static_cast<const DType*>(out_data),\
+		static_cast<const int>(ishape[1]),\
+		static_cast<const int>(ishape[2]),\
+		static_cast<const int>(ishape[3]),\
+		static_cast<const int>(oshape[2]),\
+		static_cast<const int>(oshape[3]),\
+		static_cast<const int>(kernel[0]),\
+		static_cast<const int>(kernel[1]),\
+		static_cast<const int>(stride[0]),\
+		static_cast<const int>(stride[1]),\
+		static_cast<const int>(pad[0]),\
+		static_cast<const int>(pad[1]),\
+		static_cast<DType*>(in_grad));
       MSHADOW_CUDA_POST_KERNEL_CHECK(unpool_max_2d_gpu_kernel);
     } else if (pool_enum::kAvgPooling == pool_type) {
       // NOLINT_NEXT_LINE(whitespace/operators)
-      hipLaunchKernelGGL(HIP_KERNEL_NAME(unpool_sum_2d_gpu_kernel), dim3(cuda_get_num_blocks(ishape.Size())), dim3(mshadow::cuda::kBaseThreadNum), 0, mshadow::Stream<gpu>::GetStream(s), 
-                                     ishape.Size(), out_grad,
-                                     ishape[1], ishape[2], ishape[3],
-                                     oshape[2], oshape[3], kernel[0], kernel[1],
-                                     stride[0], stride[1], pad[0], pad[1], in_grad, true);
+      hipLaunchKernelGGL(HIP_KERNEL_NAME(unpool_sum_2d_gpu_kernel), dim3(cuda_get_num_blocks(ishape.Size())), dim3(mshadow::cuda::kBaseThreadNum), 0, mshadow::Stream<gpu>::GetStream(s),\
+		static_cast<const int>(ishape.Size()),\
+		static_cast<const DType*>(out_grad),\
+		static_cast<const int>(ishape[1]),\
+		static_cast<const int>(ishape[2]),\
+		static_cast<const int>(ishape[3]),\
+		static_cast<const int>(oshape[2]),\
+		static_cast<const int>(oshape[3]),\
+		static_cast<const int>(kernel[0]),\
+		static_cast<const int>(kernel[1]),\
+		static_cast<const int>(stride[0]),\
+		static_cast<const int>(stride[1]),\
+		static_cast<const int>(pad[0]),\
+		static_cast<const int>(pad[1]),\
+		static_cast<DType*>(in_grad),
+		true);
       MSHADOW_CUDA_POST_KERNEL_CHECK(unpool_sum_2d_gpu_kernel);
     } else if (pool_enum::kSumPooling == pool_type) {
       // NOLINT_NEXT_LINE(whitespace/operators)
-      hipLaunchKernelGGL(HIP_KERNEL_NAME(unpool_sum_2d_gpu_kernel), dim3(cuda_get_num_blocks(ishape.Size())), dim3(mshadow::cuda::kBaseThreadNum), 0, mshadow::Stream<gpu>::GetStream(s), 
-                                     ishape.Size(), out_grad,
-                                     ishape[1], ishape[2], ishape[3],
-                                     oshape[2], oshape[3], kernel[0], kernel[1],
-                                     stride[0], stride[1], pad[0], pad[1], in_grad);
+      hipLaunchKernelGGL(HIP_KERNEL_NAME(unpool_sum_2d_gpu_kernel), dim3(cuda_get_num_blocks(ishape.Size())), dim3(mshadow::cuda::kBaseThreadNum), 0, mshadow::Stream<gpu>::GetStream(s),\
+		static_cast<const int>(ishape.Size()),\
+		static_cast<const DType*>(out_grad),\
+		static_cast<const int>(ishape[1]),\
+		static_cast<const int>(ishape[2]),\
+		static_cast<const int>(ishape[3]),\
+		static_cast<const int>(oshape[2]),\
+		static_cast<const int>(oshape[3]),\
+		static_cast<const int>(kernel[0]),\
+		static_cast<const int>(kernel[1]),\
+		static_cast<const int>(stride[0]),\
+		static_cast<const int>(stride[1]),\
+		static_cast<const int>(pad[0]),\
+		static_cast<const int>(pad[1]),\
+		static_cast<DType*>(in_grad),\
+		false);
       MSHADOW_CUDA_POST_KERNEL_CHECK(unpool_sum_2d_gpu_kernel);
     } else {
       LOG(FATAL) << "Unknown pooling type " << pool_type;
@@ -777,30 +932,76 @@ inline void unpool(mshadow::Stream<gpu>* s, const DType* out_grad, const DType* 
   } else if (kernel.ndim() == 3) {
     if (pool_enum::kMaxPooling == pool_type) {
       // NOLINT_NEXT_LINE(whitespace/operators)
-      hipLaunchKernelGGL(HIP_KERNEL_NAME(unpool_max_3d_gpu_kernel), dim3(cuda_get_num_blocks(oshape.Size())), dim3(mshadow::cuda::kBaseThreadNum), 0, mshadow::Stream<gpu>::GetStream(s), 
-                                     oshape.Size(), out_grad, in_data, out_data,
-                                     ishape[1], ishape[2], ishape[3], ishape[4],
-                                     oshape[2], oshape[3], oshape[4], kernel[0], kernel[1],
-                                     kernel[2], stride[0], stride[1], stride[2],
-                                     pad[0], pad[1], pad[2], in_grad);
+      hipLaunchKernelGGL(HIP_KERNEL_NAME(unpool_max_3d_gpu_kernel), dim3(cuda_get_num_blocks(oshape.Size())), dim3(mshadow::cuda::kBaseThreadNum), 0, mshadow::Stream<gpu>::GetStream(s),\
+		static_cast<const int>(oshape.Size()),\
+		static_cast<const DType*>(out_grad),\
+		static_cast<const DType*>(in_data),\
+		static_cast<const DType*>(out_data),\
+		static_cast<const int>(ishape[1]),\
+		static_cast<const int>(ishape[2]),\
+		static_cast<const int>(ishape[3]),\
+		static_cast<const int>(ishape[4]),\
+		static_cast<const int>(oshape[2]),\
+		static_cast<const int>(oshape[3]),\
+		static_cast<const int>(oshape[4]),\
+		static_cast<const int>(kernel[0]),\
+		static_cast<const int>(kernel[1]),\
+		static_cast<const int>(kernel[2]),\
+		static_cast<const int>(stride[0]),\
+		static_cast<const int>(stride[1]),\
+		static_cast<const int>(stride[2]),\
+		static_cast<const int>(pad[0]),\
+		static_cast<const int>(pad[1]),\
+		static_cast<const int>(pad[2]),\
+		static_cast<DType*>(in_grad));
       MSHADOW_CUDA_POST_KERNEL_CHECK(unpool_max_3d_gpu_kernel);
     } else if (pool_enum::kAvgPooling == pool_type) {
       // NOLINT_NEXT_LINE(whitespace/operators)
-      hipLaunchKernelGGL(HIP_KERNEL_NAME(unpool_sum_3d_gpu_kernel), dim3(cuda_get_num_blocks(ishape.Size())), dim3(mshadow::cuda::kBaseThreadNum), 0, mshadow::Stream<gpu>::GetStream(s), 
-                                     ishape.Size(), out_grad,
-                                     ishape[1], ishape[2], ishape[3], ishape[4],
-                                     oshape[2], oshape[3], oshape[4], kernel[0], kernel[1],
-                                     kernel[2], stride[0], stride[1], stride[2], pad[0], pad[1],
-                                     pad[2], in_grad, true);
+      hipLaunchKernelGGL(HIP_KERNEL_NAME(unpool_sum_3d_gpu_kernel), dim3(cuda_get_num_blocks(ishape.Size())), dim3(mshadow::cuda::kBaseThreadNum), 0, mshadow::Stream<gpu>::GetStream(s),\
+		static_cast<const int>(ishape.Size()),\
+		static_cast<const DType*>(out_grad),\
+		static_cast<const int>(ishape[1]),\
+		static_cast<const int>(ishape[2]),\
+		static_cast<const int>(ishape[3]),\
+		static_cast<const int>(ishape[4]),\
+		static_cast<const int>(oshape[2]),\
+		static_cast<const int>(oshape[3]),\
+		static_cast<const int>(oshape[4]),\
+		static_cast<const int>(kernel[0]),\
+		static_cast<const int>(kernel[1]),\
+		static_cast<const int>(kernel[2]),\
+		static_cast<const int>(stride[0]),\
+		static_cast<const int>(stride[1]),\
+		static_cast<const int>(stride[2]),\
+		static_cast<const int>(pad[0]),\
+		static_cast<const int>(pad[1]),\
+		static_cast<const int>(pad[2]),\
+		static_cast<DType*>(in_grad),\
+		true);
       MSHADOW_CUDA_POST_KERNEL_CHECK(unpool_sum_3d_gpu_kernel);
     } else if (pool_enum::kSumPooling == pool_type) {
       // NOLINT_NEXT_LINE(whitespace/operators)
-      hipLaunchKernelGGL(HIP_KERNEL_NAME(unpool_sum_3d_gpu_kernel), dim3(cuda_get_num_blocks(ishape.Size())), dim3(mshadow::cuda::kBaseThreadNum), 0, mshadow::Stream<gpu>::GetStream(s), 
-                                     ishape.Size(), out_grad,
-                                     ishape[1], ishape[2], ishape[3], ishape[4],
-                                     oshape[2], oshape[3], oshape[4], kernel[0], kernel[1],
-                                     kernel[2], stride[0], stride[1], stride[2], pad[0], pad[1],
-                                     pad[2], in_grad);
+      hipLaunchKernelGGL(HIP_KERNEL_NAME(unpool_sum_3d_gpu_kernel), dim3(cuda_get_num_blocks(ishape.Size())), dim3(mshadow::cuda::kBaseThreadNum), 0, mshadow::Stream<gpu>::GetStream(s),\
+		static_cast<const int>(ishape.Size()),\
+		static_cast<const DType*>(out_grad),\
+		static_cast<const int>(ishape[1]),\
+		static_cast<const int>(ishape[2]),\
+		static_cast<const int>(ishape[3]),\
+		static_cast<const int>(ishape[4]),\
+		static_cast<const int>(oshape[2]),\
+		static_cast<const int>(oshape[3]),\
+		static_cast<const int>(oshape[4]),\
+		static_cast<const int>(kernel[0]),\
+		static_cast<const int>(kernel[1]),\
+		static_cast<const int>(kernel[2]),\
+		static_cast<const int>(stride[0]),\
+		static_cast<const int>(stride[1]),\
+		static_cast<const int>(stride[2]),\
+		static_cast<const int>(pad[0]),\
+		static_cast<const int>(pad[1]),\
+		static_cast<const int>(pad[2]),\
+		static_cast<DType*>(in_grad),\
+		false);
       MSHADOW_CUDA_POST_KERNEL_CHECK(unpool_sum_3d_gpu_kernel);
     } else {
       LOG(FATAL) << "Unknown pooling type " << pool_type;

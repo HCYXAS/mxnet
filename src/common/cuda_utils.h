@@ -157,7 +157,8 @@ inline const char* HiprandGetErrorString(hiprandStatus_t status) {
 
 // Overload atomicAdd to work for floats on all architectures
 //#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ < 600
-#if (__HIP_DEVICE_COMPILE__) && (__HIP_ARCH_HAS_GLOBAL_INT64_ATOMICS__)
+//#if (__HIP_DEVICE_COMPILE__) && (__HIP_ARCH_HAS_GLOBAL_INT64_ATOMICS__)
+#if (__HIP_DEVICE_COMPILE__ && (__CUDA_ARCH__ < 600)) || defined(__HCC__)
 static inline __device__  void atomicAdd(double *address, double val) {
   unsigned long long* address_as_ull =                  // NOLINT(*)
     reinterpret_cast<unsigned long long*>(address);     // NOLINT(*)
@@ -179,7 +180,8 @@ static inline __device__  void atomicAdd(double *address, double val) {
 // Taken from:
 // https://github.com/torch/cutorch/blob/master/lib/THC/THCAtomics.cuh
 //#if defined(__CUDA_ARCH__)
-#if (__HIP_DEVICE_COMPILE__)
+//#if (__HIP_DEVICE_COMPILE__)
+#if (__HIP_DEVICE_COMPILE__) || defined(__HCC__)
 static inline __device__ void atomicAdd(mshadow::half::half_t *address,
                                         mshadow::half::half_t val) {
   unsigned int *address_as_ui =

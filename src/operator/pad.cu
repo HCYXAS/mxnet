@@ -85,9 +85,7 @@ __global__ void image_2d_pad_edge_grad_kernel(
   int inputPointY = min(max(padT, outputPointY), grad_in.size(2) + padT - 1) -
                     oStartY + iStartY;
   DType valueToCopy = grad_out[batch][plane][outputPointY][outputPointX];
-  #if defined(__HIP_PLATFORM_NVCC__)
-   atomicAdd(&grad_in[batch][plane][inputPointY][inputPointX], valueToCopy); //TODO. Fix compilation issue for HCC
-  #endif
+   atomicAdd(&grad_in[batch][plane][inputPointY][inputPointX], valueToCopy);
 }
 
 template <typename DType>
@@ -279,9 +277,7 @@ __global__ void image_3d_pad_edge_grad_kernel(
                     oStartZ + iStartZ;
   DType valueToCopy =
       grad_out[batch][plane][outputPointZ][outputPointY][outputPointX];
-  #if defined(__HIP_PLATFORM_NVCC__)
-   atomicAdd(&grad_in[batch][plane][inputPointZ][inputPointY][inputPointX],valueToCopy); //TODO. Fix compilation issue for HCC
-  #endif
+   atomicAdd(&grad_in[batch][plane][inputPointZ][inputPointY][inputPointX],valueToCopy);
 }
 
 template <typename DType>

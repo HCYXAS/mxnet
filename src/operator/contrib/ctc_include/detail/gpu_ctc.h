@@ -384,7 +384,7 @@ GpuCTC<ProbT>::compute_probs(const ProbT* const activations) {
     const int grid_size = ctc_helper::div_up(num_elements, NV);
 
     hipLaunchKernelGGL(HIP_KERNEL_NAME(prepare_stable_SM_kernel<ProbT, VT>), dim3(grid_size), dim3(NT), 0, stream_, ctc_helper::identity<ProbT>(), probs_,
-        denoms_, out_dim_, num_elements);
+        static_cast<const ProbT* const> (denoms_), out_dim_, num_elements);
 
     // compute denominators for softmax
     denoms_handle = reduce_with_axis<red::sum, false>(
@@ -396,7 +396,7 @@ GpuCTC<ProbT>::compute_probs(const ProbT* const activations) {
 
     // Kernel launch to calculate probabilities
     hipLaunchKernelGGL(HIP_KERNEL_NAME(compute_probs_kernel<ProbT, VT>), dim3(grid_size), dim3(NT), 0, stream_, ctc_helper::exponential<ProbT>(), probs_,
-         denoms_, out_dim_, num_elements);
+        static_cast<const ProbT* const>(denoms_), out_dim_, num_elements);
 
     return CTC_STATUS_SUCCESS;
 }

@@ -1,4 +1,3 @@
-#include "hip/hip_runtime.h"
 #include <hip/hip_runtime.h>
 /*!
  * Copyright (c) 2015 by Contributors
@@ -445,9 +444,15 @@ class ProposalGPUOp : public Operator{
     dim3 dimGrid((count + kMaxThreadsPerBlock - 1) / kMaxThreadsPerBlock);
     dim3 dimBlock(kMaxThreadsPerBlock);
     CheckLaunchParam(dimGrid, dimBlock, "ProposalGrid");
-    hipLaunchKernelGGL(HIP_KERNEL_NAME(ProposalGridKernel), dim3(dimGrid), dim3(dimBlock), 0, 0,
-      count, num_anchors, height, width, param_.feature_stride,
-      scores.dptr_, workspace_proposals.dptr_);
+    hipLaunchKernelGGL(HIP_KERNEL_NAME(ProposalGridKernel), dim3(dimGrid), dim3(dimBlock), 0, 0,\
+        static_cast<const int>(count),\
+        static_cast<const int>(num_anchors),\
+        static_cast<const int>(height),\
+        static_cast<const int>(width),\
+        static_cast<const int>(param_.feature_stride),\
+        static_cast<const float*>(scores.dptr_),\
+        static_cast<float*>(workspace_proposals.dptr_));
+
     FRCNN_CUDA_CHECK(hipPeekAtLastError());
 
     // im_info is small, we want to copy them to cpu
@@ -466,14 +471,30 @@ class ProposalGPUOp : public Operator{
     CheckLaunchParam(dimGrid, dimBlock, "BBoxPred");
     if (param_.iou_loss) {
       hipLaunchKernelGGL(HIP_KERNEL_NAME(IoUPredKernel), dim3(dimGrid), dim3(dimBlock), 0, 0,
-        count, num_anchors, height, width, real_height, real_width,
-        cpu_im_info[0], cpu_im_info[1],
-        workspace_proposals.dptr_, bbox_deltas.dptr_, workspace_proposals.dptr_);
+	static_cast<const int>(count),\
+	static_cast<const int>(num_anchors),\
+	static_cast<const int>(height),\
+	static_cast<const int>(width),\
+	static_cast<const int>(real_height),\
+	static_cast<const int>(real_width),\
+	static_cast<const float>(cpu_im_info[0]),\
+	static_cast<const float>(cpu_im_info[1]),\
+	static_cast<const float*>(workspace_proposals.dptr_),\
+	static_cast<const float*>(bbox_deltas.dptr_),\
+	static_cast<float*>(workspace_proposals.dptr_));
     } else {
       hipLaunchKernelGGL(HIP_KERNEL_NAME(BBoxPredKernel), dim3(dimGrid), dim3(dimBlock), 0, 0,
-        count, num_anchors, height, width, real_height, real_width,
-        cpu_im_info[0], cpu_im_info[1],
-        workspace_proposals.dptr_, bbox_deltas.dptr_, workspace_proposals.dptr_);
+	static_cast<const int>(count),\
+	static_cast<const int>(num_anchors),\
+	static_cast<const int>(height),\
+	static_cast<const int> (width),\
+	static_cast<const int>(real_height),\
+	static_cast<const int>(real_width),\
+	static_cast<const float>(cpu_im_info[0]),\
+	static_cast<const float>(cpu_im_info[1]),\
+	static_cast<const float*>(workspace_proposals.dptr_),\
+	static_cast<const float*>(bbox_deltas.dptr_),\
+	static_cast<float*>(workspace_proposals.dptr_));
     }
     FRCNN_CUDA_CHECK(hipPeekAtLastError());
 
@@ -493,7 +514,10 @@ class ProposalGPUOp : public Operator{
 
     CheckLaunchParam(dimGrid, dimBlock, "CopyScore");
     hipLaunchKernelGGL(HIP_KERNEL_NAME(CopyScoreKernel), dim3(dimGrid), dim3(dimBlock), 0, 0,
-      count, workspace_proposals.dptr_, score.dptr_, order.dptr_);
+	static_cast<const int>(count),\
+	static_cast<const float*>(workspace_proposals.dptr_),\
+	static_cast<float*>(score.dptr_),\
+	static_cast<int*>(order.dptr_));
     FRCNN_CUDA_CHECK(hipPeekAtLastError());
 
     // argsort score, save order
@@ -514,7 +538,10 @@ class ProposalGPUOp : public Operator{
     dimGrid.x = (rpn_pre_nms_top_n + kMaxThreadsPerBlock - 1) / kMaxThreadsPerBlock;
     CheckLaunchParam(dimGrid, dimBlock, "ReorderProposals");
     hipLaunchKernelGGL(HIP_KERNEL_NAME(ReorderProposalsKernel), dim3(dimGrid), dim3(dimBlock), 0, 0,
-      rpn_pre_nms_top_n, workspace_proposals.dptr_, order.dptr_, workspace_ordered_proposals.dptr_);
+	static_cast<const int>(rpn_pre_nms_top_n),\
+	static_cast<const float*>(workspace_proposals.dptr_),\
+	static_cast<const int*>(order.dptr_),\
+	static_cast<float*>(workspace_ordered_proposals.dptr_));
     FRCNN_CUDA_CHECK(hipPeekAtLastError());
 
     FRCNN_CUDA_CHECK(hipFree(workspace_proposals_ptr));
@@ -539,8 +566,12 @@ class ProposalGPUOp : public Operator{
     dimGrid.x = (rpn_post_nms_top_n + kMaxThreadsPerBlock - 1) / kMaxThreadsPerBlock;
     CheckLaunchParam(dimGrid, dimBlock, "PrepareOutput");
     hipLaunchKernelGGL(HIP_KERNEL_NAME(PrepareOutput), dim3(dimGrid), dim3(dimBlock), 0, 0,
-      rpn_post_nms_top_n, workspace_ordered_proposals.dptr_, keep, out_size,
-      out.dptr_, out_score.dptr_);
+	static_cast<const int>(rpn_post_nms_top_n),\
+	static_cast<const float*>(workspace_ordered_proposals.dptr_),\
+	static_cast<const int*>(keep),\
+	static_cast<const int>(out_size),\
+	static_cast<float*>(out.dptr_),\
+	static_cast<float*>(out_score.dptr_));
     FRCNN_CUDA_CHECK(hipPeekAtLastError());
 
     // free temporary memory
