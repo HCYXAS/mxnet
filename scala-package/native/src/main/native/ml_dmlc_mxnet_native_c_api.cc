@@ -2304,7 +2304,7 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_mxnet_LibInfo_mxCustomOpRegister
                 mxnet::NDArray* tmp = reinterpret_cast<mxnet::NDArray*>(ptrs[0]);
                 if (tmp->ctx().dev_type == mxnet::Context::kGPU
                   || tmp->ctx().dev_type == mxnet::Context::kCPUPinned) {
-                  CUDA_CALL(cudaSetDevice(tmp->ctx().dev_id));
+                  CUDA_CALL(hipSetDevice(tmp->ctx().dev_id));
                 }
 #endif
                 bool is_train =  true;

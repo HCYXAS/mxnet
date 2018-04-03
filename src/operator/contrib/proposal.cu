@@ -1,3 +1,4 @@
+#include "hip/hip_runtime.h"
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -46,10 +47,10 @@
 #define DIVUP(m, n) ((m) / (n) + ((m) % (n) > 0))
 
 #define FRCNN_CUDA_CHECK(condition) \
-  /* Code block avoids redefinition of cudaError_t error */ \
+  /* Code block avoids redefinition of hipError_t error */ \
   do { \
-    cudaError_t error = condition; \
-    CHECK_EQ(error, cudaSuccess) << " " << cudaGetErrorString(error); \
+    hipError_t error = condition; \
+    CHECK_EQ(error, hipSuccess) << " " << hipGetErrorString(error); \
 } while (0)
 
 namespace mshadow {
@@ -67,9 +68,9 @@ __global__ void ProposalGridKernel(const int count,
                                    const int feature_stride,
                                    const Dtype* scores,
                                    Dtype* workspace_proposals) {
-  for (int index = blockIdx.x * blockDim.x + threadIdx.x;
+  for (int index = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
        index < count;
-       index += blockDim.x * gridDim.x) {
+       index += hipBlockDim_x * hipGridDim_x) {
     int a = index % num_anchors;
     int w = (index / num_anchors) % width;
     int h = index / num_anchors / width;
@@ -99,9 +100,9 @@ __global__ void BBoxPredKernel(const int count,
                                const Dtype* boxes,
                                const Dtype* deltas,
                                Dtype* out_pred_boxes) {
-  for (int index = blockIdx.x * blockDim.x + threadIdx.x;
+  for (int index = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
        index < count;
-       index += blockDim.x * gridDim.x) {
+       index += hipBlockDim_x * hipGridDim_x) {
     int a = index % num_anchors;
     int w = (index / num_anchors) % feat_width;
     int h = index / num_anchors / feat_width;
@@ -159,9 +160,9 @@ __global__ void IoUPredKernel(const int count,
                               const Dtype* boxes,
                               const Dtype* deltas,
                               Dtype* out_pred_boxes) {
-  for (int index = blockIdx.x * blockDim.x + threadIdx.x;
+  for (int index = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
        index < count;
-       index += blockDim.x * gridDim.x) {
+       index += hipBlockDim_x * hipGridDim_x) {
     int a = index % num_anchors;
     int w = (index / num_anchors) % feat_width;
     int h = index / num_anchors / feat_width;
@@ -199,9 +200,9 @@ template<typename Dtype>
 __global__ void FilterBoxKernel(const int count,
                                 const float min_size,
                                 Dtype* dets) {
-  for (int index = blockIdx.x * blockDim.x + threadIdx.x;
+  for (int index = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
        index < count;
-       index += blockDim.x * gridDim.x) {
+       index += hipBlockDim_x * hipGridDim_x) {
     float iw = dets[index * 5 + 2] - dets[index * 5 + 0] + 1.0f;
     float ih = dets[index * 5 + 3] - dets[index * 5 + 1] + 1.0f;
     if (iw < min_size || ih < min_size) {
@@ -222,9 +223,9 @@ __global__ void CopyScoreKernel(const int count,
                                 const Dtype* dets,
                                 Dtype* score,
                                 int* order) {
-  for (int index = blockIdx.x * blockDim.x + threadIdx.x;
+  for (int index = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
        index < count;
-       index += blockDim.x * gridDim.x) {
+       index += hipBlockDim_x * hipGridDim_x) {
     score[index] = dets[index * 5 + 4];
     order[index] = index;
   }
@@ -238,9 +239,9 @@ __global__ void ReorderProposalsKernel(const int count,
                                        const Dtype* prev_dets,
                                        const int* order,
                                        Dtype* dets) {
-  for (int index = blockIdx.x * blockDim.x + threadIdx.x;
+  for (int index = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
        index < count;
-       index += blockDim.x * gridDim.x) {
+       index += hipBlockDim_x * hipGridDim_x) {
     const int order_i = order[index];
     for (int j = 0; j < 5; j ++) {
       dets[index * 5 + j] = prev_dets[order_i * 5 + j];
@@ -261,8 +262,8 @@ __device__ inline float devIoU(float const * const a, float const * const b) {
 __global__ void nms_kernel(const int n_boxes, const float nms_overlap_thresh,
                            const float *dev_boxes, uint64_t *dev_mask) {
   const int threadsPerBlock = sizeof(uint64_t) * 8;
-  const int row_start = blockIdx.y;
-  const int col_start = blockIdx.x;
+  const int row_start = hipBlockIdx_y;
+  const int col_start = hipBlockIdx_x;
 
   // if (row_start > col_start) return;
 
@@ -272,28 +273,28 @@ __global__ void nms_kernel(const int n_boxes, const float nms_overlap_thresh,
         min(n_boxes - col_start * threadsPerBlock, threadsPerBlock);
 
   __shared__ float block_boxes[threadsPerBlock * 5];
-  if (threadIdx.x < col_size) {
-    block_boxes[threadIdx.x * 5 + 0] =
-        dev_boxes[(threadsPerBlock * col_start + threadIdx.x) * 5 + 0];
-    block_boxes[threadIdx.x * 5 + 1] =
-        dev_boxes[(threadsPerBlock * col_start + threadIdx.x) * 5 + 1];
-    block_boxes[threadIdx.x * 5 + 2] =
-        dev_boxes[(threadsPerBlock * col_start + threadIdx.x) * 5 + 2];
-    block_boxes[threadIdx.x * 5 + 3] =
-        dev_boxes[(threadsPerBlock * col_start + threadIdx.x) * 5 + 3];
-    block_boxes[threadIdx.x * 5 + 4] =
-        dev_boxes[(threadsPerBlock * col_start + threadIdx.x) * 5 + 4];
+  if (hipThreadIdx_x < col_size) {
+    block_boxes[hipThreadIdx_x * 5 + 0] =
+        dev_boxes[(threadsPerBlock * col_start + hipThreadIdx_x) * 5 + 0];
+    block_boxes[hipThreadIdx_x * 5 + 1] =
+        dev_boxes[(threadsPerBlock * col_start + hipThreadIdx_x) * 5 + 1];
+    block_boxes[hipThreadIdx_x * 5 + 2] =
+        dev_boxes[(threadsPerBlock * col_start + hipThreadIdx_x) * 5 + 2];
+    block_boxes[hipThreadIdx_x * 5 + 3] =
+        dev_boxes[(threadsPerBlock * col_start + hipThreadIdx_x) * 5 + 3];
+    block_boxes[hipThreadIdx_x * 5 + 4] =
+        dev_boxes[(threadsPerBlock * col_start + hipThreadIdx_x) * 5 + 4];
   }
   __syncthreads();
 
-  if (threadIdx.x < row_size) {
-    const int cur_box_idx = threadsPerBlock * row_start + threadIdx.x;
+  if (hipThreadIdx_x < row_size) {
+    const int cur_box_idx = threadsPerBlock * row_start + hipThreadIdx_x;
     const float *cur_box = dev_boxes + cur_box_idx * 5;
     int i = 0;
     uint64_t t = 0;
     int start = 0;
     if (row_start == col_start) {
-      start = threadIdx.x + 1;
+      start = hipThreadIdx_x + 1;
     }
     for (i = start; i < col_size; i++) {
       if (devIoU(cur_box, block_boxes + i * 5) > nms_overlap_thresh) {
@@ -318,22 +319,22 @@ void _nms(const mshadow::Tensor<gpu, 2>& boxes,
   uint64_t* mask_dev = NULL;
 
   const int col_blocks = DIVUP(boxes_num, threadsPerBlock);
-  FRCNN_CUDA_CHECK(cudaMalloc(&mask_dev,
+  FRCNN_CUDA_CHECK(hipMalloc(&mask_dev,
                               boxes_num * col_blocks * sizeof(uint64_t)));
 
   dim3 blocks(DIVUP(boxes_num, threadsPerBlock),
               DIVUP(boxes_num, threadsPerBlock));
   dim3 threads(threadsPerBlock);
-  nms_kernel<<<blocks, threads>>>(boxes_num,
+  hipLaunchKernelGGL(HIP_KERNEL_NAME(nms_kernel), dim3(blocks), dim3(threads), 0, 0, boxes_num,
                                   nms_overlap_thresh,
                                   boxes_dev,
                                   mask_dev);
-  FRCNN_CUDA_CHECK(cudaPeekAtLastError());
+  FRCNN_CUDA_CHECK(hipPeekAtLastError());
   std::vector<uint64_t> mask_host(boxes_num * col_blocks);
-  FRCNN_CUDA_CHECK(cudaMemcpy(&mask_host[0],
+  FRCNN_CUDA_CHECK(hipMemcpy(&mask_host[0],
                               mask_dev,
                               sizeof(uint64_t) * boxes_num * col_blocks,
-                              cudaMemcpyDeviceToHost));
+                              hipMemcpyDeviceToHost));
 
   std::vector<uint64_t> remv(col_blocks);
   memset(&remv[0], 0, sizeof(uint64_t) * col_blocks);
@@ -354,7 +355,7 @@ void _nms(const mshadow::Tensor<gpu, 2>& boxes,
   }
   *num_out = num_to_keep;
 
-  FRCNN_CUDA_CHECK(cudaFree(mask_dev));
+  FRCNN_CUDA_CHECK(hipFree(mask_dev));
 }
 
 // copy proposals to output
@@ -367,9 +368,9 @@ __global__ void PrepareOutput(const int count,
                               const int out_size,
                               Dtype* out,
                               Dtype* score) {
-  for (int index = blockIdx.x * blockDim.x + threadIdx.x;
+  for (int index = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
        index < count;
-       index += blockDim.x * gridDim.x) {
+       index += hipBlockDim_x * hipGridDim_x) {
     out[index * 5] = 0;
     if (index < out_size) {
       int keep_i = keep[index];
@@ -454,26 +455,32 @@ class ProposalGPUOp : public Operator{
 
     // Copy generated anchors to GPU
     float* workspace_proposals_ptr = NULL;
-    FRCNN_CUDA_CHECK(cudaMalloc(&workspace_proposals_ptr, sizeof(float) * count * 5));
+    FRCNN_CUDA_CHECK(hipMalloc(&workspace_proposals_ptr, sizeof(float) * count * 5));
     Tensor<xpu, 2> workspace_proposals(workspace_proposals_ptr, Shape2(count, 5));
-    FRCNN_CUDA_CHECK(cudaMemcpy(workspace_proposals.dptr_,
+    FRCNN_CUDA_CHECK(hipMemcpy(workspace_proposals.dptr_,
                                 &anchors[0], sizeof(float) * anchors.size(),
-      cudaMemcpyHostToDevice));
+      hipMemcpyHostToDevice));
 
     // Copy proposals to a mesh grid
     dim3 dimGrid((count + kMaxThreadsPerBlock - 1) / kMaxThreadsPerBlock);
     dim3 dimBlock(kMaxThreadsPerBlock);
     CheckLaunchParam(dimGrid, dimBlock, "ProposalGrid");
-    ProposalGridKernel<<<dimGrid, dimBlock>>>(
-      count, num_anchors, height, width, param_.feature_stride,
-      scores.dptr_, workspace_proposals.dptr_);
-    FRCNN_CUDA_CHECK(cudaPeekAtLastError());
+    hipLaunchKernelGGL(HIP_KERNEL_NAME(ProposalGridKernel), dim3(dimGrid), dim3(dimBlock), 0, 0,\
+        static_cast<const int>(count),\
+        static_cast<const int>(num_anchors),\
+        static_cast<const int>(height),\
+        static_cast<const int>(width),\
+        static_cast<const int>(param_.feature_stride),\
+        static_cast<const float*>(scores.dptr_),\
+        static_cast<float*>(workspace_proposals.dptr_));
+
+    FRCNN_CUDA_CHECK(hipPeekAtLastError());
 
     // im_info is small, we want to copy them to cpu
     std::vector<float> cpu_im_info(3);
-    FRCNN_CUDA_CHECK(cudaMemcpy(&cpu_im_info[0], im_info.dptr_,
+    FRCNN_CUDA_CHECK(hipMemcpy(&cpu_im_info[0], im_info.dptr_,
                                 sizeof(float) * cpu_im_info.size(),
-                                cudaMemcpyDeviceToHost));
+                                hipMemcpyDeviceToHost));
 
     // prevent padded predictions
     int real_height = static_cast<int>(cpu_im_info[0] / param_.feature_stride);
@@ -484,36 +491,55 @@ class ProposalGPUOp : public Operator{
     // Transform anchors and bbox_deltas into bboxes
     CheckLaunchParam(dimGrid, dimBlock, "BBoxPred");
     if (param_.iou_loss) {
-      IoUPredKernel<<<dimGrid, dimBlock>>>(
-        count, num_anchors, height, width, real_height, real_width,
-        cpu_im_info[0], cpu_im_info[1],
-        workspace_proposals.dptr_, bbox_deltas.dptr_, workspace_proposals.dptr_);
+      hipLaunchKernelGGL(HIP_KERNEL_NAME(IoUPredKernel), dim3(dimGrid), dim3(dimBlock), 0, 0,
+	static_cast<const int>(count),\
+	static_cast<const int>(num_anchors),\
+	static_cast<const int>(height),\
+	static_cast<const int>(width),\
+	static_cast<const int>(real_height),\
+	static_cast<const int>(real_width),\
+	static_cast<const float>(cpu_im_info[0]),\
+	static_cast<const float>(cpu_im_info[1]),\
+	static_cast<const float*>(workspace_proposals.dptr_),\
+	static_cast<const float*>(bbox_deltas.dptr_),\
+	static_cast<float*>(workspace_proposals.dptr_));
     } else {
-      BBoxPredKernel<<<dimGrid, dimBlock>>>(
-        count, num_anchors, height, width, real_height, real_width,
-        cpu_im_info[0], cpu_im_info[1],
-        workspace_proposals.dptr_, bbox_deltas.dptr_, workspace_proposals.dptr_);
+      hipLaunchKernelGGL(HIP_KERNEL_NAME(BBoxPredKernel), dim3(dimGrid), dim3(dimBlock), 0, 0,
+	static_cast<const int>(count),\
+	static_cast<const int>(num_anchors),\
+	static_cast<const int>(height),\
+	static_cast<const int> (width),\
+	static_cast<const int>(real_height),\
+	static_cast<const int>(real_width),\
+	static_cast<const float>(cpu_im_info[0]),\
+	static_cast<const float>(cpu_im_info[1]),\
+	static_cast<const float*>(workspace_proposals.dptr_),\
+	static_cast<const float*>(bbox_deltas.dptr_),\
+	static_cast<float*>(workspace_proposals.dptr_));
     }
-    FRCNN_CUDA_CHECK(cudaPeekAtLastError());
+    FRCNN_CUDA_CHECK(hipPeekAtLastError());
 
     // filter boxes with less than rpn_min_size
     CheckLaunchParam(dimGrid, dimBlock, "FilterBox");
-    FilterBoxKernel<<<dimGrid, dimBlock>>>(
+    hipLaunchKernelGGL(HIP_KERNEL_NAME(FilterBoxKernel), dim3(dimGrid), dim3(dimBlock), 0, 0,
       count, param_.rpn_min_size * cpu_im_info[2], workspace_proposals.dptr_);
-    FRCNN_CUDA_CHECK(cudaPeekAtLastError());
+    FRCNN_CUDA_CHECK(hipPeekAtLastError());
 
     // Copy score to a continuous memory
     float* score_ptr = NULL;
-    FRCNN_CUDA_CHECK(cudaMalloc(&score_ptr, sizeof(float) * count));
+    FRCNN_CUDA_CHECK(hipMalloc(&score_ptr, sizeof(float) * count));
     Tensor<xpu, 1> score(score_ptr, Shape1(count));
     int* order_ptr = NULL;
-    FRCNN_CUDA_CHECK(cudaMalloc(&order_ptr, sizeof(int) * count));
+    FRCNN_CUDA_CHECK(hipMalloc(&order_ptr, sizeof(int) * count));
     Tensor<xpu, 1, int> order(order_ptr, Shape1(count));
 
     CheckLaunchParam(dimGrid, dimBlock, "CopyScore");
-    CopyScoreKernel<<<dimGrid, dimBlock>>>(
-      count, workspace_proposals.dptr_, score.dptr_, order.dptr_);
-    FRCNN_CUDA_CHECK(cudaPeekAtLastError());
+    hipLaunchKernelGGL(HIP_KERNEL_NAME(CopyScoreKernel), dim3(dimGrid), dim3(dimBlock), 0, 0,
+	static_cast<const int>(count),\
+	static_cast<const float*>(workspace_proposals.dptr_),\
+	static_cast<float*>(score.dptr_),\
+	static_cast<int*>(order.dptr_));
+    FRCNN_CUDA_CHECK(hipPeekAtLastError());
 
     // argsort score, save order
     thrust::stable_sort_by_key(thrust::device,
@@ -521,24 +547,27 @@ class ProposalGPUOp : public Operator{
                                score.dptr_ + score.size(0),
                                order.dptr_,
                                thrust::greater<real_t>());
-    FRCNN_CUDA_CHECK(cudaPeekAtLastError());
+    FRCNN_CUDA_CHECK(hipPeekAtLastError());
 
     // Reorder proposals according to order
     float* workspace_ordered_proposals_ptr = NULL;
-    FRCNN_CUDA_CHECK(cudaMalloc(&workspace_ordered_proposals_ptr,
+    FRCNN_CUDA_CHECK(hipMalloc(&workspace_ordered_proposals_ptr,
                                 sizeof(float) * rpn_pre_nms_top_n * 5));
     Tensor<xpu, 2> workspace_ordered_proposals(workspace_ordered_proposals_ptr,
                                                Shape2(rpn_pre_nms_top_n, 5));
 
     dimGrid.x = (rpn_pre_nms_top_n + kMaxThreadsPerBlock - 1) / kMaxThreadsPerBlock;
     CheckLaunchParam(dimGrid, dimBlock, "ReorderProposals");
-    ReorderProposalsKernel<<<dimGrid, dimBlock>>>(
-      rpn_pre_nms_top_n, workspace_proposals.dptr_, order.dptr_, workspace_ordered_proposals.dptr_);
-    FRCNN_CUDA_CHECK(cudaPeekAtLastError());
+    hipLaunchKernelGGL(HIP_KERNEL_NAME(ReorderProposalsKernel), dim3(dimGrid), dim3(dimBlock), 0, 0,
+	static_cast<const int>(rpn_pre_nms_top_n),\
+	static_cast<const float*>(workspace_proposals.dptr_),\
+	static_cast<const int*>(order.dptr_),\
+	static_cast<float*>(workspace_ordered_proposals.dptr_));
+    FRCNN_CUDA_CHECK(hipPeekAtLastError());
 
-    FRCNN_CUDA_CHECK(cudaFree(workspace_proposals_ptr));
-    FRCNN_CUDA_CHECK(cudaFree(score_ptr));
-    FRCNN_CUDA_CHECK(cudaFree(order_ptr));
+    FRCNN_CUDA_CHECK(hipFree(workspace_proposals_ptr));
+    FRCNN_CUDA_CHECK(hipFree(score_ptr));
+    FRCNN_CUDA_CHECK(hipFree(order_ptr));
 
     // perform nms
     std::vector<int> _keep(workspace_ordered_proposals.size(0));
@@ -551,21 +580,25 @@ class ProposalGPUOp : public Operator{
 
     // copy nms result to gpu
     int* keep;
-    FRCNN_CUDA_CHECK(cudaMalloc(&keep, sizeof(int) * _keep.size()));
-    FRCNN_CUDA_CHECK(cudaMemcpy(keep, &_keep[0], sizeof(int) * _keep.size(),
-                                cudaMemcpyHostToDevice));
+    FRCNN_CUDA_CHECK(hipMalloc(&keep, sizeof(int) * _keep.size()));
+    FRCNN_CUDA_CHECK(hipMemcpy(keep, &_keep[0], sizeof(int) * _keep.size(),
+                                hipMemcpyHostToDevice));
 
     // copy results after nms
     dimGrid.x = (param_.rpn_post_nms_top_n + kMaxThreadsPerBlock - 1) / kMaxThreadsPerBlock;
     CheckLaunchParam(dimGrid, dimBlock, "PrepareOutput");
-    PrepareOutput<<<dimGrid, dimBlock>>>(
-      param_.rpn_post_nms_top_n, workspace_ordered_proposals.dptr_, keep, out_size,
-      out.dptr_, out_score.dptr_);
-    FRCNN_CUDA_CHECK(cudaPeekAtLastError());
+    hipLaunchKernelGGL(HIP_KERNEL_NAME(PrepareOutput), dim3(dimGrid), dim3(dimBlock), 0, 0,
+	static_cast<const int>(rpn_post_nms_top_n),\
+	static_cast<const float*>(workspace_ordered_proposals.dptr_),\
+	static_cast<const int*>(keep),\
+	static_cast<const int>(out_size),\
+	static_cast<float*>(out.dptr_),\
+	static_cast<float*>(out_score.dptr_));
+    FRCNN_CUDA_CHECK(hipPeekAtLastError());
 
     // free temporary memory
-    FRCNN_CUDA_CHECK(cudaFree(keep));
-    FRCNN_CUDA_CHECK(cudaFree(workspace_ordered_proposals_ptr));
+    FRCNN_CUDA_CHECK(hipFree(keep));
+    FRCNN_CUDA_CHECK(hipFree(workspace_ordered_proposals_ptr));
   }
 
   virtual void Backward(const OpContext &ctx,

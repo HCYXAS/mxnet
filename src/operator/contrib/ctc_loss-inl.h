@@ -43,7 +43,7 @@
 #include "../mshadow_op.h"
 #include "../nn/sequence_mask-inl.h"
 
-#if defined(__CUDACC__) && MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 7
+#if defined(__HIPCC__) && MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 7
 #define CUDNN_LABEL_LENGTH_LIMIT 256
 #include "../nn/softmax-inl.h"
 #endif  // CUDNN
@@ -152,7 +152,7 @@ inline bool LabelTensorToPackedVector(mshadow::Tensor<xpu, 2, DType> labels,
     auto start = cpu_labels.data()+b*max_num_labels;
     auto res = std::find(start, start+max_num_labels, padding_mask);
     int len = std::distance(start, res);
-#if defined(__CUDACC__) && MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 7
+#if defined(__HIPCC__) && MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 7
     exceed_limit = exceed_limit || len > CUDNN_LABEL_LENGTH_LIMIT;
 #endif
     std::copy(start, start + len,
@@ -184,7 +184,7 @@ inline bool PackLabelByLength(mshadow::Tensor<xpu, 2, DType> labels,
   for (int b = 0; b < batch; ++b) {
     auto start = cpu_labels.data()+b*max_num_labels;
     int len = label_lengths->at(b);
-#if defined(__CUDACC__) && MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 7
+#if defined(__HIPCC__) && MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 7
     exceed_limit = exceed_limit || len > CUDNN_LABEL_LENGTH_LIMIT;
 #endif
     std::copy(start, start + len,
@@ -229,7 +229,7 @@ class CTCLossOp : public Operator {
   explicit CTCLossOp(CTCLossParam p) {
     this->param_ = p;
     exceed_cudnn_limit = false;
-#if defined(__CUDACC__) && MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 7
+#if defined(__HIPCC__) && MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 7
     CUDNN_CALL(cudnnCreateCTCLossDescriptor(&ctc_desc_));
     CUDNN_CALL(cudnnSetCTCLossDescriptor(ctc_desc_, CUDNN_DATA_FLOAT));
     CUDNN_CALL(cudnnCreateTensorDescriptor(&prob_desc_));
@@ -238,7 +238,7 @@ class CTCLossOp : public Operator {
   }
 
   ~CTCLossOp() {
-#if defined(__CUDACC__) && MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 7
+#if defined(__HIPCC__) && MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 7
     CUDNN_CALL(cudnnDestroyCTCLossDescriptor(ctc_desc_));
     CUDNN_CALL(cudnnDestroyTensorDescriptor(prob_desc_));
     CUDNN_CALL(cudnnDestroyTensorDescriptor(grad_desc_));
@@ -291,7 +291,7 @@ class CTCLossOp : public Operator {
     }
 
 // CUDNN is disabled due to lack of support for input lengths
-/* #if defined(__CUDACC__) && MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 7 */
+/* #if defined(__HIPCC__) && MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 7 */
 /*     if (!exceed_cudnn_limit) { */
 /*       cudnn_forward(ctx, s, data, costs, grad, */
 /*                     &data_lengths, &label_lengths, &packed_labels, */
@@ -346,7 +346,7 @@ class CTCLossOp : public Operator {
   CTCLossParam param_;
   bool exceed_cudnn_limit;
 
-#if defined(__CUDACC__) && MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 7
+#if defined(__HIPCC__) && MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 7
   cudnnDataType_t dtype_;
   cudnnCTCLossDescriptor_t ctc_desc_;
   cudnnTensorDescriptor_t prob_desc_, grad_desc_;
@@ -431,7 +431,7 @@ class CTCLossOp : public Operator {
       Assign(grad, mxnet::kWriteInplace, grad * alphabet_size);
     }
   }
-#endif  // __CUDACC__ && CUDNN
+#endif  // __HIPCC__ && CUDNN
 
   inline virtual void baidu_forward(const OpContext &ctx,
                                     mshadow::Stream<xpu>* s,

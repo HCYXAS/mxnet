@@ -871,7 +871,7 @@ class CuDNNConvolutionOp {
   bool cudnn_tensor_core_;
   ConvolutionParam param_;
 };
-#endif  // __CUDACC__ && CUDNN
+#endif  // __HIPCC__ && CUDNN
 }  // namespace op
 }  // namespace mxnet
 

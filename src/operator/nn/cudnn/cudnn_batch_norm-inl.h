@@ -41,7 +41,7 @@ enum CuDNNBatchNormOpOutputs {kOut, kMean, kInvVar};
 enum CuDNNBatchNormOpAuxiliary {kMovingMean, kMovingInvVar};
 }  // namespace cudnnbatchnorm
 
-#if defined(__CUDACC__)
+#if defined(__HIPCC__)
 template<typename DType>
 class CuDNNBatchNormOp {
  public:
@@ -299,7 +299,7 @@ class CuDNNBatchNormOp {
   mshadow::Shape<4> shape_;
   BatchNormParam param_;
 };
-#endif  // defined(__CUDACC__)
+#endif  // defined(__HIPCC__)
 
 #endif  // MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 4
 }  // namespace op

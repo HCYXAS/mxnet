@@ -1,3 +1,4 @@
+#include "hip/hip_runtime.h"
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -652,8 +653,8 @@ inline void DotCsrDnsRspImpl(const OpContext& ctx,
                                         num_cols_l,
                                         mshadow::Stream<gpu>::GetStream(s));
           dim_t nnr_out = 0;
-          CUDA_CALL(cudaMemcpy(&nnr_out, &row_flg_out[num_cols_l-1], sizeof(dim_t),
-                               cudaMemcpyDeviceToHost));
+          CUDA_CALL(hipMemcpy(&nnr_out, &row_flg_out[num_cols_l-1], sizeof(dim_t),
+                               hipMemcpyDeviceToHost));
           if (0 == nnr_out) {
             FillZerosRspImpl(s, *ret);
             return;
@@ -778,8 +779,8 @@ inline void DotCsrRspRspImpl(const OpContext& ctx,
                                           num_cols_l,
                                           mshadow::Stream<gpu>::GetStream(s));
             dim_t nnr_out = 0;
-            CUDA_CALL(cudaMemcpy(&nnr_out, &row_flg_out[num_cols_l-1], sizeof(dim_t),
-                                 cudaMemcpyDeviceToHost));
+            CUDA_CALL(hipMemcpy(&nnr_out, &row_flg_out[num_cols_l-1], sizeof(dim_t),
+                                 hipMemcpyDeviceToHost));
             if (0 == nnr_out) {
               FillZerosRspImpl(s, *ret);
               return;

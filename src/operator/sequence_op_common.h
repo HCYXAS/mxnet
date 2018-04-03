@@ -41,10 +41,10 @@ inline IndexTensorToVector(mshadow::Tensor<gpu, 1, DType> data,
   size_t const max_seq_len = data.shape_.Size();
   DType *temp_index =
       reinterpret_cast<DType *>(malloc(sizeof(DType) * max_seq_len));
-  cudaError_t cuda_status =
-      cudaMemcpyAsync(temp_index, data.dptr_, max_seq_len * sizeof(DType),
-                      cudaMemcpyDeviceToHost, data.stream_->stream_);
-  CHECK_EQ(cuda_status, cudaSuccess) << "cuda memcpy label error";
+  hipError_t cuda_status =
+      hipMemcpyAsync(temp_index, data.dptr_, max_seq_len * sizeof(DType),
+                      hipMemcpyDeviceToHost, data.stream_->stream_);
+  CHECK_EQ(cuda_status, hipSuccess) << "cuda memcpy label error";
   for (size_t i = 0; i < max_seq_len; ++i) {
     (*index_vec)[i] = static_cast<RType>(std::lround(temp_index[i]));
   }

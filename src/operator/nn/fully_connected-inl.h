@@ -74,10 +74,10 @@ void FCForward(const OpContext &ctx, const FullyConnectedParam &param,
   // maybe need blas handle from context
   // TODO(bing): judge shape to remove flatten op
   Stream<xpu> *s = ctx.get_stream<xpu>();
-#if defined(__CUDACC__)
+#if defined(__HIPCC__)
   CHECK_EQ(s->blas_handle_ownership_, Stream<xpu>::OwnHandle)
       << "Must init CuBLAS handle in stream";
-#endif  // __CUDACC__
+#endif  // __HIPCC__
   const TShape& ishape = in_data[fullc::kData].shape_;
   const TShape& oshape = out_data[fullc::kOut].shape_;
 
@@ -143,7 +143,7 @@ void FCBackward(const OpContext &ctx, const FullyConnectedParam &param,
         Shape2(ishape[0], ishape.ProdShape(1, ishape.ndim())), s);
   }
 
-#if defined(__CUDACC__)
+#if defined(__HIPCC__)
   CHECK_EQ(s->blas_handle_ownership_, Stream<xpu>::OwnHandle)
       << "Must init CuBLAS handle in stream";
 #endif

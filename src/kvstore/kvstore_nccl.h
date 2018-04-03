@@ -70,7 +70,7 @@ class KVStoreNCCL : public KVStoreLocal {
 
   virtual ~KVStoreNCCL() {
     for (auto e : nccl_data_) {
-      cudaStreamDestroy(e.second.stream);
+      hipStreamDestroy(e.second.stream);
       ncclCommDestroy(e.second.comm);
     }
   }
@@ -425,8 +425,8 @@ class KVStoreNCCL : public KVStoreLocal {
     }
     Engine::Get()->PushSync([this](RunContext rctx) {
         for (auto cur : nccl_data_) {
-          CUDA_CALL(cudaSetDevice(cur.second.dev_id));
-          CUDA_CALL(cudaStreamSynchronize(cur.second.stream));
+          CUDA_CALL(hipSetDevice(cur.second.dev_id));
+          CUDA_CALL(hipStreamSynchronize(cur.second.stream));
         }
       },
       Context::CPU(),
@@ -480,8 +480,8 @@ class KVStoreNCCL : public KVStoreLocal {
       e.dev_id = device_ids_[i];
       e.comm = comms[i];
       e.rank = i;
-      cudaSetDevice(e.dev_id);
-      cudaStreamCreate(&(e.stream));
+      hipSetDevice(e.dev_id);
+      hipStreamCreate(&(e.stream));
       nccl_data_[device_ids_[i]] = e;
     }
   }
@@ -535,7 +535,7 @@ class KVStoreNCCL : public KVStoreLocal {
     /// \brief NCCL rank
     int rank;
     /// \brief GPU stream to use with NCCL
-    cudaStream_t stream;
+    hipStream_t stream;
   };
   std::unordered_map<int, BufferEntry> merge_buf_;
   std::unordered_map<int, NCCLEntry> nccl_data_;

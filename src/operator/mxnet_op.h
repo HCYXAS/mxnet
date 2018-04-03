@@ -1,3 +1,4 @@
+#include "hip/hip_runtime.h"
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -34,16 +35,16 @@
 #include "./operator_tune.h"
 #include "../engine/openmp.h"
 
-#ifdef __CUDACC__
+#ifdef __HIPCC__
 #include "../common/cuda_utils.h"
-#endif  // __CUDACC__
+#endif  // __HIPCC__
 
 namespace mxnet {
 namespace op {
 namespace mxnet_op {
 using namespace mshadow;
 
-#ifdef __CUDA_ARCH__
+#if __HIP_DEVICE_COMPILE__
 __constant__ const float PI = 3.14159265358979323846;
 #else
 const float PI = 3.14159265358979323846;
@@ -53,17 +54,17 @@ using std::isnan;
 template<typename xpu>
 int get_num_threads(const int N);
 
-#ifdef __CUDACC__
+#ifdef __HIPCC__
 #define CUDA_KERNEL_LOOP(i, n) \
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; \
       i < (n); \
       i += blockDim.x * gridDim.x)
 
-inline cudaDeviceProp cuda_get_device_prop() {
+inline hipDeviceProp_t cuda_get_device_prop() {
   int device;
-  CUDA_CALL(cudaGetDevice(&device));
-  cudaDeviceProp deviceProp;
-  CUDA_CALL(cudaGetDeviceProperties(&deviceProp, device));
+  CUDA_CALL(hipGetDevice(&device));
+  hipDeviceProp_t deviceProp;
+  CUDA_CALL(hipGetDeviceProperties(&deviceProp, device));
   return deviceProp;
 }
 
@@ -81,7 +82,7 @@ inline int get_num_threads<gpu>(const int N) {
   return kBaseThreadNum * cuda_get_num_blocks(N);
 }
 
-#endif  // __CUDACC__
+#endif  // __HIPCC__
 
 template<>
 inline int get_num_threads<cpu>(const int N) {
@@ -548,17 +549,17 @@ struct Kernel<OP, cpu> {
 
 
 
-#ifdef __CUDACC__
+#ifdef __HIPCC__
 template<typename OP, typename ...Args>
 __global__ void mxnet_generic_kernel(int N, Args... args) {
-  for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < N; i += blockDim.x * gridDim.x) {
+  for (int i = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x; i < N; i += hipBlockDim_x * hipGridDim_x) {
     OP::Map(i, args...);
   }
 }
 
 template<typename OP, typename ...Args>
 __global__ void mxnet_generic_kernel_ex(int N, Args... args) {
-  for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < N; i += blockDim.x * gridDim.x) {
+  for (int i = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x; i < N; i += blockDim.x * hipGridDim_x) {
     OP::Map(i, 1, args...);
   }
 }
@@ -570,8 +571,7 @@ struct Kernel<OP, gpu> {
   inline static void Launch(mshadow::Stream<gpu> *s, int N, Args... args) {
     using namespace mshadow::cuda;
     int ngrid = std::min(kMaxGridNum, (N + kBaseThreadNum - 1) / kBaseThreadNum);
-    mxnet_generic_kernel<OP, Args...>
-      <<<ngrid, kBaseThreadNum, 0, mshadow::Stream<gpu>::GetStream(s)>>>(
+    hipLaunchKernelGGL(HIP_KERNEL_NAME(mxnet_generic_kernel<OP, Args...>), dim3(ngrid), dim3(kBaseThreadNum), 0, mshadow::Stream<gpu>::GetStream(s),
         N, args...);
     MSHADOW_CUDA_POST_KERNEL_CHECK(mxnet_generic_kernel);
   }
@@ -580,13 +580,12 @@ struct Kernel<OP, gpu> {
   inline static void LaunchEx(mshadow::Stream<gpu> *s, const int N, Args... args) {
     using namespace mshadow::cuda;
     int ngrid = std::min(kMaxGridNum, (N + kBaseThreadNum - 1) / kBaseThreadNum);
-    mxnet_generic_kernel_ex<OP, Args...>
-      <<<ngrid, kBaseThreadNum, 0, mshadow::Stream<gpu>::GetStream(s)>>>(
+    hipLaunchKernelGGL(HIP_KERNEL_NAME(mxnet_generic_kernel_ex<OP, Args...>), dim3(ngrid), dim3(kBaseThreadNum), 0, mshadow::Stream<gpu>::GetStream(s),
         N, args...);
     MSHADOW_CUDA_POST_KERNEL_CHECK(mxnet_generic_kernel_ex);
   }
 };
-#endif  // __CUDACC__
+#endif  // __HIPCC__
 
 /*!
  * \brief Set to immediate scalar value kernel

@@ -1,3 +1,4 @@
+#include "hip/hip_runtime.h"
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -227,7 +228,7 @@ __global__ __launch_bounds__(1024, 2) void DepthwiseConv2dKernelSmall(
   const int in_slices = in_channel * args.batch;
   const int in_blocks = (in_slices + kBlockSlices - 1) / kBlockSlices;
 
-  const int thread_width = threadIdx.x;
+  const int thread_width = hipThreadIdx_x;
   const int thread_height = threadIdx.y;
   const int thread_channel = threadIdx.z;
 
@@ -262,7 +263,7 @@ __global__ __launch_bounds__(1024, 2) void DepthwiseConv2dKernelSmall(
      filter_pixels * filter_channel : filter_pixels * (filter_channel + 1));
   const bool skip_second = !kEvenHeight && thread_height + (in_height & 1) == block_height;
 
-  for (int b = blockIdx.x; b < in_blocks; b += gridDim.x) {
+  for (int b = hipBlockIdx_x; b < in_blocks; b += hipGridDim_x) {
     const int slice = b * kBlockSlices;
 
     const int inout_offset = slice * in_pixels + tensor_idx;
@@ -494,7 +495,7 @@ __launch_bounds__(1024, 2) void DepthwiseConv2dBackwardFilterKernelSmall(
   DType* const shared_data = reinterpret_cast<DType*>(shared_memory);
 
   const int in_height = args.in_height;
-  const int in_width = blockDim.x;  // slower (see b/62280718): args.in_width;
+  const int in_width = hipBlockDim_x;  // slower (see b/62280718): args.in_width;
   const int in_channel = args.in_channel;
   const int filter_height = kFilterHeight > 0 ? kFilterHeight : args.filter_height;
   const int filter_width = kFilterWidth > 0 ? kFilterWidth : args.filter_width;
@@ -525,7 +526,7 @@ __launch_bounds__(1024, 2) void DepthwiseConv2dBackwardFilterKernelSmall(
   const int accum_increment = kAccumPixels * kBlockSlices;
   const int accum_size = filter_pixels * accum_increment;
 
-  const int thread_width = threadIdx.x;
+  const int thread_width = hipThreadIdx_x;
   const int thread_height = threadIdx.y;
   const int thread_channel = threadIdx.z;
 
@@ -557,7 +558,7 @@ __launch_bounds__(1024, 2) void DepthwiseConv2dBackwardFilterKernelSmall(
   const int accum_offset = tile_size + accum_idx;
   const bool skip_second = block_height + thread_height >= in_height;
 
-  for (int b = blockIdx.x; b < in_blocks; b += gridDim.x) {
+  for (int b = hipBlockIdx_x; b < in_blocks; b += hipGridDim_x) {
     const int slice = b * kBlockSlices;
 
     const int inout_offset = slice * in_pixels + tensor_idx;
@@ -680,11 +681,9 @@ void LaunchDepthwiseConv2dGPUSmall(mshadow::Stream<mxnet::gpu> *stream,
                              (unsigned)mshadow::cuda::kMaxGridNum);
   auto s = mshadow::Stream<mxnet::gpu>::GetStream(stream);
   if (args.filter_height == 3 && args.filter_width == 3) {
-    cuda::DepthwiseConv2dKernelSmall<DType, kDirection, kBlockSlices, kEvenHeight, 3, 3>
-        <<<block_count, block_dim, shared_memory_size, s>>>(args, input, filter, output);
+    hipLaunchKernelGGL(HIP_KERNEL_NAME(cuda::DepthwiseConv2dKernelSmall<DType, kDirection, kBlockSlices, kEvenHeight, 3, 3>), dim3(block_count), dim3(block_dim), shared_memory_size, s, args, input, filter, output);
   } else {
-    cuda::DepthwiseConv2dKernelSmall<DType, kDirection, kBlockSlices, kEvenHeight, -1, -1>
-        <<<block_count, block_dim, shared_memory_size, s>>>(args, input, filter, output);
+    hipLaunchKernelGGL(HIP_KERNEL_NAME(cuda::DepthwiseConv2dKernelSmall<DType, kDirection, kBlockSlices, kEvenHeight, -1, -1>), dim3(block_count), dim3(block_dim), shared_memory_size, s, args, input, filter, output);
   }
   MSHADOW_CUDA_POST_KERNEL_CHECK(DepthwiseConv2dKernelSmall);
 }
@@ -741,12 +740,10 @@ bool TryLaunchDepthwiseConv2dBackwardFilterGPUSmall(mshadow::Stream<mxnet::gpu> 
   int block_count = num_out_grad/(block_dim.x * block_dim.y * block_dim.z) + 1;
   auto s = mshadow::Stream<mxnet::gpu>::GetStream(stream);
   if (args.filter_height == 3 && args.filter_width == 3) {
-    cuda::DepthwiseConv2dBackwardFilterKernelSmall<DType, kBlockSlices, kAccumPixels, 3, 3>
-        <<<block_count, block_dim, shared_memory_size, s>>>(
+    hipLaunchKernelGGL(HIP_KERNEL_NAME(cuda::DepthwiseConv2dBackwardFilterKernelSmall<DType, kBlockSlices, kAccumPixels, 3, 3>), dim3(block_count), dim3(block_dim), shared_memory_size, s,
             args, out_grad, input, filter_grad);
   } else {
-    cuda::DepthwiseConv2dBackwardFilterKernelSmall<DType, kBlockSlices, kAccumPixels, -1, -1>
-        <<<block_count, block_dim, shared_memory_size, s>>>(
+    hipLaunchKernelGGL(HIP_KERNEL_NAME(cuda::DepthwiseConv2dBackwardFilterKernelSmall<DType, kBlockSlices, kAccumPixels, -1, -1>), dim3(block_count), dim3(block_dim), shared_memory_size, s,:
             args, out_grad, input, filter_grad);
   }
   MSHADOW_CUDA_POST_KERNEL_CHECK(DepthwiseConv2dBackwardFilterKernelSmall);

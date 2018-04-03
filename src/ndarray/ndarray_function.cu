@@ -87,7 +87,7 @@ void Copy<gpu, gpu>(const TBlob &from, TBlob *to,
       << "Source and target must have the same data type when copying across devices.";
     mshadow::Stream<gpu> *s = ctx.get_stream<gpu>();
     CHECK(s != NULL) << "need stream in GPU context";
-    cudaMemcpyPeerAsync(to->dptr_,
+    hipMemcpyPeerAsync(to->dptr_,
                         to_ctx.dev_id,
                         from.dptr_,
                         from_ctx.dev_id,
@@ -159,8 +159,8 @@ void ElementwiseSumRspImpl(mshadow::Stream<gpu>* s,
                                     mshadow::Stream<gpu>::GetStream(s));
       // Get total number of output non-zero rows from GPU and allocate out data and row_idx
       dim_t nnr_out = 0;
-      CUDA_CALL(cudaMemcpy(&nnr_out, &row_flg[num_rows-1], sizeof(dim_t),
-                           cudaMemcpyDeviceToHost));
+      CUDA_CALL(hipMemcpy(&nnr_out, &row_flg[num_rows-1], sizeof(dim_t),
+                           hipMemcpyDeviceToHost));
       out->CheckAndAlloc({mshadow::Shape1(nnr_out)});
       IType* out_row_idx = out->aux_data(kIdx).dptr<IType>();
       DType* out_data = out->data().dptr<DType>();

@@ -162,7 +162,7 @@ class WarpCTCOp : public Operator {
     }
 
 #if MXNET_USE_CUDA
-    cudaError_t cuda_status;
+    hipError_t cuda_status;
 #endif
     float* activations = static_cast<float*>(data.dptr_);
     int* flat_labels = static_cast<int*>(label.dptr_);
@@ -171,11 +171,11 @@ class WarpCTCOp : public Operator {
     if (data.dev_mask() == gpu::kDevMask) {
 #if MXNET_USE_CUDA
       cpu_raw_labels = reinterpret_cast<int*>(malloc(sizeof(int) * label.Size()));
-      cuda_status = cudaMemcpyAsync(cpu_raw_labels, flat_labels,
+      cuda_status = hipMemcpyAsync(cpu_raw_labels, flat_labels,
                                     label.Size()*sizeof(int),
-                                    cudaMemcpyDeviceToHost,
+                                    hipMemcpyDeviceToHost,
                                     ctx.get_stream<gpu>()->stream_);
-      CHECK_EQ(cuda_status, cudaSuccess) << "cuda memcpy label error";
+      CHECK_EQ(cuda_status, hipSuccess) << "cuda memcpy label error";
 #endif
     }
 

@@ -160,8 +160,8 @@ void SparseEmbeddingOpForwardRspImpl<gpu>(const OpContext& ctx,
     int32_t* is_valid_ptr = reinterpret_cast<int32_t*>(workspace.dptr_);
     Kernel<set_zero, gpu>::Launch(s, 1, is_valid_ptr);
     Kernel<is_valid_check, gpu>::Launch(s, data_size, is_valid_ptr, data_ptr, min, max);
-    CUDA_CALL(cudaMemcpy(&is_valid, is_valid_ptr, sizeof(int32_t),
-              cudaMemcpyDeviceToHost));
+    CUDA_CALL(hipMemcpy(&is_valid, is_valid_ptr, sizeof(int32_t),
+              hipMemcpyDeviceToHost));
   })
   CHECK_EQ(is_valid, 0) << "SparseEmbedding input contains data out of bound";
   // the weight is actually dense
@@ -245,8 +245,8 @@ void SparseEmbeddingDeterministicKernelLaunch(const OpContext& ctx,
       grad_row_idx, grad_row_idx + data_size, data_size, Stream<gpu>::GetStream(s));
 
   dim_t nnr = 0;
-  CUDA_CALL(cudaMemcpy(&nnr, grad_row_idx + data_size, sizeof(RType),
-      cudaMemcpyDeviceToHost));
+  CUDA_CALL(hipMemcpy(&nnr, grad_row_idx + data_size, sizeof(RType),
+      hipMemcpyDeviceToHost));
   CHECK_EQ(output.shape().ndim(), 2) << "Unexcepted ndim";
   output.CheckAndAllocData(Shape2(nnr, output.shape()[1]));
   output.set_aux_shape(kIdx, Shape1(nnr));
@@ -348,8 +348,8 @@ inline void SparseEmbeddingOpBackwardRspImpl<gpu>(const SparseEmbeddingParam& pa
                                       num_rows,
                                       mshadow::Stream<gpu>::GetStream(s));
         dim_t nnr = 0;
-        CUDA_CALL(cudaMemcpy(&nnr, &prefix_sum[num_rows-1], sizeof(dim_t),
-            cudaMemcpyDeviceToHost));
+        CUDA_CALL(hipMemcpy(&nnr, &prefix_sum[num_rows-1], sizeof(dim_t),
+            hipMemcpyDeviceToHost));
         if (nnr == 0) {
           FillZerosRspImpl(s, output);
           return;

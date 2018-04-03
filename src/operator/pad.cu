@@ -1,3 +1,4 @@
+#include "hip/hip_runtime.h"
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -41,9 +42,9 @@ template <int n_bits, typename DType>
 __global__ void image_2d_pad_edge_kernel(Tensor<gpu, 4, DType> dst,
                                          const Tensor<gpu, 4, DType> src,
                                          const int padT, const int padL) {
-  int outputPointId = threadIdx.x + blockIdx.x * blockDim.x;
-  int plane = blockIdx.y;
-  int batch = blockIdx.z;
+  int outputPointId = hipThreadIdx_x + hipBlockIdx_x * hipBlockDim_x;
+  int plane = hipBlockIdx_y;
+  int batch = hipBlockIdx_z;
   if (outputPointId >= dst.size(2) * dst.size(3)) {
     return;
   }
@@ -74,10 +75,11 @@ inline void image_pad_edge(Tensor<gpu, 4, DType> dst,
   int xGridSize = (dst.size(2) * dst.size(3) + 256 - 1) / 256;
   dim3 dimGrid(xGridSize, dst.size(1), dst.size(0));
   CheckLaunchParam(dimGrid, dimBlock, "Pad");
-  cudaStream_t stream = Stream<gpu>::GetStream(dst.stream_);
-  image_2d_pad_edge_kernel<kBaseThreadBits,
+  hipStream_t stream = Stream<gpu>::GetStream(dst.stream_);
+  /*image_2d_pad_edge_kernel<kBaseThreadBits,
                            DType><<<dimGrid, dimBlock, 0, stream>>>(dst, src,
-                                                                    padT, padL);
+                                                                    padT, padL);*/
+  hipLaunchKernelGGL(HIP_KERNEL_NAME(image_2d_pad_edge_kernel<kBaseThreadBits,DType>), dim3(dimGrid), dim3(dimBlock), 0, stream,dst, src,padT, padL);
   MSHADOW_CUDA_POST_KERNEL_CHECK(image_2d_pad_edge_kernel);
 }
 
@@ -85,9 +87,9 @@ template <int n_bits, typename DType>
 __global__ void image_2d_pad_edge_grad_kernel(
     Tensor<gpu, 4, DType> grad_in, const Tensor<gpu, 4, DType> grad_out,
     const int padT, const int padL) {
-  int outputPointId = threadIdx.x + blockIdx.x * blockDim.x;
-  int plane = blockIdx.y;
-  int batch = blockIdx.z;
+  int outputPointId = hipThreadIdx_x  + hipBlockIdx_x * hipBlockDim_x;
+  int plane = hipBlockIdx_y;
+  int batch = hipBlockIdx_z;
   if (outputPointId >= grad_out.size(2) * grad_out.size(3)) {
     return;
   }
@@ -116,10 +118,11 @@ inline void image_pad_edge_grad(Tensor<gpu, 4, DType> grad_in,
   int xGridSize = (grad_out.size(2) * grad_out.size(3) + 256 - 1) / 256;
   dim3 dimGrid(xGridSize, grad_out.size(1), grad_out.size(0));
   CheckLaunchParam(dimGrid, dimBlock, "Pad");
-  cudaStream_t stream = Stream<gpu>::GetStream(grad_out.stream_);
-  image_2d_pad_edge_grad_kernel<kBaseThreadBits,
+  hipStream_t stream = Stream<gpu>::GetStream(grad_out.stream_);
+ /*image_2d_pad_edge_grad_kernel<kBaseThreadBits,
                                 DType><<<dimGrid, dimBlock, 0, stream>>>(
-      grad_in, grad_out, padT, padL);
+      grad_in, grad_out, padT, padL);*/
+  hipLaunchKernelGGL(HIP_KERNEL_NAME(image_2d_pad_edge_grad_kernel<kBaseThreadBits,DType>), dim3(dimGrid), dim3(dimBlock), 0, stream,grad_in, grad_out,padT, padL);
   MSHADOW_CUDA_POST_KERNEL_CHECK(image_2d_pad_edge_grad_kernel);
 }
 
@@ -129,7 +132,7 @@ __global__ void image_2d_pad_constant_kernel(Tensor<gpu, 4, DType> dst,
                                              const Tensor<gpu, 4, DType> src,
                                              const int padT, const int padL,
                                              const DType constant) {
-  int outputPointId = threadIdx.x + blockIdx.x * blockDim.x;
+  int outputPointId = hipThreadIdx_x  + hipBlockIdx_x * hipBlockDim_x;
   if (outputPointId >= dst.size(2) * dst.size(3)) {
     return;
   }
@@ -137,8 +140,8 @@ __global__ void image_2d_pad_constant_kernel(Tensor<gpu, 4, DType> dst,
   int Ny = src.size(2);
   int Nx = src.size(3);
 
-  int plane = blockIdx.y;
-  int batch = blockIdx.z;
+  int plane = hipBlockIdx_y;
+  int batch = hipBlockIdx_z;
   int outputPointX = outputPointId % dst.size(3);
   int outputPointY = outputPointId / dst.size(3);
   int checkT = max(0, outputPointY - padT + 1);
@@ -164,10 +167,11 @@ inline void image_pad_constant(Tensor<gpu, 4, DType> dst,
   int xGridSize = (dst.size(2) * dst.size(3) + 256 - 1) / 256;
   dim3 dimGrid(xGridSize, dst.size(1), dst.size(0));
   CheckLaunchParam(dimGrid, dimBlock, "Pad");
-  cudaStream_t stream = Stream<gpu>::GetStream(dst.stream_);
-  image_2d_pad_constant_kernel<kBaseThreadBits,
+  hipStream_t stream = Stream<gpu>::GetStream(dst.stream_);
+  /*image_2d_pad_constant_kernel<kBaseThreadBits,
                                DType><<<dimGrid, dimBlock, 0, stream>>>(
-      dst, src, padT, padL, constant);
+      dst, src, padT, padL, constant);*/
+  hipLaunchKernelGGL(HIP_KERNEL_NAME(image_2d_pad_constant_kernel<kBaseThreadBits,DType>), dim3(dimGrid), dim3(dimBlock), 0, stream,dst, src,padT, padL,constant);
   MSHADOW_CUDA_POST_KERNEL_CHECK(image_2d_pad_constant_kernel);
 }
 
@@ -175,9 +179,9 @@ template <int n_bits, typename DType>
 __global__ void image_2d_pad_constant_grad_kernel(
     Tensor<gpu, 4, DType> grad_in, const Tensor<gpu, 4, DType> grad_out,
     const int padT, const int padL) {
-  int inPointId = threadIdx.x + blockIdx.x * blockDim.x;
-  int plane = blockIdx.y;
-  int batch = blockIdx.z;
+  int inPointId = hipThreadIdx_x  + hipBlockIdx_x * hipBlockDim_x;
+  int plane = hipBlockIdx_y;
+  int batch = hipBlockIdx_z;
   int pixel_num = grad_in.size(2) * grad_in.size(3);
   if (inPointId >= pixel_num) {
     return;
@@ -201,10 +205,11 @@ inline void image_pad_constant_grad(Tensor<gpu, 4, DType> grad_in,
   int xGridSize = (grad_in.size(2) * grad_in.size(3) + 256 - 1) / 256;
   dim3 dimGrid(xGridSize, grad_in.size(1), grad_in.size(0));
   CheckLaunchParam(dimGrid, dimBlock, "Pad");
-  cudaStream_t stream = Stream<gpu>::GetStream(grad_in.stream_);
-  image_2d_pad_constant_grad_kernel<kBaseThreadBits,
+  hipStream_t stream = Stream<gpu>::GetStream(grad_in.stream_);
+  /*image_2d_pad_constant_grad_kernel<kBaseThreadBits,
                                     DType><<<dimGrid, dimBlock, 0, stream>>>(
-      grad_in, grad_out, padT, padL);
+      grad_in, grad_out, padT, padL);*/
+  hipLaunchKernelGGL(HIP_KERNEL_NAME(image_2d_pad_constant_grad_kernel<kBaseThreadBits,DType>), dim3(dimGrid), dim3(dimBlock), 0, stream,grad_in, grad_out,padT, padL);
   MSHADOW_CUDA_POST_KERNEL_CHECK(image_2d_pad_constant_grad_kernel);
 }
 
@@ -217,7 +222,7 @@ template <int n_bits, typename DType>
 __global__ void image_2d_pad_reflect_kernel(Tensor<gpu, 4, DType> dst,
                                          const Tensor<gpu, 4, DType> src,
                                          const int padT, const int padL) {
-  int outputPointId = threadIdx.x + blockIdx.x * blockDim.x;
+  int outputPointId = hipThreadIdx_x + hipBlockIdx_x * hipBlockDim_x;
   int plane = blockIdx.y;
   int batch = blockIdx.z;
   if (outputPointId >= dst.size(2) * dst.size(3)) {
@@ -257,7 +262,7 @@ inline void image_pad_reflect(Tensor<gpu, 4, DType> dst,
   int xGridSize = (dst.size(2) * dst.size(3) + 256 - 1) / 256;
   dim3 dimGrid(xGridSize, dst.size(1), dst.size(0));
   CheckLaunchParam(dimGrid, dimBlock, "Pad");
-  cudaStream_t stream = Stream<gpu>::GetStream(dst.stream_);
+  hipStream_t stream = Stream<gpu>::GetStream(dst.stream_);
   image_2d_pad_reflect_kernel<kBaseThreadBits,
                            DType><<<dimGrid, dimBlock, 0, stream>>>(dst, src,
                                                                     padT, padL);
@@ -268,7 +273,7 @@ template <int n_bits, typename DType>
 __global__ void image_2d_pad_reflect_grad_kernel(
     Tensor<gpu, 4, DType> grad_in, const Tensor<gpu, 4, DType> grad_out,
     const int padT, const int padL) {
-  int outputPointId = threadIdx.x + blockIdx.x * blockDim.x;
+  int outputPointId = hipThreadIdx_x + hipBlockIdx_x * hipBlockDim_x;
   int plane = blockIdx.y;
   int batch = blockIdx.z;
   if (outputPointId >= grad_out.size(2) * grad_out.size(3)) {
@@ -308,7 +313,7 @@ inline void image_pad_reflect_grad(Tensor<gpu, 4, DType> grad_in,
   int xGridSize = (grad_out.size(2) * grad_out.size(3) + 256 - 1) / 256;
   dim3 dimGrid(xGridSize, grad_out.size(1), grad_out.size(0));
   CheckLaunchParam(dimGrid, dimBlock, "Pad");
-  cudaStream_t stream = Stream<gpu>::GetStream(grad_out.stream_);
+  hipStream_t stream = Stream<gpu>::GetStream(grad_out.stream_);
   image_2d_pad_reflect_grad_kernel<kBaseThreadBits,
                                 DType><<<dimGrid, dimBlock, 0, stream>>>(
       grad_in, grad_out, padT, padL);
@@ -328,9 +333,9 @@ __global__ void image_3d_pad_edge_kernel(Tensor<gpu, 5, DType> dst,
                                          const Tensor<gpu, 5, DType> src,
                                          const int padF, const int padT,
                                          const int padL) {
-  int outputPointId = threadIdx.x + blockIdx.x * blockDim.x;
-  int plane = blockIdx.y;
-  int batch = blockIdx.z;
+  int outputPointId = hipThreadIdx_x  + hipBlockIdx_x* hipBlockDim_x;
+  int plane = hipBlockIdx_y;
+  int batch = hipBlockIdx_z;
   if (outputPointId >= dst.size(2) * dst.size(3) * dst.size(4)) {
     return;
   }
@@ -367,10 +372,11 @@ inline void image_pad_edge(Tensor<gpu, 5, DType> dst,
   int xGridSize = (dst.size(2) * dst.size(3) * dst.size(4) + 256 - 1) / 256;
   dim3 dimGrid(xGridSize, dst.size(1), dst.size(0));
   CheckLaunchParam(dimGrid, dimBlock, "Pad");
-  cudaStream_t stream = Stream<gpu>::GetStream(dst.stream_);
-  image_3d_pad_edge_kernel<kBaseThreadBits,
+  hipStream_t stream = Stream<gpu>::GetStream(dst.stream_);
+  /*image_3d_pad_edge_kernel<kBaseThreadBits,
                            DType><<<dimGrid, dimBlock, 0, stream>>>(
-      dst, src, padF, padT, padL);
+      dst, src, padF, padT, padL);*/
+  hipLaunchKernelGGL(HIP_KERNEL_NAME(image_3d_pad_edge_kernel<kBaseThreadBits,DType>), dim3(dimGrid), dim3(dimBlock), 0, stream,dst,src,padF,padT, padL);
   MSHADOW_CUDA_POST_KERNEL_CHECK(image_3d_pad_edge_kernel);
 }
 
@@ -378,9 +384,9 @@ template <int n_bits, typename DType>
 __global__ void image_3d_pad_edge_grad_kernel(
     Tensor<gpu, 5, DType> grad_in, const Tensor<gpu, 5, DType> grad_out,
     const int padF, const int padT, const int padL) {
-  int outputPointId = threadIdx.x + blockIdx.x * blockDim.x;
-  int plane = blockIdx.y;
-  int batch = blockIdx.z;
+  int outputPointId = hipThreadIdx_x  + hipBlockIdx_x * hipBlockDim_x;
+  int plane = hipBlockIdx_y;
+  int batch = hipBlockIdx_z;
   if (outputPointId >= grad_out.size(2) * grad_out.size(3) * grad_out.size(4)) {
     return;
   }
@@ -419,10 +425,11 @@ inline void image_pad_edge_grad(Tensor<gpu, 5, DType> grad_in,
       (grad_out.size(2) * grad_out.size(3) * grad_out.size(4) + 256 - 1) / 256;
   dim3 dimGrid(xGridSize, grad_out.size(1), grad_out.size(0));
   CheckLaunchParam(dimGrid, dimBlock, "Pad");
-  cudaStream_t stream = Stream<gpu>::GetStream(grad_out.stream_);
-  image_3d_pad_edge_grad_kernel<kBaseThreadBits,
+  hipStream_t stream = Stream<gpu>::GetStream(grad_out.stream_);
+  /*image_3d_pad_edge_grad_kernel<kBaseThreadBits,
                                 DType><<<dimGrid, dimBlock, 0, stream>>>(
-      grad_in, grad_out, padF, padT, padL);
+      grad_in, grad_out, padF, padT, padL);*/
+  hipLaunchKernelGGL(HIP_KERNEL_NAME(image_3d_pad_edge_grad_kernel<kBaseThreadBits,DType>), dim3(dimGrid), dim3(dimBlock), 0, stream,grad_in, grad_out,padF,padT, padL);
   MSHADOW_CUDA_POST_KERNEL_CHECK(image_3d_pad_edge_grad_kernel);
 }
 
@@ -433,7 +440,7 @@ __global__ void image_3d_pad_constant_kernel(Tensor<gpu, 5, DType> dst,
                                              const int padF, const int padT,
                                              const int padL,
                                              const DType constant) {
-  int outputPointId = threadIdx.x + blockIdx.x * blockDim.x;
+  int outputPointId = hipThreadIdx_x + hipBlockIdx_x * hipBlockDim_x;
   if (outputPointId >= dst.size(2) * dst.size(3) * dst.size(4)) {
     return;
   }
@@ -442,8 +449,8 @@ __global__ void image_3d_pad_constant_kernel(Tensor<gpu, 5, DType> dst,
   int Ny = src.size(3);
   int Nx = src.size(4);
 
-  int plane = blockIdx.y;
-  int batch = blockIdx.z;
+  int plane = hipBlockIdx_y;
+  int batch = hipBlockIdx_z;
   int outputPointX = outputPointId % dst.size(4);
   int outputPointY = (outputPointId / dst.size(4)) % dst.size(3);
   int outputPointZ = outputPointId / (dst.size(3) * dst.size(4));
@@ -477,10 +484,11 @@ inline void image_pad_constant(Tensor<gpu, 5, DType> dst,
   int xGridSize = (dst.size(2) * dst.size(3) * dst.size(4) + 256 - 1) / 256;
   dim3 dimGrid(xGridSize, dst.size(1), dst.size(0));
   CheckLaunchParam(dimGrid, dimBlock, "Pad");
-  cudaStream_t stream = Stream<gpu>::GetStream(dst.stream_);
-  image_3d_pad_constant_kernel<kBaseThreadBits,
+  hipStream_t stream = Stream<gpu>::GetStream(dst.stream_);
+  /*image_3d_pad_constant_kernel<kBaseThreadBits,
                                DType><<<dimGrid, dimBlock, 0, stream>>>(
-      dst, src, padF, padT, padL, constant);
+      dst, src, padF, padT, padL, constant);*/
+  hipLaunchKernelGGL(HIP_KERNEL_NAME(image_3d_pad_constant_kernel<kBaseThreadBits,DType>), dim3(dimGrid), dim3(dimBlock), 0, stream,dst, src,padF,padT, padL,constant);
   MSHADOW_CUDA_POST_KERNEL_CHECK(image_3d_pad_constant_kernel);
 }
 
@@ -488,9 +496,9 @@ template <int n_bits, typename DType>
 __global__ void image_3d_pad_constant_grad_kernel(
     Tensor<gpu, 5, DType> grad_in, const Tensor<gpu, 5, DType> grad_out,
     const int padF, const int padT, const int padL) {
-  int inPointId = threadIdx.x + blockIdx.x * blockDim.x;
-  int plane = blockIdx.y;
-  int batch = blockIdx.z;
+  int inPointId = hipThreadIdx_x  + hipBlockIdx_x * hipBlockDim_x;
+  int plane = hipBlockIdx_y;
+  int batch = hipBlockIdx_z;
   int pixel_num = grad_in.size(2) * grad_in.size(3) * grad_in.size(4);
   if (inPointId >= pixel_num) {
     return;
@@ -520,10 +528,11 @@ inline void image_pad_constant_grad(Tensor<gpu, 5, DType> grad_in,
       (grad_in.size(2) * grad_in.size(3) * grad_in.size(4) + 256 - 1) / 256;
   dim3 dimGrid(xGridSize, grad_in.size(1), grad_in.size(0));
   CheckLaunchParam(dimGrid, dimBlock, "Pad");
-  cudaStream_t stream = Stream<gpu>::GetStream(grad_in.stream_);
-  image_3d_pad_constant_grad_kernel<kBaseThreadBits,
+  hipStream_t stream = Stream<gpu>::GetStream(grad_in.stream_);
+  /*image_3d_pad_constant_grad_kernel<kBaseThreadBits,
                                     DType><<<dimGrid, dimBlock, 0, stream>>>(
-      grad_in, grad_out, padF, padT, padL);
+      grad_in, grad_out, padF, padT, padL);*/
+  hipLaunchKernelGGL(HIP_KERNEL_NAME(image_3d_pad_constant_grad_kernel<kBaseThreadBits,DType>), dim3(dimGrid), dim3(dimBlock), 0, stream,grad_in, grad_out,padF,padT, padL);
   MSHADOW_CUDA_POST_KERNEL_CHECK(image_3d_pad_constant_grad_kernel);
 }
 
@@ -534,9 +543,9 @@ __global__ void image_3d_pad_reflect_kernel(Tensor<gpu, 5, DType> dst,
                                          const Tensor<gpu, 5, DType> src,
                                          const int padF, const int padT,
                                          const int padL) {
-  int outputPointId = threadIdx.x + blockIdx.x * blockDim.x;
-  int plane = blockIdx.y;
-  int batch = blockIdx.z;
+  int outputPointId = hipThreadIdx_x + hipBlockIdx_x * hipBlockDim_x;
+  int plane = hipBlockIdx_y;
+  int batch = hipBlockIdx_z;
   if (outputPointId >= dst.size(2) * dst.size(3) * dst.size(4)) {
     return;
   }
@@ -584,7 +593,7 @@ inline void image_pad_reflect(Tensor<gpu, 5, DType> dst,
   int xGridSize = (dst.size(2) * dst.size(3) * dst.size(4) + 256 - 1) / 256;
   dim3 dimGrid(xGridSize, dst.size(1), dst.size(0));
   CheckLaunchParam(dimGrid, dimBlock, "Pad");
-  cudaStream_t stream = Stream<gpu>::GetStream(dst.stream_);
+  hipStream_t stream = Stream<gpu>::GetStream(dst.stream_);
   image_3d_pad_reflect_kernel<kBaseThreadBits,
                            DType><<<dimGrid, dimBlock, 0, stream>>>(
       dst, src, padF, padT, padL);
@@ -595,9 +604,9 @@ template <int n_bits, typename DType>
 __global__ void image_3d_pad_reflect_grad_kernel(
     Tensor<gpu, 5, DType> grad_in, const Tensor<gpu, 5, DType> grad_out,
     const int padF, const int padT, const int padL) {
-  int outputPointId = threadIdx.x + blockIdx.x * blockDim.x;
-  int plane = blockIdx.y;
-  int batch = blockIdx.z;
+  int outputPointId = hipThreadIdx_x + hipBlockIdx_x * hipBlockDim_x;
+  int plane = hipBlockIdx_y;
+  int batch = hipBlockIdx_z;
   if (outputPointId >= grad_out.size(2) * grad_out.size(3) * grad_out.size(4)) {
     return;
   }
@@ -636,7 +645,7 @@ __global__ void image_3d_pad_reflect_grad_kernel(
             valueToCopy);
 }
 
-/*  int outputPointId = threadIdx.x + blockIdx.x * blockDim.x;
+/*  int outputPointId = hipThreadIdx_x + hipBlockIdx_x * hipBlockDim_x;
   int plane = blockIdx.y;
   int batch = blockIdx.z;
   if (outputPointId >= grad_out.size(2) * grad_out.size(3)) {
@@ -677,7 +686,7 @@ inline void image_pad_reflect_grad(Tensor<gpu, 5, DType> grad_in,
       (grad_out.size(2) * grad_out.size(3) * grad_out.size(4) + 256 - 1) / 256;
   dim3 dimGrid(xGridSize, grad_out.size(1), grad_out.size(0));
   CheckLaunchParam(dimGrid, dimBlock, "Pad");
-  cudaStream_t stream = Stream<gpu>::GetStream(grad_out.stream_);
+  hipStream_t stream = Stream<gpu>::GetStream(grad_out.stream_);
   image_3d_pad_reflect_grad_kernel<kBaseThreadBits,
                                 DType><<<dimGrid, dimBlock, 0, stream>>>(
       grad_in, grad_out, padF, padT, padL);

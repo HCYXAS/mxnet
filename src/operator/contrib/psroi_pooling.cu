@@ -1,3 +1,4 @@
+#include "hip/hip_runtime.h"
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -34,10 +35,10 @@
 #include "../mxnet_op.h"
 
 #define PSROIPOOLING_CUDA_CHECK(condition) \
-  /* Code block avoids redefinition of cudaError_t error */ \
+  /* Code block avoids redefinition of hipError_t error */ \
   do { \
-    cudaError_t error = condition; \
-    CHECK_EQ(error, cudaSuccess) << " " << cudaGetErrorString(error); \
+    hipError_t error = condition; \
+    CHECK_EQ(error, hipSuccess) << " " << hipGetErrorString(error); \
   } while (0)
 #define CUDA_KERNEL_LOOP(i, n) \
 for (int i = blockIdx.x * blockDim.x + threadIdx.x; \
@@ -133,12 +134,12 @@ inline void PSROIPoolForward(const Tensor<gpu, 4, DType> &out,
   const int width = data.size(3);
   const int pooled_height = out.size(2);
   const int pooled_width = out.size(3);
-  cudaStream_t stream = Stream<gpu>::GetStream(out.stream_);
+  hipStream_t stream = Stream<gpu>::GetStream(out.stream_);
   PSROIPoolForwardKernel<DType> << <mxnet::op::mxnet_op::cuda_get_num_blocks(count),
     kBaseThreadNum, 0, stream >> >(
       count, bottom_data, spatial_scale, channels, height, width,
       pooled_height, pooled_width, bottom_rois, output_dim_, group_size_, top_data);
-  PSROIPOOLING_CUDA_CHECK(cudaPeekAtLastError());
+  PSROIPOOLING_CUDA_CHECK(hipPeekAtLastError());
 }
 
 
@@ -230,12 +231,12 @@ inline void PSROIPoolBackwardAcc(const Tensor<gpu, 4, DType> &in_grad,
   const int width = in_grad.size(3);
   const int pooled_height = out_grad.size(2);
   const int pooled_width = out_grad.size(3);
-  cudaStream_t stream = Stream<gpu>::GetStream(in_grad.stream_);
+  hipStream_t stream = Stream<gpu>::GetStream(in_grad.stream_);
   PSROIPoolBackwardAccKernel<DType> << <mxnet::op::mxnet_op::cuda_get_num_blocks(count),
     kBaseThreadNum, 0, stream >> >(
       count, top_diff, num_rois, spatial_scale, channels, height, width,
       pooled_height, pooled_width, group_size_, output_dim_, bottom_diff, bottom_rois);
-  PSROIPOOLING_CUDA_CHECK(cudaPeekAtLastError());
+  PSROIPOOLING_CUDA_CHECK(hipPeekAtLastError());
 }
 
 }  // namespace cuda

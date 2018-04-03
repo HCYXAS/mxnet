@@ -610,13 +610,13 @@ class CommDevice : public Comm {
     int enabled = 0;
     std::vector<int> p2p(n*n);
     for (int i = 0; i < n; ++i) {
-      cudaSetDevice(gpus[i]);
+      hipSetDevice(gpus[i]);
       for (int j = 0; j < n; j++) {
         int access;
-        cudaDeviceCanAccessPeer(&access, gpus[i], gpus[j]);
+        hipDeviceCanAccessPeer(&access, gpus[i], gpus[j]);
         if (access) {
-          cudaError_t e = cudaDeviceEnablePeerAccess(gpus[j], 0);
-          if (e == cudaSuccess || e == cudaErrorPeerAccessAlreadyEnabled) {
+          hipError_t e = hipDeviceEnablePeerAccess(gpus[j], 0);
+          if (e == hipSuccess || e == hipErrorPeerAccessAlreadyEnabled) {
             ++enabled;
             p2p[i*n+j] = 1;
           }

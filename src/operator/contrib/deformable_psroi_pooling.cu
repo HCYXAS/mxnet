@@ -1,3 +1,4 @@
+#include "hip/hip_runtime.h"
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -33,10 +34,10 @@
 #include "../mxnet_op.h"
 
 #define DeformablePSROIPOOLING_CUDA_CHECK(condition) \
-  /* Code block avoids redefinition of cudaError_t error */ \
+  /* Code block avoids redefinition of hipError_t error */ \
   do { \
-    cudaError_t error = condition; \
-    CHECK_EQ(error, cudaSuccess) << " " << cudaGetErrorString(error); \
+    hipError_t error = condition; \
+    CHECK_EQ(error, hipSuccess) << " " << hipGetErrorString(error); \
   } while (0)
 #define CUDA_KERNEL_LOOP(i, n) \
 for (int i = blockIdx.x * blockDim.x + threadIdx.x; \
@@ -189,13 +190,13 @@ namespace cuda {
     const int num_classes = no_trans ? 1 : trans.size(1) / 2;
     const int channels_each_class = no_trans ? output_dim : output_dim / num_classes;
 
-    cudaStream_t stream = Stream<gpu>::GetStream(out.stream_);
+    hipStream_t stream = Stream<gpu>::GetStream(out.stream_);
     DeformablePSROIPoolForwardKernel<DType> << <mxnet::op::mxnet_op::cuda_get_num_blocks(count),
       kBaseThreadNum, 0, stream >> >(
       count, bottom_data, spatial_scale, channels, height, width, pooled_height, pooled_width,
       bottom_rois, bottom_trans, no_trans, trans_std, sample_per_part, output_dim,
       group_size, part_size, num_classes, channels_each_class, top_data, top_count_data);
-    DeformablePSROIPOOLING_CUDA_CHECK(cudaPeekAtLastError());
+    DeformablePSROIPOOLING_CUDA_CHECK(hipPeekAtLastError());
   }
 
 
@@ -364,14 +365,14 @@ namespace cuda {
     const int num_classes = no_trans ? 1 : trans_grad.size(1) / 2;
     const int channels_each_class = no_trans ? output_dim : output_dim / num_classes;
 
-    cudaStream_t stream = Stream<gpu>::GetStream(in_grad.stream_);
+    hipStream_t stream = Stream<gpu>::GetStream(in_grad.stream_);
     DeformablePSROIPoolBackwardAccKernel<DType> << <mxnet::op::mxnet_op::cuda_get_num_blocks(count),
       kBaseThreadNum, 0, stream >> >(
       count, top_diff, top_count_data, num_rois, spatial_scale, channels, height, width,
       pooled_height, pooled_width, output_dim, bottom_data_diff, bottom_trans_diff,
       bottom_data, bottom_rois, bottom_trans, no_trans, trans_std, sample_per_part,
       group_size, part_size, num_classes, channels_each_class);
-    DeformablePSROIPOOLING_CUDA_CHECK(cudaPeekAtLastError());
+    DeformablePSROIPOOLING_CUDA_CHECK(hipPeekAtLastError());
   }
 
 }  // namespace cuda

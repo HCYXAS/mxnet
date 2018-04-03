@@ -1,3 +1,4 @@
+#include "hip/hip_runtime.h"
 #pragma once
 
 #include "../contrib/moderngpu/include/device/ctascan.cuh"
@@ -23,7 +24,7 @@ struct CTASegReduce {
                                           int seg_end[VT], int *scanout) {
         __shared__ Storage shared;
 
-        const int tid = threadIdx.x;
+        const int tid = hipThreadIdx_x;
         // Compare adjacent keys within each thread and mark discontinuities
         int endFlags = 0;
         T key = keys[VT * tid];
@@ -95,12 +96,12 @@ void compute_alpha_kernel (const ProbT* log_probs, const int *label_sizes,
 
     ctc_helper::log_plus<ProbT> log_plus_f;
 
-    const int tid = threadIdx.x;
-    const int L = label_sizes[blockIdx.x];
-    const int T = utt_length[blockIdx.x];
+    const int tid = hipThreadIdx_x;
+    const int L = label_sizes[hipBlockIdx_x];
+    const int T = utt_length[hipBlockIdx_x];
     const int S = 2*L + 1;
-    const int prob_offset = out_dim * blockIdx.x;
-    const int repeats = repeats_in_labels[blockIdx.x];
+    const int prob_offset = out_dim * hipBlockIdx_x;
+    const int repeats = repeats_in_labels[hipBlockIdx_x];
 
     const int NV = NT * VT;
     __shared__ int label[NV];
@@ -110,26 +111,26 @@ void compute_alpha_kernel (const ProbT* log_probs, const int *label_sizes,
 
     // Generate labels with blanks from labels without blanks
     {
-        const int label_start_offset = label_offsets[blockIdx.x];
-        for (int idx = tid; idx < L; idx += blockDim.x) {
-            const int offset = (blockIdx.x * S_memoffset) + 2 * idx;
+        const int label_start_offset = label_offsets[hipBlockIdx_x];
+        for (int idx = tid; idx < L; idx += hipBlockDim_x) {
+            const int offset = (hipBlockIdx_x * S_memoffset) + 2 * idx;
             labels_with_blanks[offset] = blank_label;
             labels_with_blanks[offset+1] = labels_without_blanks[label_start_offset + idx];
         }
         if (tid == 0) {
-            labels_with_blanks[(blockIdx.x * S_memoffset) + 2 * L] = blank_label;
+            labels_with_blanks[(hipBlockIdx_x * S_memoffset) + 2 * L] = blank_label;
         }
     }
     __syncthreads();
 
     const int *labels = labels_with_blanks;
-    const int* label_global = &labels[blockIdx.x * S_memoffset];
-    ProbT* alpha = &alphas[blockIdx.x * (S_memoffset * T_memoffset)];
+    const int* label_global = &labels[hipBlockIdx_x * S_memoffset];
+    ProbT* alpha = &alphas[hipBlockIdx_x * (S_memoffset * T_memoffset)];
 
     // Set the first row of alpha neg_inf - it is much more efficient to do it
     // here than outside
     #pragma unroll
-    for (int idx = tid; idx < min(S, NV); idx += blockDim.x) {
+    for (int idx = tid; idx < min(S, NV); idx += hipBlockDim_x) {
         alpha[idx] = ctc_helper::neg_inf<ProbT>();
     }
 
@@ -145,7 +146,7 @@ void compute_alpha_kernel (const ProbT* log_probs, const int *label_sizes,
     int end = S > 1 ? 2 : 1;
 
     // Initialize the first row corresponding to t=0;
-    for(int i = tid; i < (end-start); i += blockDim.x)
+    for(int i = tid; i < (end-start); i += hipBlockDim_x)
         alpha[i + start] = log_probs[prob_offset + label[i + start]];
 
     __syncthreads();
@@ -179,7 +180,7 @@ void compute_alpha_kernel (const ProbT* log_probs, const int *label_sizes,
         // row above depending on whether we have a blank or repeated characters. Finally
         // we add the probability corresponding to this label at time t
         #pragma unroll
-        for (int idx = (tid+1); idx < S; idx += blockDim.x) {
+        for (int idx = (tid+1); idx < S; idx += hipBlockDim_x) {
 
             ProbT prev_sum = log_plus_f(alpha[idx + start_prev_row], alpha[(idx-1) + start_prev_row]);
 
@@ -208,7 +209,7 @@ void compute_alpha_kernel (const ProbT* log_probs, const int *label_sizes,
         for(int i = start; i < end; ++i)
             loglike = log_plus_f(loglike, alpha[i + (T - 1) * S]);
 
-        nll_forward[blockIdx.x] = -loglike;
+        nll_forward[hipBlockIdx_x] = -loglike;
     }
 }
 
@@ -227,17 +228,17 @@ void compute_betas_and_grad_kernel (const ProbT* log_probs, const int *label_siz
     ctc_helper::log_plus<ProbT> log_plus_f;
     typedef CTASegReduce<NT, VT, ProbT, int, ctc_helper::log_plus<ProbT>> SegReduce;
 
-    const int tid = threadIdx.x;
-    const int L = label_sizes[blockIdx.x];
-    const int T = utt_length[blockIdx.x];
+    const int tid = hipThreadIdx_x;
+    const int L = label_sizes[hipBlockIdx_x];
+    const int T = utt_length[hipBlockIdx_x];
     const int S = 2*L + 1;
-    const int prob_offset = out_dim * blockIdx.x;
-    const int repeats = repeats_in_labels[blockIdx.x];
-    const ProbT log_partition = -nll_forward[blockIdx.x];
+    const int prob_offset = out_dim * hipBlockIdx_x;
+    const int repeats = repeats_in_labels[hipBlockIdx_x];
+    const ProbT log_partition = -nll_forward[hipBlockIdx_x];
 
     const int* labels = labels_with_blanks;
-    const int* label_global = &labels[blockIdx.x * S_memoffset];
-    ProbT* alpha = &alphas[blockIdx.x * (S_memoffset * T_memoffset)];
+    const int* label_global = &labels[hipBlockIdx_x * S_memoffset];
+    ProbT* alpha = &alphas[hipBlockIdx_x * (S_memoffset * T_memoffset)];
 
     const int NV = NT * VT;
 
@@ -319,7 +320,7 @@ void compute_betas_and_grad_kernel (const ProbT* log_probs, const int *label_siz
     __syncthreads();
 
     // Initialize the two rightmost values in the last row (assuming L non-zero)
-    for(int i = tid; i < (end-start); i += blockDim.x)
+    for(int i = tid; i < (end-start); i += hipBlockDim_x)
         temp_buffer.beta[i + start] =
             log_probs[prob_offset + (T - 1) * (out_dim * stride) + label[i + start]];
 
@@ -392,7 +393,7 @@ void compute_betas_and_grad_kernel (const ProbT* log_probs, const int *label_siz
             // Somewhat faster key value reduce
             ProbT accum[VT];
 
-            for (int idx = tid, j = 0; idx < uniquelabels; idx += blockDim.x, ++j) {
+            for (int idx = tid, j = 0; idx < uniquelabels; idx += hipBlockDim_x, ++j) {
 
                 accum[j] = ctc_helper::neg_inf<ProbT>();
                 for (int i = seg_start[j]; i <= seg_end[j]; ++i) {
@@ -402,19 +403,19 @@ void compute_betas_and_grad_kernel (const ProbT* log_probs, const int *label_siz
             __syncthreads();
 
             // Write accumulated value into output since that is not used
-            for (int idx = tid, j = 0; idx < uniquelabels; idx += blockDim.x, ++j) {
+            for (int idx = tid, j = 0; idx < uniquelabels; idx += hipBlockDim_x, ++j) {
                 output[idx] = accum[j];
             }
             __syncthreads();
 
-            for (int idx = tid; idx < out_dim; idx += blockDim.x) {
+            for (int idx = tid; idx < out_dim; idx += hipBlockDim_x) {
                 const int grads_offset = prob_offset + start_prob_col + idx;
                 grads[grads_offset] = exp(log_probs[grads_offset]);
             }
 
             __syncthreads();
 
-            for (int idx = tid; idx < uniquelabels; idx += blockDim.x) {
+            for (int idx = tid; idx < uniquelabels; idx += hipBlockDim_x) {
                 const int grads_offset = prob_offset + start_prob_col + keys_shared[idx];
 
                 ProbT grad = output[idx];
@@ -443,7 +444,7 @@ void compute_betas_and_grad_kernel (const ProbT* log_probs, const int *label_siz
             for(int i = start; i < end; ++i)
                 loglike = log_plus_f(loglike, temp_buffer.beta[i]);
 
-            nll_backward[blockIdx.x] = -loglike;
+            nll_backward[hipBlockIdx_x] = -loglike;
         }
 
         // For some reason this is important
@@ -457,8 +458,8 @@ __global__ void compute_log_probs_kernel(Op f, ProbT* log_probs,
                                      int alphabet_size,
                                      int count) {
 
-    int idx = blockDim.x * blockIdx.x + threadIdx.x;
-    int stride = blockDim.x * gridDim.x;
+    int idx = hipBlockDim_x * hipBlockIdx_x + hipThreadIdx_x;
+    int stride = hipBlockDim_x * hipGridDim_x;
 #pragma unroll
     for(int i = 0; i < VT; i++) {
         if (idx < count) {
@@ -475,8 +476,8 @@ __global__ void prepare_stable_LSM_kernel(Op f, ProbT* log_probs,
                                          int alphabet_size,
                                          int count) {
 
-    int idx = blockDim.x * blockIdx.x + threadIdx.x;
-    int stride = blockDim.x * gridDim.x;
+    int idx = hipBlockDim_x * hipBlockIdx_x + hipThreadIdx_x;
+    int stride = hipBlockDim_x * hipGridDim_x;
 #pragma unroll
     for(int i = 0; i < VT; i++) {
         if (idx < count) {

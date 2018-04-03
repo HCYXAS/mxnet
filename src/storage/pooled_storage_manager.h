@@ -26,7 +26,7 @@
 #define MXNET_STORAGE_POOLED_STORAGE_MANAGER_H_
 
 #if MXNET_USE_CUDA
-  #include <cuda_runtime.h>
+  #include <hip/hip_runtime.h>
 #endif  // MXNET_USE_CUDA
 #include <mxnet/base.h>
 #include <mxnet/storage.h>
@@ -70,11 +70,11 @@ class GPUPooledStorageManager final : public StorageManager {
 
  private:
   void DirectFreeNoLock(Storage::Handle handle) {
-    cudaError_t err = cudaFree(handle.dptr);
+    hipError_t err = hipFree(handle.dptr);
     size_t size = handle.size + NDEV;
     // ignore unloading error, as memory has already been recycled
-    if (err != cudaSuccess && err != cudaErrorCudartUnloading) {
-      LOG(FATAL) << "CUDA: " << cudaGetErrorString(err);
+    if (err != hipSuccess && err != cudaErrorCudartUnloading) {
+     // LOG(FATAL) << "CUDA: " << hipGetErrorString(err);
     }
     used_memory_ -= size;
   }
@@ -98,14 +98,14 @@ void GPUPooledStorageManager::Alloc(Storage::Handle* handle) {
   auto&& reuse_it = memory_pool_.find(size);
   if (reuse_it == memory_pool_.end() || reuse_it->second.size() == 0) {
     size_t free, total;
-    cudaMemGetInfo(&free, &total);
+    hipMemGetInfo(&free, &total);
     if (free <= total * reserve_ / 100 || size > free - total * reserve_ / 100)
       ReleaseAll();
 
     void* ret = nullptr;
-    cudaError_t e = cudaMalloc(&ret, size);
-    if (e != cudaSuccess && e != cudaErrorCudartUnloading) {
-      LOG(FATAL) << "cudaMalloc failed: " << cudaGetErrorString(e);
+    hipError_t e = hipMalloc(&ret, size);
+    if (e != hipSuccess && e != cudaErrorCudartUnloading) {
+      LOG(FATAL) << "hipMalloc failed: " << hipGetErrorString(e);
     }
     used_memory_ += size;
     handle->dptr = ret;

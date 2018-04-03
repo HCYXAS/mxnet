@@ -24,7 +24,7 @@
  * \author Chris Olivier, Bing Xu, Da Zheng
  * Adapted from Torch
 */
-#include <cuda_runtime_api.h>
+#include <hip/hip_runtime_api.h>
 #include <algorithm>
 #include "batch_norm-inl.h"
 
@@ -216,7 +216,7 @@ __global__ void BatchNormalizationUpdateOutputInferenceKernel(
   DeviceTensor1 bias,
   const DType epsilon,
   const uint32_t flags) {
-  int plane = blockIdx.x;
+  int plane = hipBlockIdx_x;
 
   AccReal invstd = VARIANCE_TO_INVSTD(runningVar[plane], epsilon);
   AccReal mean = ScalarConvert<DType, AccReal>::to(runningMean[plane]);
@@ -225,7 +225,7 @@ __global__ void BatchNormalizationUpdateOutputInferenceKernel(
                   : ScalarConvert<int, AccReal>::to(1);
   AccReal beta = bias.numElements() > 0 ? ScalarConvert<DType, AccReal>::to(bias[plane])
                                         : ScalarConvert<int, AccReal>::to(0);
-  if (threadIdx.x == 0) {
+  if (hipThreadIdx_x == 0) {
     saveMean[plane] = runningMean[plane];
     saveInvStd[plane] = VARIANCE_TO_INVSTD(runningVar[plane], epsilon);
     if ((flags & WRITE_GAMMA_FLAG) != 0 && (flags & FIX_GAMMA_FLAG) != 0
@@ -235,7 +235,7 @@ __global__ void BatchNormalizationUpdateOutputInferenceKernel(
   }
   // Write normalized and update the output
   for (int batch = 0, nbatch = input.OuterSize(); batch < nbatch; ++batch) {
-    for (int x = threadIdx.x, nx = input.InnerSize(); x < nx; x += blockDim.x) {
+    for (int x = hipThreadIdx_x, nx = input.InnerSize(); x < nx; x += hipBlockDim_x) {
       const DType inp = input.get_ref(batch, plane, x);
       output.get_ref(batch, plane, x) =
         ScalarConvert<AccReal, DType>::to(gamma * (inp - mean) * invstd + beta);
@@ -256,7 +256,7 @@ __global__ void BatchNormalizationUpdateOutputKernel(
   DeviceTensor1 saveMean,
   DeviceTensor1 saveInvStd,
   const uint32_t flags) {
-  const int plane = blockIdx.x;
+  const int plane = hipBlockIdx_x;
   const int N = input.OuterSize() * input.InnerSize();
 
   const AccReal norm = AccReal(1) / N;
@@ -273,7 +273,7 @@ __global__ void BatchNormalizationUpdateOutputKernel(
   }
 
   // Save the mean, variance, and moving averages
-  if (threadIdx.x == 0) {
+  if (hipThreadIdx_x == 0) {
     // For one item (0th) per plane (channel), write the per-channel data (ie mean, variance, etc)
     // Momentum based writeback
     saveMean[plane] = ScalarConvert<AccReal, DType>::to(mean);
@@ -291,7 +291,7 @@ __global__ void BatchNormalizationUpdateOutputKernel(
   const AccReal beta = bias.numElements() > 0 ? ScalarConvert<DType, AccReal>::to(bias[plane])
                                               : ScalarConvert<int, AccReal>::to(0);
   for (int batch = 0, nbatch = input.OuterSize(); batch < nbatch; ++batch) {
-    for (int x = threadIdx.x, nx = input.InnerSize(); x < nx; x += blockDim.x) {
+    for (int x = hipThreadIdx_x, nx = input.InnerSize(); x < nx; x += hipBlockDim_x) {
       const DType inp = input.get_ref(batch, plane, x);
       output.get_ref(batch, plane, x) =
         ScalarConvert<AccReal, DType>::to(gamma * (inp - mean) * invStd + beta);
@@ -319,7 +319,7 @@ static __global__ void BatchNormalizationBackwardKernel(
   const uint32_t flags,
   const AccReal momentum,
   const double eps) {
-  int plane = blockIdx.x;
+  int plane = hipBlockIdx_x;
   int N = gradOutput.OuterSize() * gradOutput.InnerSize();
 
   const bool is_train_and_not_global_stats =
@@ -351,7 +351,7 @@ static __global__ void BatchNormalizationBackwardKernel(
   const AccReal projScale = dotP * norm * invstd * invstd;
   const AccReal gradScale = invstd * weightVal;
 
-  if (threadIdx.x == 0 && is_train_and_not_global_stats) {
+  if (hipThreadIdx_x == 0 && is_train_and_not_global_stats) {
     const AccReal localVariance = INVSTD_TO_VARIANCE(tensors.saveInvStd[plane], eps);
     const AccReal localMean = tensors.saveMean[plane];
 
@@ -364,7 +364,7 @@ static __global__ void BatchNormalizationBackwardKernel(
 
   if (gradInput.Size() > 0 && (flags & WRITE_DATA_FLAG) != 0) {
     for (int batch = 0, nbatch = gradOutput.OuterSize(); batch < nbatch; ++batch) {
-      for (int x = threadIdx.x, nx = gradOutput.InnerSize(); x < nx; x += blockDim.x) {
+      for (int x = hipThreadIdx_x, nx = gradOutput.InnerSize(); x < nx; x += hipBlockDim_x) {
         const DType gradOut = gradOutput.get_ref(batch, plane, x);
         if (is_train_and_not_global_stats) {
           const DType inp = input.get_ref(batch, plane, x);
@@ -379,7 +379,7 @@ static __global__ void BatchNormalizationBackwardKernel(
     }
   }
 
-  if (tensors.gradWeight.numElements() > 0 && threadIdx.x == 0 && (flags & WRITE_GAMMA_FLAG) != 0) {
+  if (tensors.gradWeight.numElements() > 0 && hipThreadIdx_x == 0 && (flags & WRITE_GAMMA_FLAG) != 0) {
     if ((flags & FIX_GAMMA_FLAG) == 0) {
       tensors.gradWeight[plane] = ScalarConvert<AccReal, DType>::to(dotP * invstd);
     } else {
@@ -387,7 +387,7 @@ static __global__ void BatchNormalizationBackwardKernel(
     }
   }
 
-  if (tensors.gradBias.numElements() > 0 && threadIdx.x == 0 && (flags & WRITE_BETA_FLAG) != 0) {
+  if (tensors.gradBias.numElements() > 0 && hipThreadIdx_x == 0 && (flags & WRITE_BETA_FLAG) != 0) {
     tensors.gradBias[plane] = ScalarConvert<AccReal, DType>::to(gradOutputSum);
   }
 }
@@ -510,18 +510,19 @@ static void BatchNormalizationUpdateOutput(mshadow::Stream<gpu> *s,
   if ((flags & IS_TRAINING_FLAG) == 0 || (flags & USE_GLOBAL_STATS_FLAG) != 0) {
     dim3 blocks(input.ChannelCount());
     dim3 threads(batchnorm::cuda::getNumThreads(input.InnerSize(), false));
-    BatchNormalizationUpdateOutputInferenceKernel<DType, AccReal, DeviceTensor1,
-      batchnorm::BNTensor3<DType>>
-      <<< blocks, threads, 0, mshadow::Stream<gpu>::GetStream(s) >>> (
+//    BatchNormalizationUpdateOutputInferenceKernel<DType, AccReal, DeviceTensor1,
+      hipLaunchKernelGGL((BatchNormalizationUpdateOutputInferenceKernel<DType, AccReal, DeviceTensor1,batchnorm::BNTensor3<DType>>),                 dim3(blocks), dim3(threads), 0, mshadow::Stream<gpu>::GetStream(s) ,
       input, output, runningMean, runningVar, saveMean,
         saveInvStd, weight, bias, eps, flags);
   } else {
     dim3 blocks(input.ChannelCount());
     dim3 threads(batchnorm::cuda::getNumThreads(input.InnerSize(), false));
-    BatchNormalizationUpdateOutputKernel<DType, AccReal, DeviceTensor1,
+/*    BatchNormalizationUpdateOutputKernel<DType, AccReal, DeviceTensor1,
       batchnorm::BNTensor3<DType>>
       << < blocks, threads, 0, mshadow::Stream<gpu>::GetStream(s) >> > (
       input, output, weight, bias, eps, momentum, runningMean, runningVar,
+        saveMean, saveInvStd, flags);*/
+     hipLaunchKernelGGL((BatchNormalizationUpdateOutputKernel<DType, AccReal, DeviceTensor1,batchnorm::BNTensor3<DType>>), dim3(blocks),            dim3(threads), 0, mshadow::Stream<gpu>::GetStream(s) , input, output, weight, bias, eps, momentum, runningMean, runningVar,
         saveMean, saveInvStd, flags);
   }
   MSHADOW_CUDA_POST_KERNEL_CHECK(BatchNormalizationUpdateOutput);
@@ -566,8 +567,7 @@ static void BatchNormalizationBackward(mshadow::Stream<gpu> *s,
 #endif
   dim3 blocks(gradOutput.ChannelCount());
   dim3 threads(batchnorm::cuda::getNumThreads(gradOutput.InnerSize(), SMALLER_THREADS));
-  BatchNormalizationBackwardKernel<DType, AccReal, DeviceTensor1, batchnorm::BNTensor3<DType>>
-    <<< blocks, threads, 0, mshadow::Stream<gpu>::GetStream(s) >>> (
+  hipLaunchKernelGGL((BatchNormalizationBackwardKernel<DType, AccReal, DeviceTensor1, batchnorm::BNTensor3<DType>>), dim3(blocks), dim3(threads), 0, mshadow::Stream<gpu>::GetStream(s) ,
     input, gradOutput, gradInput, tensors, flags, momentum, eps);
   MSHADOW_CUDA_POST_KERNEL_CHECK(BatchNormalizationBackward);
 }
@@ -708,9 +708,12 @@ void BatchNormGradCompute<gpu>(const nnvm::NodeAttrs& attrs,
     })
   }
 #else
+//commented due to compilation error "identifier "out_grad" is undefined"  ticket https://github.com/apache/incubator-mxnet/issues/10235
+#if 0
   MSHADOW_REAL_TYPE_SWITCH_EX(out_grad[0].type_flag_, DType, AccReal, {
     BatchNormBackward<gpu, DType, AccReal>(ctx, param, inputs, req, outputs);
   });
+#endif
 #endif
 }
 

@@ -49,7 +49,7 @@ size_t UniqueImplGPU(const Resource& rsc, mshadow::Stream<gpu> *s,
   size_t unique_temp_bytes = 0;
   size_t *null_ptr = nullptr;
   size_t *null_dptr = nullptr;
-  cudaStream_t stream = mshadow::Stream<gpu>::GetStream(s);
+  hipStream_t stream = mshadow::Stream<gpu>::GetStream(s);
   cub::DeviceSelect::Unique(NULL, unique_temp_bytes, null_dptr, null_dptr,
                             null_ptr, size, stream);
   // estimate sort temp space
@@ -82,16 +82,16 @@ size_t UniqueImplGPU(const Resource& rsc, mshadow::Stream<gpu> *s,
 #else
   thrust::sort(thrust::cuda::par.on(stream),
                dptr, dptr + size, thrust::greater<IType>());
-  CUDA_CALL(cudaMemcpy(sort_output_ptr, dptr, sort_output_bytes,
-                       cudaMemcpyDeviceToDevice));
+  CUDA_CALL(hipMemcpy(sort_output_ptr, dptr, sort_output_bytes,
+                       hipMemcpyDeviceToDevice));
 #endif
   // execute unique kernel
   cub::DeviceSelect::Unique(temp_storage, unique_temp_bytes, sort_output_ptr, dptr,
                             num_selected_ptr, size, stream);
   // retrieve num selected unique values
   size_t num_selected_out = 0;
-  CUDA_CALL(cudaMemcpy(&num_selected_out, num_selected_ptr, num_selected_bytes,
-     cudaMemcpyDeviceToHost));
+  CUDA_CALL(hipMemcpy(&num_selected_out, num_selected_ptr, num_selected_bytes,
+     hipMemcpyDeviceToHost));
   return num_selected_out;
 }
 

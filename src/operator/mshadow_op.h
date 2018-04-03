@@ -32,15 +32,15 @@
 #include "special_functions-inl.h"
 #include "./operator_tune.h"
 
-#ifdef __CUDACC__
-#include <cuda_fp16.h>
+#ifdef __HIPCC__
+#include <hip/hip_fp16.h>
 #endif
 
 namespace mxnet {
 namespace op {
 namespace mshadow_op {
-
-#ifdef __CUDA_ARCH__
+//#ifdef __CUDA_ARCH__
+#if __HIP_DEVICE_COMPILE__
 __constant__ const float PI = 3.14159265358979323846;
 #else
 const float PI = 3.14159265358979323846;
@@ -459,7 +459,7 @@ MSHADOW_XINLINE mshadow::half::half2_t mod_grad::Map<mshadow::half::half2_t>
                                                     (mshadow::half::half2_t a,
                                                      mshadow::half::half2_t b) {
   mshadow::half::half2_t result = mshadow::half::half2_t();
-#if (defined(__CUDACC__) && MSHADOW_CUDA_HALF2)
+#if (defined(__HIPCC__) && MSHADOW_CUDA_HALF2)
   result.half2_ = ::__float2half2_rn(1.0f);
 #else
   result.half_t2[0] = mshadow::half::half_t(0.0f);
@@ -493,7 +493,7 @@ template<>
 MSHADOW_XINLINE mshadow::half::half2_t mod_rgrad::Map<mshadow::half::half2_t>
                                                      (mshadow::half::half2_t a,
                                                       mshadow::half::half2_t b) {
-#if (defined(__CUDACC__) && MSHADOW_CUDA_HALF2)
+#if (defined(__HIPCC__) && MSHADOW_CUDA_HALF2)
   return mshadow::half::half2_t(__hneg2(::h2floor((a/b).half2_)));
 #else
   return mshadow::half::half2_t(mshadow::half::half_t(-::floorf(
@@ -570,7 +570,7 @@ template<>
 MSHADOW_XINLINE mshadow::half::half2_t rmod_grad::Map<mshadow::half::half2_t>
                                                      (mshadow::half::half2_t a,
                                                       mshadow::half::half2_t b) {
-#if (defined(__CUDACC__) && MSHADOW_CUDA_HALF2)
+#if (defined(__HIPCC__) && MSHADOW_CUDA_HALF2)
   return mshadow::half::half2_t(::__hneg2(::h2floor((b/a).half2_)));
 #else
   return mshadow::half::half2_t(mshadow::half::half_t(-::floorf(
@@ -724,11 +724,12 @@ namespace isnan_typed {
   MSHADOW_XINLINE bool IsNan(volatile double val) {
     return isnan(val);
   }
+  #if defined(__HIP_PLATFORM_NVCC__) //guarded with NVCC flag as it throws error:call to 'isnan' is ambiguous on HCC
   template<>
   MSHADOW_XINLINE bool IsNan(volatile long double val) {
     return isnan(val);
   }
-
+  #endif
   template<>
   MSHADOW_XINLINE bool IsNan(volatile mshadow::half::half_t val) {
     return (val.half_ & 0x7fff) > 0x7c00;

@@ -1,3 +1,4 @@
+#include "hip/hip_runtime.h"
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -117,7 +118,7 @@ void linalg_gemm<cpu, mshadow::half::half_t>(const Tensor<cpu, 2, mshadow::half:
   LOG(FATAL) << "FP16 gemm on cpu not implemented!";
 }
 
-#ifdef __CUDACC__
+#ifdef __HIPCC__
 
 // cublas col-major processing accounted for by switching first two operands
 
@@ -219,7 +220,7 @@ void linalg_gemm<gpu, mshadow::half::half_t>(const Tensor<gpu, 2, mshadow::half:
 
 #endif  // CUDA < 8000
 
-#endif  // __CUDACC__
+#endif  // __HIPCC__
 
 //////////////////////////////// TRSM ////////////////////////////////////////////
 
@@ -286,7 +287,7 @@ LINALG_CPU_TRSM(dtrsm, double)
 LINALG_XPU_BATCH_TRSM(cpu, float)
 LINALG_XPU_BATCH_TRSM(cpu, double)
 
-#ifdef __CUDACC__
+#ifdef __HIPCC__
 
 // cublas col-major processing accounted for by switching sides and fill mode
 
@@ -311,7 +312,7 @@ LINALG_GPU_TRSM(Dtrsm, double)
 LINALG_XPU_BATCH_TRSM(gpu, float)
 LINALG_XPU_BATCH_TRSM(gpu, double)
 
-#endif  // __CUDACC__
+#endif  // __HIPCC__
 
 /*!
  * \brief Performs gemm, setting alpha and beta as appropriate for `req`.
@@ -460,7 +461,7 @@ LINALG_CPU_TRMM(dtrmm, double)
 LINALG_XPU_BATCH_TRMM(cpu, float)
 LINALG_XPU_BATCH_TRMM(cpu, double)
 
-#ifdef __CUDACC__
+#ifdef __HIPCC__
 
 // cublas col-major processing accounted for by switching sides and fill mode
 // doing in-place computation by supplying B as second and third matrix
@@ -486,7 +487,7 @@ LINALG_GPU_TRMM(Dtrmm, double)
 LINALG_XPU_BATCH_TRMM(gpu, float)
 LINALG_XPU_BATCH_TRMM(gpu, double)
 
-#endif  // __CUDACC__
+#endif  // __HIPCC__
 
 //////////////////////////////// POTRF ////////////////////////////////////////////
 
@@ -522,7 +523,7 @@ void linalg_batch_potrf<cpu, DType>(const Tensor<cpu, 3, DType>& A, bool lower, 
 LINALG_CPU_BATCH_POTRF(float)
 LINALG_CPU_BATCH_POTRF(double)
 
-#if defined(__CUDACC__) && MXNET_USE_CUSOLVER == 1
+#if defined(__HIPCC__) && MXNET_USE_CUSOLVER == 1
 
 #define LINALG_GPU_BUFFSIZE_POTRF(fname, DType) \
 inline int linalg_potrf_buffsize(const Tensor<gpu, 2, DType>& A, bool lower, Stream<gpu> *s) { \
@@ -616,7 +617,7 @@ void linalg_batch_potri<cpu, DType>(const Tensor<cpu, 3, DType>& A, bool lower, 
 LINALG_CPU_BATCH_POTRI(float)
 LINALG_CPU_BATCH_POTRI(double)
 
-#ifdef __CUDACC__
+#ifdef __HIPCC__
 
 // Initializes multiple identity matrices on the same vector.
 template<typename DType>
@@ -639,8 +640,7 @@ void linalg_potri<gpu, DType>(const Tensor<gpu, 2, DType>& A, bool lower, Stream
   using namespace mshadow::cuda; \
   int ngrid = std::min(kMaxGridNum, \
                        static_cast<int>((A.MSize() + kBaseThreadNum - 1) / kBaseThreadNum)); \
-  linalgInitIdentityGPU<<<ngrid, kBaseThreadNum, 0, mshadow::Stream<gpu>::GetStream(s)>>> \
-    (static_cast<DType *>(buffer.dptr), A.MSize(), A.stride_, A.MSize());  \
+  hipLaunchKernelGGL((linalgInitIdentityGPU), dim3(ngrid), dim3(kBaseThreadNum), 0, mshadow::Stream<gpu>::GetStream(s), static_cast<DType *>(buffer.dptr), A.MSize(), A.stride_, A.MSize());  \
   MSHADOW_CUDA_POST_KERNEL_CHECK(linalgInitIdentityGPU); \
   Tensor<gpu, 2, DType> B((DType *)buffer.dptr, A.shape_, A.stride_, s); \
   linalg_trsm(A, B, DType(1.0), false, lower, !lower, s); \
@@ -663,8 +663,7 @@ void linalg_batch_potri<gpu, DType>(const Tensor<gpu, 3, DType>& A, bool lower, 
   using namespace mshadow::cuda; \
   int ngrid = std::min(kMaxGridNum, \
                        static_cast<int>((A.MSize() + kBaseThreadNum - 1) / kBaseThreadNum)); \
-  linalgInitIdentityGPU<<<ngrid, kBaseThreadNum, 0, mshadow::Stream<gpu>::GetStream(s)>>> \
-    (static_cast<DType *>(buffer.dptr), A.size(1)*A.stride_, A.stride_, A.MSize()); \
+  hipLaunchKernelGGL((linalgInitIdentityGPU), dim3(ngrid), dim3(kBaseThreadNum), 0, mshadow::Stream<gpu>::GetStream(s), static_cast<DType *>(buffer.dptr), A.size(1)*A.stride_, A.stride_, A.MSize()); \
   MSHADOW_CUDA_POST_KERNEL_CHECK(linalgInitIdentityGPU); \
   Tensor<gpu, 3, DType> B((DType *)buffer.dptr, A.shape_, A.stride_, s); \
   linalg_batch_trsm(A, B, DType(1.0), false, lower, !lower, s); \
@@ -735,7 +734,7 @@ LINALG_CPU_SYRK(dsyrk, double)
 LINALG_XPU_BATCH_SYRK(cpu, float)
 LINALG_XPU_BATCH_SYRK(cpu, double)
 
-#ifdef __CUDACC__
+#ifdef __HIPCC__
 
 // cublas col-major processing accounted for by switching transpose and fill mode
 #define LINALG_GPU_SYRK(fname, DType) \
@@ -758,7 +757,7 @@ LINALG_GPU_SYRK(Dsyrk, double)
 LINALG_XPU_BATCH_SYRK(gpu, float)
 LINALG_XPU_BATCH_SYRK(gpu, double)
 
-#endif  // __CUDACC__
+#endif  // __HIPCC__
 
 //////////////////////////////// GELQF ////////////////////////////////////////////
 
@@ -828,7 +827,7 @@ int linalg_gelqf_workspace_query<cpu, DType>(const Tensor<cpu, 2, DType>& A, \
 LINALG_CPU_GELQF_WORKSPACE_QUERY(s, float)
 LINALG_CPU_GELQF_WORKSPACE_QUERY(d, double)
 
-#ifdef __CUDACC__
+#ifdef __HIPCC__
 
 #define LINALG_GPU_GELQF(fname, DType) \
 template<> inline \
@@ -923,7 +922,7 @@ int linalg_gelqf_workspace_query<gpu, DType>(const Tensor<gpu, 2, DType>& A, \
 LINALG_GPU_GELQF_WORKSPACE_QUERY(S, float)
 LINALG_GPU_GELQF_WORKSPACE_QUERY(D, double)
 
-#endif  // __CUDACC__
+#endif  // __HIPCC__
 
 //////////////////////////////// SYEVD ////////////////////////////////////////////
 
@@ -982,7 +981,7 @@ int linalg_syevd_workspace_query<cpu, DType>(const Tensor<cpu, 2, DType>& A, \
 LINALG_CPU_SYEVD_WORKSPACE_QUERY(ssyevd, float)
 LINALG_CPU_SYEVD_WORKSPACE_QUERY(dsyevd, double)
 
-#ifdef __CUDACC__
+#ifdef __HIPCC__
 
 // SYEVD only available with cuda8 or higher.
 #if CUDA_VERSION >= 8000
@@ -1049,6 +1048,6 @@ LINALG_GPU_SYEVD(DnDsyevd, double)
 LINALG_GPU_SYEVD_WORKSPACE_QUERY(DnSsyevd, float)
 LINALG_GPU_SYEVD_WORKSPACE_QUERY(DnDsyevd, double)
 
-#endif  // __CUDACC__
+#endif  // __HIPCC__
 
 #endif  // MXNET_OPERATOR_LINALG_IMPL_H_

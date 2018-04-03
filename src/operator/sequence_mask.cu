@@ -23,7 +23,7 @@
  * \brief
  * \author Sebastian Bodenstein
 */
-
+#include "hip/hip_runtime.h"
 #include "./sequence_mask-inl.h"
 
 namespace mxnet {

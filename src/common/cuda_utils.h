@@ -32,7 +32,7 @@
 
 /*! \brief Macros/inlines to assist CLion to parse Cuda files (*.cu, *.cuh) */
 #ifdef __JETBRAINS_IDE__
-#define __CUDACC__ 1
+#define __HIPCC__ 1
 #define __host__
 #define __device__
 #define __global__
@@ -49,7 +49,7 @@ extern __cuda_fake_struct blockIdx;
 
 #if MXNET_USE_CUDA
 
-#include <cuda_runtime.h>
+#include <hip/hip_runtime.h>
 #include <cublas_v2.h>
 #include <curand.h>
 
@@ -174,8 +174,8 @@ inline DType __device__ CudaMin(DType a, DType b) {
  */
 #define CHECK_CUDA_ERROR(msg)                                                \
   {                                                                          \
-    cudaError_t e = cudaGetLastError();                                      \
-    CHECK_EQ(e, cudaSuccess) << (msg) << " CUDA: " << cudaGetErrorString(e); \
+    hipError_t e = hipGetLastError();                                      \
+    CHECK_EQ(e, hipSuccess) << (msg) << " CUDA: " << hipGetErrorString(e); \
   }
 
 /*!
@@ -186,9 +186,9 @@ inline DType __device__ CudaMin(DType a, DType b) {
  */
 #define CUDA_CALL(func)                                            \
   {                                                                \
-    cudaError_t e = (func);                                        \
-    CHECK(e == cudaSuccess || e == cudaErrorCudartUnloading)       \
-        << "CUDA: " << cudaGetErrorString(e);                      \
+    hipError_t e = (func);                                        \
+    CHECK(e == hipSuccess || e == cudaErrorCudartUnloading)       \
+        << "CUDA: " << hipGetErrorString(e);                      \
   }
 
 /*!
@@ -279,8 +279,8 @@ inline DType __device__ CudaMin(DType a, DType b) {
  */
 inline int ComputeCapabilityMajor(int device_id) {
   int major = 0;
-  CUDA_CALL(cudaDeviceGetAttribute(&major,
-                                   cudaDevAttrComputeCapabilityMajor, device_id));
+  CUDA_CALL(hipDeviceGetAttribute(&major,
+                                   hipDeviceAttributeComputeCapabilityMajor, device_id));
   return major;
 }
 
@@ -291,8 +291,8 @@ inline int ComputeCapabilityMajor(int device_id) {
  */
 inline int ComputeCapabilityMinor(int device_id) {
   int minor = 0;
-  CUDA_CALL(cudaDeviceGetAttribute(&minor,
-                                   cudaDevAttrComputeCapabilityMinor, device_id));
+  CUDA_CALL(hipDeviceGetAttribute(&minor,
+                                   hipDeviceAttributeComputeCapabilityMinor, device_id));
   return minor;
 }
 
@@ -435,9 +435,10 @@ inline int MaxBackwardDataAlgos(cudnnHandle_t cudnn_handle) {
 #endif  // MXNET_USE_CUDNN
 
 // Overload atomicAdd to work for floats on all architectures
-#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ < 600
-// From CUDA Programming Guide
-static inline  __device__  void atomicAdd(double *address, double val) {
+//#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ < 600
+//#if (__HIP_DEVICE_COMPILE__) && (__HIP_ARCH_HAS_GLOBAL_INT64_ATOMICS__)
+#if (__HIP_DEVICE_COMPILE__ && (__CUDA_ARCH__ < 600)) || defined(__HCC__)
+static inline __device__  void atomicAdd(double *address, double val) {
   unsigned long long* address_as_ull =                  // NOLINT(*)
     reinterpret_cast<unsigned long long*>(address);     // NOLINT(*)
   unsigned long long old = *address_as_ull;             // NOLINT(*)
@@ -457,7 +458,9 @@ static inline  __device__  void atomicAdd(double *address, double val) {
 // Overload atomicAdd for half precision
 // Taken from:
 // https://github.com/torch/cutorch/blob/master/lib/THC/THCAtomics.cuh
-#if defined(__CUDA_ARCH__)
+//#if defined(__CUDA_ARCH__)
+//#if (__HIP_DEVICE_COMPILE__)
+#if (__HIP_DEVICE_COMPILE__) || defined(__HCC__)
 static inline __device__ void atomicAdd(mshadow::half::half_t *address,
                                         mshadow::half::half_t val) {
   unsigned int *address_as_ui =

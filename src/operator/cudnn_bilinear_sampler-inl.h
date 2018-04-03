@@ -31,7 +31,7 @@
 #include "./bilinear_sampler-inl.h"
 namespace mxnet {
 namespace op {
-#if defined(__CUDACC__) && MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 5
+#if defined(__HIPCC__) && MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 5
 template<typename DType>
 class CuDNNBilinearSamplerOp : public Operator {
  public:
@@ -179,7 +179,7 @@ class CuDNNBilinearSamplerOp : public Operator {
   #endif
   BilinearSamplerParam param_;
 };
-#endif  // __CUDACC__ && CUDNN
+#endif  // __HIPCC__ && CUDNN
 }  // namespace op
 }  // namespace mxnet
 

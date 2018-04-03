@@ -69,7 +69,8 @@ struct CTAReduce {
 	}
 };
 
-#if __CUDA_ARCH__ >= 300
+//#if __CUDA_ARCH__ >= 300
+#if __HIP_ARCH_HAS_WARP_SHUFFLE__
 
 template<int NT>
 struct CTAReduce<NT, mgpu::plus<int> > {
@@ -197,7 +198,8 @@ struct CTAScan {
 // Special partial specialization for CTAScan<NT, ScanOpAdd> on Kepler.
 // This uses the shfl intrinsic to reduce scan latency.
 
-#if __CUDA_ARCH__ >= 300
+//#if __CUDA_ARCH__ >= 300
+#if __HIP_ARCH_HAS_WARP_SHUFFLE__
 
 template<int NT>
 struct CTAScan<NT, mgpu::plus<int> > {
@@ -271,7 +273,8 @@ MGPU_DEVICE int CTABinaryScan(int tid, bool x, int* shared, int* total) {
 	shared[warp] = popc(bits);
 	__syncthreads();
 
-#if __CUDA_ARCH__ >= 300
+//#if __CUDA_ARCH__ >= 300
+#if __HIP_ARCH_HAS_WARP_SHUFFLE__
 	if(tid < NumWarps) {
 		int x = shared[tid];
 		int scan = x;

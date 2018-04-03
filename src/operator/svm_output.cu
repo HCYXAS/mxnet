@@ -1,3 +1,4 @@
+#include "hip/hip_runtime.h"
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -39,8 +40,8 @@ __global__  void L1_SVMKernel(const DType margin,
                               const Tensor<gpu, 2, DType> src) {
   const index_t nmax = dst.size(1);
   const unsigned n_size = 1 << n_bits;
-  const int y = blockIdx.x;
-  const int n = threadIdx.x;
+  const int y = hipBlockIdx_x;
+  const int n = hipThreadIdx_x;
   const index_t k = static_cast<int>(label[y]);
   for (index_t n_index = n; n_index < nmax; n_index += n_size) {
     if (n_index == k) {
@@ -59,9 +60,8 @@ inline void L1_SVM(const DType & margin,
                    const Tensor<gpu, 2, DType> & src) {
   dim3 dimBlock(cuda::kBaseThreadNum);
   dim3 dimGrid(dst.size(0));
-  cudaStream_t stream = Stream<gpu>::GetStream(dst.stream_);
-  L1_SVMKernel<cuda::kBaseThreadBits, DType> <<<dimGrid, dimBlock, 0, stream >>>
-    (margin, reg_coef, dst, label, src);
+  hipStream_t stream = Stream<gpu>::GetStream(dst.stream_);
+  hipLaunchKernelGGL(HIP_KERNEL_NAME(L1_SVMKernel<cuda::kBaseThreadBits, DType>), dim3(dimGrid), dim3(dimBlock), 0, stream , margin, reg_coef, dst, label, src);
   MSHADOW_CUDA_POST_KERNEL_CHECK(L1_SVMKernel);
 }
 
@@ -74,8 +74,8 @@ __global__  void L2_SVMKernel(const DType margin,
                               const Tensor<gpu, 2, DType> src) {
   const index_t nmax = dst.size(1);
   const unsigned n_size = 1 << n_bits;
-  const int y = blockIdx.x;
-  const int n = threadIdx.x;
+  const int y = hipBlockIdx_x;
+  const int n = hipThreadIdx_x;
   const index_t k = static_cast<int>(label[y]);
   for (index_t n_index = n; n_index < nmax; n_index += n_size) {
     if (n_index == k) {
@@ -96,9 +96,8 @@ inline void L2_SVM(const DType & margin,
                    const Tensor<gpu, 2, DType> & src) {
   dim3 dimBlock(cuda::kBaseThreadNum);
   dim3 dimGrid(dst.size(0));
-  cudaStream_t stream = Stream<gpu>::GetStream(dst.stream_);
-  L2_SVMKernel<cuda::kBaseThreadBits, DType> <<<dimGrid, dimBlock, 0, stream >>>
-    (margin, reg_coef, dst, label, src);
+  hipStream_t stream = Stream<gpu>::GetStream(dst.stream_);
+  hipLaunchKernelGGL(HIP_KERNEL_NAME(L2_SVMKernel<cuda::kBaseThreadBits, DType>), dim3(dimGrid), dim3(dimBlock), 0, stream , margin, reg_coef, dst, label, src);
   MSHADOW_CUDA_POST_KERNEL_CHECK(L2_SVMKernel);
 }
 }  // namespace mshadow

@@ -752,7 +752,7 @@ inline void unpool(mshadow::Stream<cpu>* s, const DType* out_grad, const DType* 
 
 }  // namespace op
 }  // namespace mxnet
-#ifdef __CUDACC__
+#ifdef __HIPCC__
 #include "./pool.cuh"
 #endif
 

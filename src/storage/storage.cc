@@ -62,7 +62,7 @@ class StorageImpl : public Storage {
       case Context::kCPUPinned: {
 #if MXNET_USE_CUDA
           if (num_gpu_device > 0) {
-            CUDA_CALL(cudaSetDevice(ctx.real_dev_id()));
+            CUDA_CALL(hipSetDevice(ctx.real_dev_id()));
           }
 #endif  // MXNET_USE_CUDA
           break;
@@ -102,8 +102,8 @@ void StorageImpl::Alloc(Storage::Handle* handle) {
           case Context::kCPUPinned: {
 #if MXNET_USE_CUDA
             num_gpu_device = 0;
-            cudaError_t e = cudaGetDeviceCount(&num_gpu_device);
-            if (e != cudaSuccess) {
+            hipError_t e = hipGetDeviceCount(&num_gpu_device);
+            if (e != hipSuccess) {
               num_gpu_device = 0;
             }
             if (num_gpu_device > 0) {
@@ -118,7 +118,7 @@ void StorageImpl::Alloc(Storage::Handle* handle) {
           }
           case Context::kGPU: {
 #if MXNET_USE_CUDA
-            CUDA_CALL(cudaGetDeviceCount(&num_gpu_device));
+            CUDA_CALL(hipGetDeviceCount(&num_gpu_device));
             CHECK_GT(num_gpu_device, 0) << "GPU usage requires at least 1 GPU";
             ptr = new storage::GPUPooledStorageManager();
 #else

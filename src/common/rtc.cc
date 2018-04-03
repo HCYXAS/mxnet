@@ -81,7 +81,7 @@ CUfunction CudaModule::Chunk::GetFunction(
   if (iter != mod_.end()) {
     module = iter->second;
   } else {
-    CUDA_CALL(cudaSetDevice(ctx.dev_id));
+    CUDA_CALL(hipSetDevice(ctx.dev_id));
     CUDA_DRIVER_CALL(cuModuleLoadDataEx(&module, ptx_, 0, 0, 0));
     mod_[ctx.dev_id] = module;
   }
@@ -176,7 +176,7 @@ void CudaModule::Kernel::Launch(
         block_dim_x, block_dim_y, block_dim_z,
         shared_mem, s->stream_,
         p_args.data(), 0));
-    CUDA_CALL(cudaStreamSynchronize(s->stream_));
+    CUDA_CALL(hipStreamSynchronize(s->stream_));
   }, ctx, read_vars, write_vars, FnProperty::kNormal, 0,
   PROFILER_MESSAGE(mangled_name_.c_str()));
 }
