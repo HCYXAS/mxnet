@@ -26,4 +26,4 @@
 [submodule "3rdparty/cub-hip"]
 	path = 3rdparty/cub-hip
 	url = https://github.com/ROCmSoftwarePlatform/cub-hip.git
-        branch = hip_port_1.7.3
+	branch = hip_port_1.7.3
