@@ -743,7 +743,7 @@ bool TryLaunchDepthwiseConv2dBackwardFilterGPUSmall(mshadow::Stream<mxnet::gpu> 
     hipLaunchKernelGGL(HIP_KERNEL_NAME(cuda::DepthwiseConv2dBackwardFilterKernelSmall<DType, kBlockSlices, kAccumPixels, 3, 3>), dim3(block_count), dim3(block_dim), shared_memory_size, s,
             args, out_grad, input, filter_grad);
   } else {
-    hipLaunchKernelGGL(HIP_KERNEL_NAME(cuda::DepthwiseConv2dBackwardFilterKernelSmall<DType, kBlockSlices, kAccumPixels, -1, -1>), dim3(block_count), dim3(block_dim), shared_memory_size, s,:
+    hipLaunchKernelGGL(HIP_KERNEL_NAME(cuda::DepthwiseConv2dBackwardFilterKernelSmall<DType, kBlockSlices, kAccumPixels, -1, -1>), dim3(block_count), dim3(block_dim), shared_memory_size, s,
             args, out_grad, input, filter_grad);
   }
   MSHADOW_CUDA_POST_KERNEL_CHECK(DepthwiseConv2dBackwardFilterKernelSmall);
