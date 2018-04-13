@@ -141,6 +141,7 @@ MGPU_DEVICE int shfl_add(int x, int offset, int width = WARP_SIZE) {
 #if __HIP_ARCH_HAS_WARP_SHUFFLE__
 
 	int mask = (WARP_SIZE - width)<< 8;
+#ifdef __HIP_PLATFORM_NVCC__
 	asm(
 		"{.reg .s32 r0;"
 		".reg .pred p;"
@@ -148,6 +149,7 @@ MGPU_DEVICE int shfl_add(int x, int offset, int width = WARP_SIZE) {
 		"@p add.s32 r0, r0, %4;"
 		"mov.s32 %0, r0; }"
 		: "=r"(result) : "r"(x), "r"(offset), "r"(mask), "r"(x));
+#endif
 #endif
 	return result;
 }
@@ -157,6 +159,7 @@ MGPU_DEVICE int shfl_max(int x, int offset, int width = WARP_SIZE) {
 //if __CUDA_ARCH__ >= 300
 #if __HIP_ARCH_HAS_WARP_SHUFFLE__
 	int mask = (WARP_SIZE - width)<< 8;
+#ifdef __HIP_PLATFORM_NVCC__
 	asm(
 		"{.reg .s32 r0;"
 		".reg .pred p;"
@@ -164,6 +167,7 @@ MGPU_DEVICE int shfl_max(int x, int offset, int width = WARP_SIZE) {
 		"@p max.s32 r0, r0, %4;"
 		"mov.s32 %0, r0; }"
 		: "=r"(result) : "r"(x), "r"(offset), "r"(mask), "r"(x));
+#endif
 #endif
 	return result;
 }
