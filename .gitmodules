@@ -14,4 +14,4 @@
 [submodule "cub-hip"]
         path = cub-hip
         url  = https://github.com/ROCmSoftwarePlatform/cub-hip.git
-        branch = hip_port_1.7.3
+        branch = cubhip_mxnet
