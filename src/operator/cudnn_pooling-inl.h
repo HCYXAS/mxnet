@@ -58,26 +58,22 @@ class CuDNNPoolingOp : public Operator {
     typename DataType<DType>::ScaleType beta = 0.0f;
 
 
-   size_t temp_workspaceSize = 0;
-   miopenPoolingGetWorkSpaceSize(out_desc_, &temp_workspaceSize);
-   if (temp_workspaceSize > workspaceSize) {
-
-    workspaceSize = temp_workspaceSize;
-
-    hipFree(workspace);
-
-    hipMalloc(&workspace, workspaceSize);
-
-}
-
-
     if (param_.kernel.ndim() == 2) {
       // 2d pool
       Tensor<gpu, 4, DType> data = in_data[pool_enum::kData].get<gpu, 4, DType>(s);
       Tensor<gpu, 4, DType> out = out_data[pool_enum::kOut].get<gpu, 4, DType>(s);
       if (!init_cudnn_) {
         this->Init(s, in_data, out_data);
-      }
+      }else
+      {
+         size_t temp_workspaceSize = 0;
+      CUDNN_CALL(miopenPoolingGetWorkSpaceSize(out_desc_, &temp_workspaceSize));
+      if (temp_workspaceSize > 0 && temp_workspaceSize > workspaceSize ) {
+            workspaceSize = temp_workspaceSize;
+            hipFree(workspace);
+            hipMalloc(&workspace, workspaceSize);
+          }
+       }
       CHECK_EQ(data.CheckContiguous(), true);
       CHECK_EQ(out.CheckContiguous(), true);
       CUDNN_CALL(miopenPoolingForward(s->dnn_handle_,
@@ -97,7 +93,15 @@ class CuDNNPoolingOp : public Operator {
       Tensor<gpu, 5, DType> out = out_data[pool_enum::kOut].get<gpu, 5, DType>(s);
       if (!init_cudnn_) {
         this->Init(s, in_data, out_data);
-      }
+      }else{
+          size_t temp_workspaceSize = 0;
+          CUDNN_CALL(miopenPoolingGetWorkSpaceSize(out_desc_, &temp_workspaceSize));
+          if (temp_workspaceSize > 0 && temp_workspaceSize > workspaceSize ) {
+               workspaceSize = temp_workspaceSize;
+               hipFree(workspace);
+               hipMalloc(&workspace, workspaceSize);
+          }
+       }
       CHECK_EQ(data.CheckContiguous(), true);
       CHECK_EQ(out.CheckContiguous(), true);
       CUDNN_CALL(miopenPoolingForward(s->dnn_handle_,
@@ -139,8 +143,8 @@ class CuDNNPoolingOp : public Operator {
 
 
       size_t temp_workspaceSize = 0;
-   miopenPoolingGetWorkSpaceSize(out_desc_, &temp_workspaceSize);
-   if (temp_workspaceSize > workspaceSize) {
+   CUDNN_CALL(miopenPoolingGetWorkSpaceSize(out_desc_, &temp_workspaceSize));
+   if (temp_workspaceSize > 0 && temp_workspaceSize > workspaceSize ) {
 
     workspaceSize = temp_workspaceSize;
 
@@ -320,7 +324,8 @@ class CuDNNPoolingOp : public Operator {
         #endif
       }
     workspaceSize = 0;
-   miopenPoolingGetWorkSpaceSize(out_desc_, &workspaceSize);
+   CUDNN_CALL(miopenPoolingGetWorkSpaceSize(out_desc_, &workspaceSize));
+  if(workspaceSize > 0)
    hipMalloc(&workspace, workspaceSize);
 
     }
