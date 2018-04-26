@@ -15,3 +15,6 @@
         path = cub-hip
         url  = https://github.com/ROCmSoftwarePlatform/cub-hip.git
         branch = cubhip_mxnet
+[submodule "Thrust"]
+	path = Thrust
+	url = https://github.com/ROCmSoftwarePlatform/Thrust.git

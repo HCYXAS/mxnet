@@ -52,12 +52,11 @@ else
 	CFLAGS += -O3
 endif
 
-HIPINCLUDE += -I../Thrust
-HIPINCLUDE += -I. -I/opt/rocm/hipblas/include -I/opt/rocm/hiprand/include -I/opt/rocm/hipfft/include
+HIPINCLUDE += -I. -I./Thrust -I/opt/rocm/hipblas/include -I/opt/rocm/hiprand/include -I/opt/rocm/hipfft/include
 
 CFLAGS     += $(HIPINCLUDE) -I$(ROOTDIR)/mshadow/ -I$(ROOTDIR)/dmlc-core/include -fPIC -I$(NNVM_PATH)/include -Iinclude $(MSHADOW_CFLAGS)
 LDFLAGS    =  -pthread $(MSHADOW_LDFLAGS) $(DMLC_LDFLAGS)
-
+HIPFLAGS   = $(shell hipconfig -C)
 ifeq ($(HIP_PLATFORM), nvcc)
 	CCBINCLUDES = -ccbin $(CXX)
 	CXXFLAGS    = -std=c++11
@@ -73,16 +72,6 @@ ifeq ($(DEBUG), 1)
 else
 	NVCCFLAGS = $(CXXFLAGS) -Xcompiler -D_FORCE_INLINES -g -O3 $(CCBINCLUDES) $(MSHADOW_NVCCFLAGS)
 endif
-
-ifeq ($(HIP_PLATFORM), hcc)
-	HIPFLAGS = $(shell hipconfig -C)
-endif
-
-ifeq ($(HIP_PLATFORM), nvcc)
-	HIPFLAGS = $(shell hipconfig -C)
-endif
-
-
 
 # CFLAGS for profiler
 ifeq ($(USE_PROFILER), 1)
