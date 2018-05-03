@@ -1,4 +1,22 @@
-#include "hip/hip_runtime.h"
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  * Copyright (c) 2017 by Contributors
  * \file softmax-inl.h
@@ -44,7 +62,7 @@ inline void Softmax(Stream<cpu> *s, DType *in, DType *out,
   index_t sa = stride[axis];
 
   #pragma omp parallel for
-  for (int i = 0; i < N; ++i) {
+  for (int i = 0; i < static_cast<int>(N); ++i) {
     index_t base = unravel_dot(i, sshape, stride);
 
     DType mmax = in[base];
@@ -91,7 +109,7 @@ inline void SoftmaxGrad(Stream<cpu> *s, DType *out, DType *ograd,
   index_t sa = stride[axis];
 
   #pragma omp parallel for
-  for (int i = 0; i < N; ++i) {
+  for (int i = 0; i < static_cast<int>(N); ++i) {
     index_t base = unravel_dot(i, sshape, stride);
 
     DType sum = DType(0);
@@ -106,16 +124,15 @@ inline void SoftmaxGrad(Stream<cpu> *s, DType *out, DType *ograd,
 }
 
 
-#ifdef __HIPCC__
-
+#ifdef __CUDACC__
 template<int x_bits, typename OP, typename DType, int ndim>
 __global__ void softmax_compute_kernel(DType *in, DType *out, index_t M, int axis,
                                        Shape<ndim> sshape, Shape<ndim> stride) {
   const unsigned x_size = 1 << x_bits;
   __shared__ DType smem[x_size];
   index_t sa = stride[axis];
-  index_t base = unravel_dot(hipBlockIdx_x, sshape, stride);
-  index_t x = hipThreadIdx_x;
+  index_t base = unravel_dot(blockIdx.x, sshape, stride);
+  index_t x = threadIdx.x;
 
   red::maximum::SetInitValue(smem[x]);
   for (index_t i = x; i < M; i += x_size) {
@@ -153,7 +170,8 @@ inline void Softmax(Stream<gpu> *s, DType *in, DType *out,
   Shape<ndim> sshape = shape;
   sshape[axis] = 1;
 
-  hipLaunchKernelGGL(HIP_KERNEL_NAME(softmax_compute_kernel<x_bits, OP, DType, ndim>), dim3(N), dim3(x_size), 0, mshadow::Stream<gpu>::GetStream(s), 
+  softmax_compute_kernel<x_bits, OP, DType, ndim>
+    <<<N, x_size, 0, mshadow::Stream<gpu>::GetStream(s)>>>(
       in, out, M, axis, sshape, stride);
 }
 
@@ -165,8 +183,8 @@ __global__ void softmax_gradient_kernel(DType *out, DType *ograd, DType *igrad,
   const unsigned x_size = 1 << x_bits;
   __shared__ DType smem[x_size];
   index_t sa = stride[axis];
-  index_t base = unravel_dot(hipBlockIdx_x, sshape, stride);
-  index_t x = hipThreadIdx_x;
+  index_t base = unravel_dot(blockIdx.x, sshape, stride);
+  index_t x = threadIdx.x;
 
   red::sum::SetInitValue(smem[x]);
   for (index_t i = x; i < M; i += x_size) {
@@ -195,7 +213,8 @@ inline void SoftmaxGrad(Stream<gpu> *s, DType *out, DType *ograd,
   Shape<ndim> sshape = shape;
   sshape[axis] = 1;
 
-  hipLaunchKernelGGL(HIP_KERNEL_NAME(softmax_gradient_kernel<x_bits, OP1, OP2, DType, ndim>), dim3(N), dim3(x_size), 0, mshadow::Stream<gpu>::GetStream(s), 
+  softmax_gradient_kernel<x_bits, OP1, OP2, DType, ndim>
+    <<<N, x_size, 0, mshadow::Stream<gpu>::GetStream(s)>>>(
       out, ograd, igrad, M, axis, sshape, stride);
 }
 #endif

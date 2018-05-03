@@ -13,7 +13,7 @@ echo '#define MSHADOW_FORCE_STREAM
 #define MSHADOW_USE_CBLAS   1
 #endif
 #endif
-#define MSHADOW_USE_CUDA    0
+#define MSHADOW_USE_GPU    0
 #define MSHADOW_USE_MKL     0
 #define MSHADOW_RABIT_PS    0
 #define MSHADOW_DIST_PS     0

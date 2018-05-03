@@ -25,7 +25,7 @@ using (`ci_build.sh`)[./ci_build.sh]. For example
 - build codes with CUDA supports
 
   ```bash
-  ./ci_build.sh gpu make -j$(nproc) USE_BLAS=openblas USE_CUDA=1 USE_CUDA_PATH=/usr/local/cuda USE_CUDNN=1
+  ./ci_build.sh gpu make -j$(nproc) USE_BLAS=openblas USE_GPU=1 USE_CUDA_PATH=/usr/local/cuda USE_CUDNN=1
   ```
 
 - do the python unittest

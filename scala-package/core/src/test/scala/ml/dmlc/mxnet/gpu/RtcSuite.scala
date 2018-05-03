@@ -29,8 +29,8 @@ class RtcSuite extends FunSuite with BeforeAndAfterAll {
     y.set(2f)
     val rtc = new Rtc("abc", Array(("x", x)), Array(("y", y)), """
         __shared__ float s_rec[10];
-        s_rec[hipThreadIdx_x] = x[hipThreadIdx_x];
-        y[hipThreadIdx_x] = expf(s_rec[hipThreadIdx_x]*5.0);""")
+        s_rec[threadIdx.x] = x[threadIdx.x];
+        y[threadIdx.x] = expf(s_rec[threadIdx.x]*5.0);""")
 
     rtc.push(Array(x), Array(y), (1, 1, 1), (10, 1, 1))
 
@@ -49,7 +49,7 @@ class RtcSuite extends FunSuite with BeforeAndAfterAll {
     val z = NDArray.empty(ctx, 33554430)
 
     val rtc = new Rtc("multiplyNumbers", Array(("x", x), ("y", y)), Array(("z", z)), """
-      int tid = (hipBlockIdx_y * 128 * 256) + hipBlockIdx_x * 256 + hipThreadIdx_x;
+      int tid = (blockIdx.y * 128 * 256) + blockIdx.x * 256 + threadIdx.x;
       z[tid] = sqrt(x[tid] * y[tid] / 2.5);""")
 
     rtc.push(Array(x, y), Array(z), (128, 1024, 1), (256, 1, 1))

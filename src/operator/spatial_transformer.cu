@@ -1,4 +1,22 @@
-#include <hip/hip_runtime.h>
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  * Copyright (c) 2016 by Contributors
  * \file spatial_transformer.cu
@@ -14,14 +32,18 @@
 
 namespace mshadow {
 template<typename DType>
+__device__ bool between(DType value, int lowerBound, int upperBound) {
+  return (value >= lowerBound && value <= upperBound);
+}
+template<typename DType>
 __global__ void BilinearSamplingForwardKernel(const int i_c, const int i_h,
                                               const int i_w, const DType* data,
                                               const DType* grid, const int o_n,
                                               const int o_c, const int o_h,
                                               const int o_w, DType* out) {
-  for (int index = (hipBlockIdx_x + hipBlockIdx_y * hipGridDim_x) * hipBlockDim_x + hipThreadIdx_x;
+  for (int index = (blockIdx.x + blockIdx.y * gridDim.x) * blockDim.x + threadIdx.x;
        index < o_n * o_c * o_h * o_w;
-       index += hipBlockDim_x * hipGridDim_x * hipGridDim_y) {
+       index += blockDim.x * gridDim.x * gridDim.y) {
     // (n, c, h, w) is the element in out
     int w = index % o_w;
     int h = (index / o_w) % o_h;
@@ -31,19 +53,27 @@ __global__ void BilinearSamplingForwardKernel(const int i_c, const int i_h,
     index_t grid_index = n * o_h * o_w * 2 + h * o_w + w;
     DType y_real = (*(grid + grid_index + o_h * o_w) + 1) * (i_h - 1) / 2;
     DType x_real = (*(grid + grid_index) + 1) * (i_w - 1) / 2;
-    index_t top_left_y = min(i_h, max(0, static_cast<int>(floor(y_real))));
-    index_t top_left_x = min(i_w, max(0, static_cast<int>(floor(x_real))));
+    int top_left_y = static_cast<int>(floor(y_real));
+    int top_left_x = static_cast<int>(floor(x_real));
     DType top_left_y_w = 1.0 - (y_real - top_left_y);
     DType top_left_x_w = 1.0 - (x_real - top_left_x);
-    index_t data_index = n * i_c * i_h * i_w + c * i_h * i_w + top_left_y * i_w + top_left_x;
-    DType top_left_v = *(data + data_index);
-    DType top_right_v = *(data + data_index + 1);
-    DType bottom_left_v = *(data + data_index + i_w);
-    DType bottom_right_v = *(data + data_index + i_w + 1);
+    int data_index = n * i_c * i_h * i_w + c * i_h * i_w + top_left_y * i_w + top_left_x;
+    DType top_left_v = 0;
+    DType top_right_v = 0;
+    DType bottom_left_v = 0;
+    DType bottom_right_v = 0;
+    if (between(top_left_x, 0, i_w-1) && between(top_left_y, 0, i_h-1))
+      top_left_v = *(data + data_index);
+    if (between(top_left_x + 1, 0, i_w-1) && between(top_left_y, 0, i_h-1))
+      top_right_v = *(data + data_index + 1);
+    if (between(top_left_x, 0, i_w-1) && between(top_left_y + 1, 0, i_h-1))
+      bottom_left_v = *(data + data_index + i_w);
+    if (between(top_left_x+1, 0, i_w-1) && between(top_left_y + 1, 0, i_h-1))
+      bottom_right_v = *(data + data_index + i_w + 1);
     *(out+out_index) = top_left_v * top_left_y_w * top_left_x_w +
-                       top_right_v * top_left_y_w * (1.0 - top_left_x_w) +
-                       bottom_left_v * (1.0 - top_left_y_w) * top_left_x_w +
-                       bottom_right_v * (1.0 - top_left_y_w) * (1.0 - top_left_x_w);
+                        top_right_v * top_left_y_w * (1.0 - top_left_x_w) +
+                        bottom_left_v * (1.0 - top_left_y_w) * top_left_x_w +
+                        bottom_right_v * (1.0 - top_left_y_w) * (1.0 - top_left_x_w);
     }
 }
 
@@ -54,9 +84,9 @@ __global__ void BilinearSamplingBackwardKernel(const int i_c, const int i_h,
                                               const int o_c, const int o_h,
                                               const int o_w, DType* g_input,
                                               DType* grid_src) {
-  for (int index = (hipBlockIdx_x + hipBlockIdx_y * hipGridDim_x) * hipBlockDim_x + hipThreadIdx_x;
+  for (int index = (blockIdx.x + blockIdx.y * gridDim.x) * blockDim.x + threadIdx.x;
        index < o_n * o_h * o_w;
-       index += hipBlockDim_x * hipGridDim_x * hipGridDim_y) {
+       index += blockDim.x * gridDim.x * gridDim.y) {
     // (n, c, h, w) is the element in grad
     int w = index % o_w;
     int h = (index / o_w) % o_h;
@@ -66,29 +96,43 @@ __global__ void BilinearSamplingBackwardKernel(const int i_c, const int i_h,
     index_t grid_src_index = n * o_h * o_w * 2 + h * o_w + w;
     DType y_real = (*(grid_src + grid_src_index + o_h * o_w) + 1) * (i_h - 1) / 2;
     DType x_real = (*(grid_src + grid_src_index) + 1) * (i_w - 1) / 2;
-    index_t top_left_y = min(i_h, max(0, static_cast<int>(floor(y_real))));
-    index_t top_left_x = min(i_w, max(0, static_cast<int>(floor(x_real))));
+    int top_left_y = static_cast<int>(floor(y_real));
+    int top_left_x = static_cast<int>(floor(x_real));
     DType top_left_y_w = 1.0 - (y_real - top_left_y);
     DType top_left_x_w = 1.0 - (x_real - top_left_x);
     for (index_t c = 0; c < o_c; ++c) {
       index_t grad_index = n * o_c * o_h * o_w + c * o_h * o_w + h * o_w + w;
       index_t data_index = n * i_c * i_h * i_w + c * i_h * i_w + top_left_y * i_w + top_left_x;
       // calc 4 vertex value in input data
-      DType top_left_v = *(data + data_index);
-      DType top_right_v = *(data + data_index + 1);
-      DType bottom_left_v = *(data + data_index + i_w);
-      DType bottom_right_v = *(data + data_index + i_w + 1);
+      DType top_left_v = 0;
+      DType top_right_v = 0;
+      DType bottom_left_v = 0;
+      DType bottom_right_v = 0;
       // calc input grad
-      *(g_input + data_index) += *(grad + grad_index) * top_left_y_w * top_left_x_w;
-      *(g_input + data_index + 1) += *(grad + grad_index) * top_left_y_w * (1.0 - top_left_x_w);
-      *(g_input + data_index+ i_w) += *(grad + grad_index) * (1.0 - top_left_y_w) * top_left_x_w;
-      *(g_input + data_index+ i_w + 1) += *(grad + grad_index) * (1.0 - top_left_y_w) *
-                                          (1.0 - top_left_x_w);
+      if (between(top_left_x, 0, i_w-1) && between(top_left_y, 0, i_h-1)) {
+        *(g_input + data_index) += *(grad + grad_index) * top_left_y_w * top_left_x_w;
+        top_left_v = *(data + data_index);
+      }
+      if (between(top_left_x+1, 0, i_w-1) && between(top_left_y, 0, i_h-1)) {
+        *(g_input + data_index + 1) += *(grad + grad_index) * top_left_y_w * (1.0 - top_left_x_w);
+        top_right_v = *(data + data_index + 1);
+      }
+      if (between(top_left_x, 0, i_w-1) && between(top_left_y+1, 0, i_h-1)) {
+        *(g_input + data_index+ i_w) += *(grad + grad_index) * (1.0 - top_left_y_w) * top_left_x_w;
+        bottom_left_v = *(data + data_index + i_w);
+      }
+      if (between(top_left_x+1, 0, i_w-1) && between(top_left_y+1, 0, i_h-1)) {
+        *(g_input + data_index+ i_w + 1) += *(grad + grad_index) * (1.0 - top_left_y_w) *
+                                            (1.0 - top_left_x_w);
+        bottom_right_v = *(data + data_index + i_w + 1);
+      }
       // calc weight grad of top_left_w, then multiple -1 is the grad of grid_src
       top_left_y_gw -= *(grad + grad_index) * (top_right_v - bottom_right_v +
-                       (top_left_v - top_right_v - bottom_left_v + bottom_right_v) * top_left_x_w);
-      top_left_x_gw -= *(grad + grad_index) * (bottom_left_v - bottom_right_v + (top_left_v -
-                       top_right_v - bottom_left_v + bottom_right_v) * top_left_y_w);
+                       (top_left_v - top_right_v - bottom_left_v + bottom_right_v)
+                       * top_left_x_w);
+      top_left_x_gw -= *(grad + grad_index) * (bottom_left_v - bottom_right_v +
+                       (top_left_v - top_right_v - bottom_left_v + bottom_right_v)
+                       * top_left_y_w);
     }
     // calc grid_src grad
     *(grid_src + grid_src_index + o_h * o_w) = top_left_y_gw * (i_h - 1) / 2;
@@ -110,10 +154,9 @@ inline void BilinearSamplingForward(const Tensor<gpu, 4, DType> &output,
     dim3 num_blocks(kMaxGridDim, (max_block + kMaxGridDim - 1) / kMaxGridDim);
     dim3 threads_per_block(kMaxThreadsPerBlock);
     CheckLaunchParam(num_blocks, threads_per_block, "spatial transformer forward");
-    hipStream_t stream = Stream<gpu>::GetStream(output.stream_);
-    /*BilinearSamplingForwardKernel<DType> << <num_blocks, threads_per_block, 0, stream >> >(
-      i_c, i_h, i_w, data, grid, o_n, o_c, o_h, o_w, out);*/
-    hipLaunchKernelGGL(HIP_KERNEL_NAME(BilinearSamplingForwardKernel<DType>),dim3(num_blocks),dim3(threads_per_block), 0, stream,i_c, i_h, i_w, data, grid, o_n, o_c, o_h, o_w, out );
+    gpuStream_t stream = Stream<gpu>::GetStream(output.stream_);
+    BilinearSamplingForwardKernel<DType> << <num_blocks, threads_per_block, 0, stream >> >(
+      i_c, i_h, i_w, data, grid, o_n, o_c, o_h, o_w, out);
 }
 
 template<typename DType>
@@ -134,10 +177,9 @@ inline void BilinearSamplingBackward(const Tensor<gpu, 4, DType> &input_grad,
   dim3 num_blocks(kMaxGridDim, (max_block + kMaxGridDim - 1) / kMaxGridDim);
   dim3 threads_per_block(kMaxThreadsPerBlock);
   CheckLaunchParam(num_blocks, threads_per_block, "spatial transformer backward");
-  hipStream_t stream = Stream<gpu>::GetStream(input_grad.stream_);
-/*  BilinearSamplingBackwardKernel<DType> << <num_blocks, threads_per_block, 0, stream >> >(
-    i_c, i_h, i_w, grad, data, o_n, o_c, o_h, o_w, g_input, grid_src);*/
-    hipLaunchKernelGGL(HIP_KERNEL_NAME(BilinearSamplingBackwardKernel<DType>),dim3(num_blocks),dim3(threads_per_block), 0, stream,i_c, i_h, i_w, grad, data, o_n, o_c, o_h, o_w, g_input, grid_src);
+  gpuStream_t stream = Stream<gpu>::GetStream(input_grad.stream_);
+  BilinearSamplingBackwardKernel<DType> << <num_blocks, threads_per_block, 0, stream >> >(
+    i_c, i_h, i_w, grad, data, o_n, o_c, o_h, o_w, g_input, grid_src);
 }
 
 }  // namespace mshadow

@@ -1,3 +1,20 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
 import mxnet as mx
 import numpy as np
 
@@ -19,32 +36,34 @@ def check_label_shapes(labels, preds, shape=0):
 
 
 class STTMetric(mx.metric.EvalMetric):
-    def __init__(self, batch_size, num_gpu, seq_length, is_epoch_end=False):
+    def __init__(self, batch_size, num_gpu, is_epoch_end=False, is_logging=True):
         super(STTMetric, self).__init__('STTMetric')
 
         self.batch_size = batch_size
         self.num_gpu = num_gpu
-        self.seq_length = seq_length
         self.total_n_label = 0
         self.total_l_dist = 0
         self.is_epoch_end = is_epoch_end
         self.total_ctc_loss = 0.
-
+        self.batch_loss = 0.
+        self.is_logging = is_logging
     def update(self, labels, preds):
         check_label_shapes(labels, preds)
-
-        log = LogUtil().getlogger()
-        labelUtil = LabelUtil.getInstance()
+        if self.is_logging:
+            log = LogUtil().getlogger()
+            labelUtil = LabelUtil.getInstance()
+        self.batch_loss = 0.
 
         for label, pred in zip(labels, preds):
             label = label.asnumpy()
             pred = pred.asnumpy()
 
-            for i in range(int(int(self.batch_size) / int(self.num_gpu))):
+            seq_length = len(pred) / int(int(self.batch_size) / int(self.num_gpu))
 
+            for i in range(int(int(self.batch_size) / int(self.num_gpu))):
                 l = remove_blank(label[i])
                 p = []
-                for k in range(int(self.seq_length)):
+                for k in range(int(seq_length)):
                     p.append(np.argmax(pred[k * int(int(self.batch_size) / int(self.num_gpu)) + i]))
                 p = pred_best(p)
 
@@ -52,16 +71,20 @@ class STTMetric(mx.metric.EvalMetric):
                 self.total_n_label += len(l)
                 self.total_l_dist += l_distance
                 this_cer = float(l_distance) / float(len(l))
-                log.info("label: %s " % (labelUtil.convert_num_to_word(l)))
-                log.info("pred : %s , cer: %f (distance: %d/ label length: %d)" % (
-                    labelUtil.convert_num_to_word(p), this_cer, l_distance, len(l)))
+                if self.is_logging:
+                    log.info("label: %s " % (labelUtil.convert_num_to_word(l)))
+                    log.info("pred : %s , cer: %f (distance: %d/ label length: %d)" % (
+                        labelUtil.convert_num_to_word(p), this_cer, l_distance, len(l)))
                 self.num_inst += 1
                 self.sum_metric += this_cer
-            if self.is_epoch_end:
-                loss = ctc_loss(l, pred, i, int(self.seq_length), int(self.batch_size), int(self.num_gpu))
-                self.total_ctc_loss += loss
-                log.info("loss: %f " % loss)
-
+                if self.is_epoch_end:
+                    loss = ctc_loss(l, pred, i, int(seq_length), int(self.batch_size), int(self.num_gpu))
+                    self.batch_loss += loss
+                    if self.is_logging:
+                        log.info("loss: %f " % loss)
+        self.total_ctc_loss += self.batch_loss
+    def get_batch_loss(self):
+        return self.batch_loss
     def get_name_value(self):
         total_cer = float(self.total_l_dist) / float(self.total_n_label)
 

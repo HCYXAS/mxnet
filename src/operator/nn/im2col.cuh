@@ -1,35 +1,53 @@
-#include "hip/hip_runtime.h"
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  ******************* BEGIN Caffe Copyright Notice and Disclaimer ****************
  *
  * COPYRIGHT
- * 
+ *
  * All contributions by the University of California:
  * Copyright (c) 2014-2017 The Regents of the University of California (Regents)
  * All rights reserved.
- * 
+ *
  * All other contributions:
  * Copyright (c) 2014-2017, the respective contributors
  * All rights reserved.
- * 
+ *
  * Caffe uses a shared copyright model: each contributor holds copyright over
  * their contributions to Caffe. The project versioning records all such
  * contribution and copyright details. If a contributor wants to further mark
  * their specific copyright on a particular contribution, they should indicate
  * their copyright solely in the commit message of the change when it is
  * committed.
- * 
+ *
  * LICENSE
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are met: 
- * 
+ * modification, are permitted provided that the following conditions are met:
+ *
  * 1. Redistributions of source code must retain the above copyright notice, this
- * list of conditions and the following disclaimer. 
+ * list of conditions and the following disclaimer.
  * 2. Redistributions in binary form must reproduce the above copyright notice,
  * this list of conditions and the following disclaimer in the documentation
- * and/or other materials provided with the distribution. 
- * 
+ * and/or other materials provided with the distribution.
+ *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
  * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
@@ -40,9 +58,9 @@
  * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- * 
+ *
  * CONTRIBUTION AGREEMENT
- * 
+ *
  * By contributing to the BVLC/caffe repository through pull-request, comment,
  * or otherwise, the contributor releases their content to the
  * license and copyright terms herein.
@@ -130,7 +148,8 @@ inline void im2col_gpu(mshadow::Stream<gpu>* s,
   int num_kernels = channels * height_col * width_col;
   using namespace mxnet_op;
   // NOLINT_NEXT_LINE(whitespace/operators)
-  hipLaunchKernelGGL(HIP_KERNEL_NAME(im2col_gpu_kernel<DType>), dim3(cuda_get_num_blocks(num_kernels)), dim3(mshadow::cuda::kBaseThreadNum), 0, mshadow::Stream<gpu>::GetStream(s), 
+  im2col_gpu_kernel<DType><<<cuda_get_num_blocks(num_kernels), mshadow::cuda::kBaseThreadNum,
+                             0, mshadow::Stream<gpu>::GetStream(s)>>>(
       num_kernels, data_im, height, width, kernel_h, kernel_w, pad_h,
       pad_w, stride_h, stride_w, dilation_h, dilation_w, height_col,
       width_col, data_col);
@@ -200,15 +219,15 @@ __global__ void im2col_nd_gpu_kernel(const int n, const DType* data_im,
   __shared__ int shared_col_shape[num_axes + 1];
   __shared__ int shared_im_shape[num_axes + 1];
 
-  if (hipThreadIdx_x < num_axes) {
-    shared_dilation[hipThreadIdx_x] = dilation[hipThreadIdx_x];
-    shared_kernel_shape[hipThreadIdx_x] = kernel_shape[hipThreadIdx_x];
-    shared_pad[hipThreadIdx_x] = pad[hipThreadIdx_x];
-    shared_stride[hipThreadIdx_x] = stride[hipThreadIdx_x];
+  if (threadIdx.x < num_axes) {
+    shared_dilation[threadIdx.x] = dilation[threadIdx.x];
+    shared_kernel_shape[threadIdx.x] = kernel_shape[threadIdx.x];
+    shared_pad[threadIdx.x] = pad[threadIdx.x];
+    shared_stride[threadIdx.x] = stride[threadIdx.x];
   }
-  if (hipThreadIdx_x < num_axes + 1) {
-    shared_col_shape[hipThreadIdx_x] = col_shape[hipThreadIdx_x];
-    shared_im_shape[hipThreadIdx_x] = im_shape[hipThreadIdx_x+1];  // skip batch dim
+  if (threadIdx.x < num_axes + 1) {
+    shared_col_shape[threadIdx.x] = col_shape[threadIdx.x];
+    shared_im_shape[threadIdx.x] = im_shape[threadIdx.x+1];  // skip batch dim
   }
   __syncthreads();
 
@@ -293,18 +312,24 @@ inline void im2col(mshadow::Stream<gpu>* s,
   using namespace mxnet_op;
   switch (num_spatial_axes) {
   case 1:
-    hipLaunchKernelGGL(HIP_KERNEL_NAME(im2col_nd_gpu_kernel<DType, 1>), dim3(cuda_get_num_blocks(num_kernels)), dim3(mshadow::cuda::kBaseThreadNum), 0, mshadow::Stream<gpu>::GetStream(s), 
+    im2col_nd_gpu_kernel<DType, 1>  // NOLINT_NEXT_LINE(whitespace/operators)
+        <<<cuda_get_num_blocks(num_kernels), mshadow::cuda::kBaseThreadNum,
+           0, mshadow::Stream<gpu>::GetStream(s)>>>(
         num_kernels, data_im, im_shape.get<3>(), col_shape.get<2>(),
         kernel_shape.get<1>(), pad.get<1>(), stride.get<1>(), dilation.get<1>(), data_col);
     break;
   case 2:
-    hipLaunchKernelGGL(HIP_KERNEL_NAME(im2col_gpu_kernel<DType>), dim3(cuda_get_num_blocks(num_kernels)), dim3(mshadow::cuda::kBaseThreadNum), 0, mshadow::Stream<gpu>::GetStream(s), 
+    im2col_gpu_kernel<DType> // NOLINT_NEXT_LINE(whitespace/operators)
+        <<<cuda_get_num_blocks(num_kernels), mshadow::cuda::kBaseThreadNum,
+           0, mshadow::Stream<gpu>::GetStream(s)>>>(
         num_kernels, data_im, im_shape[2], im_shape[3], kernel_shape[0], kernel_shape[1],
-        pad[0], pad[1], stride[0], stride[1], dilation[0], dilation[1], 
+        pad[0], pad[1], stride[0], stride[1], dilation[0], dilation[1],
         col_shape[1], col_shape[2], data_col);
     break;
   case 3:
-    hipLaunchKernelGGL(HIP_KERNEL_NAME(im2col_nd_gpu_kernel<DType, 3>), dim3(cuda_get_num_blocks(num_kernels)), dim3(mshadow::cuda::kBaseThreadNum), 0, mshadow::Stream<gpu>::GetStream(s), 
+    im2col_nd_gpu_kernel<DType, 3>  // NOLINT_NEXT_LINE(whitespace/operators)
+        <<<cuda_get_num_blocks(num_kernels), mshadow::cuda::kBaseThreadNum,
+           0, mshadow::Stream<gpu>::GetStream(s)>>>(
         num_kernels, data_im, im_shape.get<5>(), col_shape.get<4>(),
         kernel_shape.get<3>(), pad.get<3>(), stride.get<3>(), dilation.get<3>(), data_col);
     break;
@@ -333,7 +358,8 @@ inline void col2im_gpu(mshadow::Stream<gpu>* s, const DType* data_col, const int
   // To avoid involving atomic operations, we will launch one kernel per
   // bottom dimension, and then in the kernel add up the top dimensions.
   // NOLINT_NEXT_LINE(whitespace/operators)
-  hipLaunchKernelGGL(HIP_KERNEL_NAME(col2im_gpu_kernel<DType>), dim3(cuda_get_num_blocks(num_kernels)), dim3(mshadow::cuda::kBaseThreadNum), 0, mshadow::Stream<gpu>::GetStream(s), 
+  col2im_gpu_kernel<DType><<<cuda_get_num_blocks(num_kernels), mshadow::cuda::kBaseThreadNum,
+                             0, mshadow::Stream<gpu>::GetStream(s)>>>(
       num_kernels, data_col, height, width, channels, kernel_h, kernel_w,
       pad_h, pad_w, stride_h, stride_w, dilation_h, dilation_w,
       height_col, width_col, data_im, req);
@@ -360,15 +386,15 @@ __global__ void col2im_nd_gpu_kernel(const int n, const DType* data_col,
   __shared__ int shared_col_shape[num_axes + 1];
   __shared__ int shared_im_shape[num_axes + 1];
 
-  if (hipThreadIdx_x < num_axes) {
-    shared_dilation[hipThreadIdx_x] = dilation[hipThreadIdx_x];
-    shared_kernel_shape[hipThreadIdx_x] = kernel_shape[hipThreadIdx_x];
-    shared_pad[hipThreadIdx_x] = pad[hipThreadIdx_x];
-    shared_stride[hipThreadIdx_x] = stride[hipThreadIdx_x];
+  if (threadIdx.x < num_axes) {
+    shared_dilation[threadIdx.x] = dilation[threadIdx.x];
+    shared_kernel_shape[threadIdx.x] = kernel_shape[threadIdx.x];
+    shared_pad[threadIdx.x] = pad[threadIdx.x];
+    shared_stride[threadIdx.x] = stride[threadIdx.x];
   }
-  if (hipThreadIdx_x < num_axes + 1) {
-    shared_col_shape[hipThreadIdx_x] = col_shape[hipThreadIdx_x];
-    shared_im_shape[hipThreadIdx_x] = im_shape[hipThreadIdx_x+1];  // skip batch dim
+  if (threadIdx.x < num_axes + 1) {
+    shared_col_shape[threadIdx.x] = col_shape[threadIdx.x];
+    shared_im_shape[threadIdx.x] = im_shape[threadIdx.x+1];  // skip batch dim
   }
   __syncthreads();
 
@@ -472,7 +498,9 @@ inline void col2im(mshadow::Stream<gpu>* s,
   using namespace mxnet_op;
   switch (num_spatial_axes) {
   case 1:
-    hipLaunchKernelGGL(HIP_KERNEL_NAME(col2im_nd_gpu_kernel<DType, 1>), dim3(cuda_get_num_blocks(im_size)), dim3(mshadow::cuda::kBaseThreadNum), 0, mshadow::Stream<gpu>::GetStream(s), 
+    col2im_nd_gpu_kernel<DType, 1>  // NOLINT_NEXT_LINE(whitespace/operators)
+          <<<cuda_get_num_blocks(im_size), mshadow::cuda::kBaseThreadNum,
+             0, mshadow::Stream<gpu>::GetStream(s)>>>(
           im_size, data_col, im_shape.get<3>(), col_shape.get<2>(),
           kernel_shape.get<1>(), pad.get<1>(), stride.get<1>(), dilation.get<1>(),
           data_im, req);
@@ -482,14 +510,17 @@ inline void col2im(mshadow::Stream<gpu>* s,
     // To avoid involving atomic operations, we will launch one kernel per
     // bottom dimension, and then in the kernel add up the top dimensions.
     // NOLINT_NEXT_LINE(whitespace/operators)
-    hipLaunchKernelGGL(HIP_KERNEL_NAME(col2im_gpu_kernel<DType>), dim3(cuda_get_num_blocks(im_size)), dim3(mshadow::cuda::kBaseThreadNum), 0, mshadow::Stream<gpu>::GetStream(s), 
+    col2im_gpu_kernel<DType><<<cuda_get_num_blocks(im_size), mshadow::cuda::kBaseThreadNum,
+                               0, mshadow::Stream<gpu>::GetStream(s)>>>(
         im_size, data_col, im_shape[1], im_shape[2], im_shape[3],
         kernel_shape[0], kernel_shape[1], pad[0], pad[1], stride[0], stride[1],
         dilation[0], dilation[1], col_shape[1], col_shape[2], data_im, req);
     MSHADOW_CUDA_POST_KERNEL_CHECK(col2im_gpu_kernel);
     break;
   case 3:
-    hipLaunchKernelGGL(HIP_KERNEL_NAME(col2im_nd_gpu_kernel<DType, 3>), dim3(cuda_get_num_blocks(im_size)), dim3(mshadow::cuda::kBaseThreadNum), 0, mshadow::Stream<gpu>::GetStream(s), 
+    col2im_nd_gpu_kernel<DType, 3>  // NOLINT_NEXT_LINE(whitespace/operators)
+          <<<cuda_get_num_blocks(im_size), mshadow::cuda::kBaseThreadNum,
+             0, mshadow::Stream<gpu>::GetStream(s)>>>(
           im_size, data_col, im_shape.get<5>(), col_shape.get<4>(),
           kernel_shape.get<3>(), pad.get<3>(), stride.get<3>(), dilation.get<3>(),
           data_im, req);

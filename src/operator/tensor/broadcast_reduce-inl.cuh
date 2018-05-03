@@ -1,4 +1,22 @@
-#include "hip/hip_runtime.h"
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  * Copyright (c) 2015-2017 by Contributors
  * \file broadcast_reduce-inl.cuh
@@ -17,20 +35,20 @@ __global__ void binary_broadcast_kernel(const int N, const bool addto,
                                         const DType* __restrict rhs, DType *out,
                                         const Shape<ndim> lstride, const Shape<ndim> rstride,
                                         const Shape<ndim> oshape) {
-  for (int idx = hipBlockIdx_x * hipBlockDim_x * unroll + hipThreadIdx_x; idx < N;
-    idx += hipBlockDim_x * hipGridDim_x * unroll)
+  for (int idx = blockIdx.x * blockDim.x * unroll + threadIdx.x; idx < N;
+    idx += blockDim.x * gridDim.x * unroll)
   {
     int j[unroll];
     int k[unroll];
     DType val[unroll];
     #pragma unroll
     for (int i=0;i < unroll;i++) {
-      unravel_dot(idx + i*hipBlockDim_x, oshape, lstride, rstride, &j[i], &k[i]);
+      unravel_dot(idx + i*blockDim.x, oshape, lstride, rstride, &j[i], &k[i]);
       val[i] = OP::Map(lhs[j[i]], rhs[k[i]]);
     }
     #pragma unroll
     for (int i=0;i < unroll;i++) {
-      if (idx + i*hipBlockDim_x < N) assign(&out[idx + i*hipBlockDim_x], addto, val[i]);
+      if (idx + i*blockDim.x < N) assign(&out[idx + i*blockDim.x], addto, val[i]);
     }
 
   }
@@ -40,7 +58,7 @@ template<int ndim, typename DType, typename OP>
 void BinaryBroadcastComputeImpl(Stream<gpu> *s, const OpReqType req,
                                 const TBlob& lhs, const TBlob& rhs, const TBlob& out) {
   if (req == kNullOp) return;
-  hipStream_t stream = Stream<gpu>::GetStream(s);
+  gpuStream_t stream = Stream<gpu>::GetStream(s);
   int N = out.shape_.Size();
   const int warpSize = 32;
   const int unroll = 2;
@@ -48,7 +66,7 @@ void BinaryBroadcastComputeImpl(Stream<gpu> *s, const OpReqType req,
   int ngrid = std::min(kBaseGridNum, (N + nthread*unroll - 1) / (nthread*unroll));
   Shape<ndim> lstride = calc_stride(lhs.shape_.get<ndim>());
   Shape<ndim> rstride = calc_stride(rhs.shape_.get<ndim>());
-  hipLaunchKernelGGL(HIP_KERNEL_NAME(binary_broadcast_kernel<ndim, DType, OP, unroll>), dim3(ngrid), dim3(nthread), 0, stream, 
+  binary_broadcast_kernel<ndim, DType, OP, unroll><<<ngrid, nthread, 0, stream>>>(
     N, req == kAddTo, lhs.dptr<DType>(), rhs.dptr<DType>(), out.dptr<DType>(), lstride, rstride,
     out.shape_.get<ndim>());
 }
@@ -61,24 +79,24 @@ __global__ void reduce_kernel(const int N, const int M, const bool addto,
                               const Shape<ndim> big_shape0, const Shape<ndim> small_shape,
                               const Shape<ndim> big_shape, const Shape<ndim> big_stride,
                               const int Mnext, const bool do_transpose) {
-  HIP_DYNAMIC_SHARED( char, shTileChar)
+  extern __shared__ char shTileChar[];
   DType* shTile = (DType*)(shTileChar);
-  const int tid = hipThreadIdx_x + hipThreadIdx_y*hipBlockDim_x;
-  const int bx = (do_transpose) ? hipBlockDim_y : hipBlockDim_x;
-  const int by = (do_transpose) ? hipBlockDim_x : hipBlockDim_y;
-  const int tidx = (do_transpose) ? tid / by : hipThreadIdx_x;
-  const int tidy = (do_transpose) ? tid % by : hipThreadIdx_y;
-  for (int m0 = hipBlockIdx_y; m0 < Mnext; m0 += hipGridDim_y) {
+  const int tid = threadIdx.x + threadIdx.y*blockDim.x;
+  const int bx = (do_transpose) ? blockDim.y : blockDim.x;
+  const int by = (do_transpose) ? blockDim.x : blockDim.y;
+  const int tidx = (do_transpose) ? tid / by : threadIdx.x;
+  const int tidy = (do_transpose) ? tid % by : threadIdx.y;
+  for (int m0 = blockIdx.y; m0 < Mnext; m0 += gridDim.y) {
     // This TB handles M range [Mstart, ...., Mend - 1]
     const int Mstart = (int)((uint64_t)M*(uint64_t)m0/(uint64_t)Mnext);
     const int Mend   = (int)((uint64_t)M*(uint64_t)(m0 + 1)/(uint64_t)Mnext);
-    for (int idx0 = hipBlockIdx_x*bx; idx0 < N; idx0 += bx*hipGridDim_x) {
+    for (int idx0 = blockIdx.x*bx; idx0 < N; idx0 += bx*gridDim.x) {
       int idx = idx0 + tidx;
       Shape<ndim> coord = unravel(idx, small_shape);
       int idx_big0 = ravel(coord, big_shape0);
 
-      DType val;
-      Reducer::SetInitValue(val);
+      DType val, residual;
+      Reducer::SetInitValue(val, residual);
       if (idx < N) {
         for (int k = tidy + Mstart; k < Mend; k += by*unroll) {
           int idx_big[unroll];
@@ -95,7 +113,7 @@ __global__ void reduce_kernel(const int N, const int M, const bool addto,
           }
           #pragma unroll
           for (int u=0;u < unroll;u++) {
-            if (k + u*by < Mend) Reducer::Reduce(val, tmp[u]);
+            if (k + u*by < Mend) Reducer::Reduce(val, tmp[u], residual);
           }
         }
       }
@@ -108,11 +126,11 @@ __global__ void reduce_kernel(const int N, const int M, const bool addto,
         shTile[it0] = val;
         __syncthreads();
         for (int t=1;t < by;t <<= 1) {
-          DType tmp;
-          Reducer::SetInitValue(tmp);
+          DType tmp, residual;
+          Reducer::SetInitValue(tmp, residual);
           if (tidy + t < by) tmp = shTile[it0 + t*fbx];
           __syncthreads();
-          Reducer::Reduce(shTile[it0], tmp);
+          Reducer::Reduce(shTile[it0], tmp, residual);
           __syncthreads();
         }
         if (idx < N && tidy == 0) {
@@ -121,7 +139,7 @@ __global__ void reduce_kernel(const int N, const int M, const bool addto,
       } else {
         if (idx < N) {
           assign(&small[idx + m0*N], addto, val);
-        }        
+        }
       }
     }
   }
@@ -139,26 +157,26 @@ __global__ void reduce_kernel(const int N, const int M, const bool addto,
                               const Shape<ndim> rhs_shape, const Shape<ndim> big_stride,
                               const Shape<ndim> lhs_stride, const Shape<ndim> rhs_stride,
                               const int Mnext, const bool do_transpose) {
-  HIP_DYNAMIC_SHARED( char, shTileChar)
+  extern __shared__ char shTileChar[];
   DType* shTile = (DType*)(shTileChar);
-  const int tid = hipThreadIdx_x + hipThreadIdx_y*hipBlockDim_x;
-  const int bx = (do_transpose) ? hipBlockDim_y : hipBlockDim_x;
-  const int by = (do_transpose) ? hipBlockDim_x : hipBlockDim_y;
-  const int tidx = (do_transpose) ? tid / by : hipThreadIdx_x;
-  const int tidy = (do_transpose) ? tid % by : hipThreadIdx_y;
-  for (int m0 = hipBlockIdx_y; m0 < Mnext; m0 += hipGridDim_y) {
+  const int tid = threadIdx.x + threadIdx.y*blockDim.x;
+  const int bx = (do_transpose) ? blockDim.y : blockDim.x;
+  const int by = (do_transpose) ? blockDim.x : blockDim.y;
+  const int tidx = (do_transpose) ? tid / by : threadIdx.x;
+  const int tidy = (do_transpose) ? tid % by : threadIdx.y;
+  for (int m0 = blockIdx.y; m0 < Mnext; m0 += gridDim.y) {
     // This TB handles M range [Mstart, ...., Mend - 1]
     const int Mstart = (int)((uint64_t)M*(uint64_t)m0/(uint64_t)Mnext);
     const int Mend   = (int)((uint64_t)M*(uint64_t)(m0 + 1)/(uint64_t)Mnext);
-    for (int idx0 = hipBlockIdx_x*bx; idx0 < N; idx0 += bx*hipGridDim_x) {
+    for (int idx0 = blockIdx.x*bx; idx0 < N; idx0 += bx*gridDim.x) {
       int idx = idx0 + tidx;
       Shape<ndim> coord = unravel(idx, small_shape);
       int idx_big0 = ravel(coord, big_shape0);
       int idx_lhs0 = ravel(coord, lhs_shape0);
       int idx_rhs0 = ravel(coord, rhs_shape0);
 
-      DType val;
-      Reducer::SetInitValue(val);
+      DType val, residual;
+      Reducer::SetInitValue(val, residual);
       if (idx < N) {
         for (int k = tidy + Mstart; k < Mend; k += by*unroll) {
           int idx_big[unroll];
@@ -179,7 +197,7 @@ __global__ void reduce_kernel(const int N, const int M, const bool addto,
           }
           #pragma unroll
           for (int u=0;u < unroll;u++) {
-            if (k + u*by < Mend) Reducer::Reduce(val, tmp[u]);
+            if (k + u*by < Mend) Reducer::Reduce(val, tmp[u], residual);
           }
         }
       }
@@ -192,11 +210,11 @@ __global__ void reduce_kernel(const int N, const int M, const bool addto,
         shTile[it0] = val;
         __syncthreads();
         for (int t=1;t < by;t <<= 1) {
-          DType tmp;
-          Reducer::SetInitValue(tmp);
+          DType tmp, residual;
+          Reducer::SetInitValue(tmp, residual);
           if (tidy + t < by) tmp = shTile[it0 + t*fbx];
           __syncthreads();
-          Reducer::Reduce(shTile[it0], tmp);
+          Reducer::Reduce(shTile[it0], tmp, residual);
           __syncthreads();
         }
         if (idx < N && tidy == 0) {
@@ -205,7 +223,7 @@ __global__ void reduce_kernel(const int N, const int M, const bool addto,
       } else {
         if (idx < N) {
           assign(&small[idx + m0*N], addto, val);
-        }        
+        }
       }
     }
   }
@@ -217,12 +235,12 @@ template<typename Reducer, typename DType>
 __launch_bounds__(kMaxThreadsPerBlock)
 __global__ void reduce_lines_kernel(const int N, const int M, const bool addto,
   const int small_in_stride, const DType* __restrict small_in, DType *small_out) {
-  for (int idx = hipThreadIdx_x + hipBlockIdx_x*hipBlockDim_x; idx < N; idx += hipBlockDim_x*hipGridDim_x) {
-    
-    DType val;
-    Reducer::SetInitValue(val);
+  for (int idx = threadIdx.x + blockIdx.x*blockDim.x; idx < N; idx += blockDim.x*gridDim.x) {
+
+    DType val, residual;
+    Reducer::SetInitValue(val, residual);
     for (int k = 0; k < M; k++) {
-      Reducer::Reduce(val, small_in[idx + k*small_in_stride]);
+      Reducer::Reduce(val, small_in[idx + k*small_in_stride], residual);
     }
 
     if (idx < N) {
@@ -236,7 +254,7 @@ template<typename Reducer, int ndim, typename DType, typename OP>
 __global__ void reduce_kernel_M1(const int N, const bool addto,
                                 const DType* __restrict big, DType *small, const Shape<ndim> bshape,
                                 const Shape<ndim> sshape) {
-  for (int idx = hipThreadIdx_x + hipBlockIdx_x*hipBlockDim_x; idx < N; idx += hipBlockDim_x*hipGridDim_x) {
+  for (int idx = threadIdx.x + blockIdx.x*blockDim.x; idx < N; idx += blockDim.x*gridDim.x) {
     Shape<ndim> coord = unravel(idx, sshape);
     int j = ravel(coord, bshape);
     assign(&small[idx], addto, OP::Map(big[j]));
@@ -253,7 +271,7 @@ __global__ void reduce_kernel_M1(const int N, const bool addto,
                                  const Shape<ndim> lhs_shape,
                                  const Shape<ndim> rhs_shape,
                                  const Shape<ndim> small_shape) {
-  for (int idx = hipThreadIdx_x + hipBlockIdx_x*hipBlockDim_x; idx < N; idx += hipBlockDim_x*hipGridDim_x) {
+  for (int idx = threadIdx.x + blockIdx.x*blockDim.x; idx < N; idx += blockDim.x*gridDim.x) {
     Shape<ndim> coord = unravel(idx, small_shape);
     int idx_big = ravel(coord, big_shape);
     int idx_lhs = ravel(coord, lhs_shape);
@@ -266,7 +284,7 @@ __global__ void reduce_kernel_M1(const int N, const bool addto,
 // Returns the stride with which the fastest dimension is moving.
 // Used to detect memory access scatter.
 template<int ndim>
-MSHADOW_XINLINE int fastest_stride(const Shape<ndim>& small, const Shape<ndim>& big, 
+MSHADOW_XINLINE int fastest_stride(const Shape<ndim>& small, const Shape<ndim>& big,
   const Shape<ndim>& big_stride) {
   for (int i = ndim-1; i >= 0; --i) {
     if (big[i] != 1) {
@@ -481,11 +499,12 @@ ReduceImplConfig<ndim> ConfigureReduceImpl(const TBlob& small, const TBlob& big,
   }
 
 template<typename Reducer, int ndim, typename DType, typename OP>
-void ReduceImpl(hipStream_t stream, const TBlob& small, const OpReqType req,
+void ReduceImpl(gpuStream_t stream, const TBlob& small, const OpReqType req,
                 const TBlob& big, const Tensor<gpu, 1, char>& workspace,
                 const ReduceImplConfig<ndim>& config) {
   if (config.M == 1) {
-    hipLaunchKernelGGL(HIP_KERNEL_NAME(reduce_kernel_M1<Reducer, ndim, DType, OP>), dim3(config.kernel_1.gridDim), dim3(config.kernel_1.blockDim), 0, stream , 
+    reduce_kernel_M1<Reducer, ndim, DType, OP>
+    <<< config.kernel_1.gridDim, config.kernel_1.blockDim, 0, stream >>>(
       config.N, req == kAddTo, big.dptr<DType>(), small.dptr<DType>(), big.shape_.get<ndim>(),
       small.shape_.get<ndim>());
   } else {
@@ -506,24 +525,28 @@ void ReduceImpl(hipStream_t stream, const TBlob& small, const OpReqType req,
       config.kernel_1.blockDim.x : config.kernel_1.blockDim.y;
     const bool do_unroll = ( config.M / (by*config.Mnext) >= config.unroll_reduce );
     KERNEL_UNROLL_SWITCH(do_unroll, ReduceImplConfig<ndim>::unroll_reduce, UNROLL, {
-      hipLaunchKernelGGL(HIP_KERNEL_NAME(reduce_kernel<Reducer, ndim, DType, OP, UNROLL>), dim3(config.kernel_1.gridDim), dim3(config.kernel_1.blockDim), config.kernel_1.shMemSize, stream, 
+      reduce_kernel<Reducer, ndim, DType, OP, UNROLL>
+      <<< config.kernel_1.gridDim, config.kernel_1.blockDim, config.kernel_1.shMemSize, stream>>>(
         config.N, config.M, addto, big.dptr<DType>(), small_dptr, big.shape_.get<ndim>(),
         small.shape_.get<ndim>(), config.rshape, config.rstride, config.Mnext,
         config.kernel_1.do_transpose);
     });
 
     if (config.Mnext > 1) {
-      hipLaunchKernelGGL(HIP_KERNEL_NAME(reduce_lines_kernel<Reducer, DType>), dim3(config.kernel_2.gridSize), dim3(config.kernel_2.blockSize), 0, stream , config.N, config.Mnext, req == kAddTo, config.N, small_dptr, small.dptr<DType>());
+      reduce_lines_kernel<Reducer, DType>
+      <<< config.kernel_2.gridSize, config.kernel_2.blockSize, 0, stream >>>
+        (config.N, config.Mnext, req == kAddTo, config.N, small_dptr, small.dptr<DType>());
     }
   }
 }
 
 template<typename Reducer, int ndim, typename DType, typename OP1, typename OP2>
-void ReduceImpl(hipStream_t stream, const TBlob& small, const TBlob& lhs, const TBlob& rhs,
+void ReduceImpl(gpuStream_t stream, const TBlob& small, const TBlob& lhs, const TBlob& rhs,
                 const OpReqType req, const TBlob& big, const Tensor<gpu, 1, char>& workspace,
                 const ReduceImplConfig<ndim>& config) {
   if (config.M == 1) {
-    hipLaunchKernelGGL(HIP_KERNEL_NAME(reduce_kernel_M1<Reducer, ndim, DType, OP1, OP2>), dim3(config.kernel_1.gridDim), dim3(config.kernel_1.blockDim), 0, stream , 
+    reduce_kernel_M1<Reducer, ndim, DType, OP1, OP2>
+    <<< config.kernel_1.gridDim, config.kernel_1.blockDim, 0, stream >>>(
       config.N, req == kAddTo, big.dptr<DType>(), lhs.dptr<DType>(), rhs.dptr<DType>(),
       small.dptr<DType>(), big.shape_.get<ndim>(), lhs.shape_.get<ndim>(),
       rhs.shape_.get<ndim>(), small.shape_.get<ndim>());
@@ -544,7 +567,8 @@ void ReduceImpl(hipStream_t stream, const TBlob& small, const TBlob& lhs, const 
       config.kernel_1.blockDim.x : config.kernel_1.blockDim.y;
     const bool do_unroll = ( config.M / (by*config.Mnext) >= config.unroll_reduce );
     KERNEL_UNROLL_SWITCH(do_unroll, ReduceImplConfig<ndim>::unroll_reduce, UNROLL, {
-      hipLaunchKernelGGL(HIP_KERNEL_NAME(reduce_kernel<Reducer, ndim, DType, OP1, OP2, UNROLL>), dim3(config.kernel_1.gridDim), dim3(config.kernel_1.blockDim), config.kernel_1.shMemSize, stream, 
+      reduce_kernel<Reducer, ndim, DType, OP1, OP2, UNROLL>
+      <<< config.kernel_1.gridDim, config.kernel_1.blockDim, config.kernel_1.shMemSize, stream>>>(
         config.N, config.M, addto, big.dptr<DType>(), lhs.dptr<DType>(), rhs.dptr<DType>(),
         small_dptr, big.shape_.get<ndim>(), lhs.shape_.get<ndim>(),
         rhs.shape_.get<ndim>(), small.shape_.get<ndim>(), config.rshape, config.lhs_shape,
@@ -553,7 +577,9 @@ void ReduceImpl(hipStream_t stream, const TBlob& small, const TBlob& lhs, const 
     });
 
     if (config.Mnext > 1) {
-      hipLaunchKernelGGL(HIP_KERNEL_NAME(reduce_lines_kernel<Reducer, DType>), dim3(config.kernel_2.gridSize), dim3(config.kernel_2.blockSize), 0, stream , config.N, config.Mnext, req == kAddTo, config.N, small_dptr, small.dptr<DType>());
+      reduce_lines_kernel<Reducer, DType>
+      <<< config.kernel_2.gridSize, config.kernel_2.blockSize, 0, stream >>>
+        (config.N, config.Mnext, req == kAddTo, config.N, small_dptr, small.dptr<DType>());
     }
   }
 }
@@ -564,7 +590,7 @@ template<typename Reducer, int ndim, typename DType, typename OP>
 void Reduce(Stream<gpu> *s, const TBlob& small, const OpReqType req,
             const Tensor<gpu, 1, char>& workspace, const TBlob& big) {
   if (req == kNullOp) return;
-  hipStream_t stream = Stream<gpu>::GetStream(s);
+  gpuStream_t stream = Stream<gpu>::GetStream(s);
   ReduceImplConfig<ndim> config = ConfigureReduceImpl<ndim, DType>(small, big, NULL, NULL);
   ReduceImpl<Reducer, ndim, DType, OP>(stream, small, req, big, workspace, config);
 }
@@ -574,7 +600,7 @@ void Reduce(Stream<gpu> *s, const TBlob& small, const OpReqType req,
             const Tensor<gpu, 1, char>& workspace, const TBlob& big,
             const TBlob& lhs, const TBlob& rhs) {
   if (req == kNullOp) return;
-  hipStream_t stream = Stream<gpu>::GetStream(s);
+  gpuStream_t stream = Stream<gpu>::GetStream(s);
   ReduceImplConfig<ndim> config = ConfigureReduceImpl<ndim, DType>(small, big, &lhs, &rhs);
   ReduceImpl<Reducer, ndim, DType, OP1, OP2>(stream, small, lhs, rhs, req, big, workspace, config);
 }

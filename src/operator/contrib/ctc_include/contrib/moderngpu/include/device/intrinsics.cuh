@@ -79,7 +79,7 @@ MGPU_HOST_DEVICE int GetDoubleY(double d) {
 ////////////////////////////////////////////////////////////////////////////////
 // PTX for bfe and bfi
 
-#if (__CUDA_ARCH__ >= 200) && defined(__HIP_PLATFORM_NVCC__)
+#if __CUDA_ARCH__ >= 200
 
 MGPU_DEVICE uint bfe_ptx(uint x, uint bit, uint numBits) {
 	uint result;
@@ -104,44 +104,47 @@ MGPU_DEVICE uint prmt_ptx(uint a, uint b, uint index) {
 
 #endif // __CUDA_ARCH__ >= 200
 
-
+#if CUDA_VERSION >= 9000
 ////////////////////////////////////////////////////////////////////////////////
-// shfl_up
+// shfl_add
 
-__device__ __forceinline__ float shfl_up(float var,
-	unsigned int delta, int width = 32) {
-
-//#if __CUDA_ARCH__ >= 300
-#if __HIP_ARCH_HAS_WARP_SHUFFLE__
-	var = __shfl_up(var, delta, width);
+MGPU_DEVICE int shfl_add(int x, int offset, int width = WARP_SIZE, unsigned int threadmask = 0xFFFFFFFF) {
+	int result = 0;
+#if __CUDA_ARCH__ >= 300
+	int mask = (WARP_SIZE - width)<< 8;
+	asm(
+		"{.reg .s32 r0;"
+		".reg .pred p;"
+		"shfl.sync.up.b32 r0|p, %1, %2, %3, %4;"
+		"@p add.s32 r0, r0, %5;"
+		"mov.s32 %0, r0; }"
+		: "=r"(result) : "r"(x), "r"(offset), "r"(mask), "r"(threadmask), "r"(x));
 #endif
-	return var;
+	return result;
 }
 
-__device__ __forceinline__ double shfl_up(double var,
-	unsigned int delta, int width = 32) {
-
-//#if __CUDA_ARCH__ >= 300
-#if __HIP_ARCH_HAS_WARP_SHUFFLE__
-	int2 p = mgpu::double_as_int2(var);
-	p.x = __shfl_up(p.x, delta, width);
-	p.y = __shfl_up(p.y, delta, width);
-	var = mgpu::int2_as_double(p);
+MGPU_DEVICE int shfl_max(int x, int offset, int width = WARP_SIZE, unsigned int threadmask = 0xFFFFFFFF) {
+	int result = 0;
+#if __CUDA_ARCH__ >= 300
+	int mask = (WARP_SIZE - width)<< 8;
+	asm(
+		"{.reg .s32 r0;"
+		".reg .pred p;"
+		"shfl.sync.up.b32 r0|p, %1, %2, %3, %4;"
+		"@p max.s32 r0, r0, %5;"
+		"mov.s32 %0, r0; }"
+		: "=r"(result) : "r"(x), "r"(offset), "r"(mask), "r"(threadmask), "r"(x));
 #endif
-
-	return var;
+	return result;
 }
-
+#else
 ////////////////////////////////////////////////////////////////////////////////
 // shfl_add
 
 MGPU_DEVICE int shfl_add(int x, int offset, int width = WARP_SIZE) {
 	int result = 0;
-//#if __CUDA_ARCH__ >= 300
-#if __HIP_ARCH_HAS_WARP_SHUFFLE__
-
+#if __CUDA_ARCH__ >= 300
 	int mask = (WARP_SIZE - width)<< 8;
-#ifdef __HIP_PLATFORM_NVCC__
 	asm(
 		"{.reg .s32 r0;"
 		".reg .pred p;"
@@ -150,16 +153,13 @@ MGPU_DEVICE int shfl_add(int x, int offset, int width = WARP_SIZE) {
 		"mov.s32 %0, r0; }"
 		: "=r"(result) : "r"(x), "r"(offset), "r"(mask), "r"(x));
 #endif
-#endif
 	return result;
 }
 
 MGPU_DEVICE int shfl_max(int x, int offset, int width = WARP_SIZE) {
 	int result = 0;
-//if __CUDA_ARCH__ >= 300
-#if __HIP_ARCH_HAS_WARP_SHUFFLE__
+#if __CUDA_ARCH__ >= 300
 	int mask = (WARP_SIZE - width)<< 8;
-#ifdef __HIP_PLATFORM_NVCC__
 	asm(
 		"{.reg .s32 r0;"
 		".reg .pred p;"
@@ -168,16 +168,16 @@ MGPU_DEVICE int shfl_max(int x, int offset, int width = WARP_SIZE) {
 		"mov.s32 %0, r0; }"
 		: "=r"(result) : "r"(x), "r"(offset), "r"(mask), "r"(x));
 #endif
-#endif
 	return result;
 }
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 // brev, popc, clz, bfe, bfi, prmt
 
 // Reverse the bits in an integer.
 MGPU_HOST_DEVICE uint brev(uint x) {
-#if (__CUDA_ARCH__ >= 200 && defined(__HIP_PLATFORM_NVCC__)) || defined(__HIP_PLATFORM_HCC__)
+#if __CUDA_ARCH__ >= 200
 	uint y = __brev(x);
 #else
 	uint y = 0;
@@ -189,7 +189,7 @@ MGPU_HOST_DEVICE uint brev(uint x) {
 
 // Count number of bits in a register.
 MGPU_HOST_DEVICE int popc(uint x) {
-#if (__CUDA_ARCH__ >= 200 && defined(__HIP_PLATFORM_NVCC__)) || defined(__HIP_PLATFORM_HCC__)
+#if __CUDA_ARCH__ >= 200
 	return __popc(x);
 #else
 	int c;
@@ -201,7 +201,7 @@ MGPU_HOST_DEVICE int popc(uint x) {
 
 // Count leading zeros - start from most significant bit.
 MGPU_HOST_DEVICE int clz(int x) {
-#if (__CUDA_ARCH__ >= 200 && defined(__HIP_PLATFORM_NVCC__)) || defined(__HIP_PLATFORM_HCC__)
+#if __CUDA_ARCH__ >= 200
 	return __clz(x);
 #else
 	for(int i = 31; i >= 0; --i)
@@ -212,7 +212,7 @@ MGPU_HOST_DEVICE int clz(int x) {
 
 // Find first set - start from least significant bit. LSB is 1. ffs(0) is 0.
 MGPU_HOST_DEVICE int ffs(int x) {
-#if (__CUDA_ARCH__ >= 200 && defined(__HIP_PLATFORM_NVCC__)) || defined(__HIP_PLATFORM_HCC__)
+#if __CUDA_ARCH__ >= 200
 	return __ffs(x);
 #else
 	for(int i = 0; i < 32; ++i)
@@ -222,8 +222,7 @@ MGPU_HOST_DEVICE int ffs(int x) {
 }
 
 MGPU_HOST_DEVICE uint bfe(uint x, uint bit, uint numBits) {
-//#if __CUDA_ARCH__ >= 200
-#if (__CUDA_ARCH__ >= 200) && defined(__HIP_PLATFORM_NVCC__)
+#if __CUDA_ARCH__ >= 200
 	return bfe_ptx(x, bit, numBits);
 #else
 	return ((1<< numBits) - 1) & (x>> bit);
@@ -232,8 +231,7 @@ MGPU_HOST_DEVICE uint bfe(uint x, uint bit, uint numBits) {
 
 MGPU_HOST_DEVICE uint bfi(uint x, uint y, uint bit, uint numBits) {
 	uint result;
-//#if __CUDA_ARCH__ >= 200
-#if (__CUDA_ARCH__ >= 200) && defined(__HIP_PLATFORM_NVCC__)
+#if __CUDA_ARCH__ >= 200
 	result = bfi_ptx(x, y, bit, numBits);
 #else
 	if(bit + numBits > 32) numBits = 32 - bit;
@@ -246,8 +244,7 @@ MGPU_HOST_DEVICE uint bfi(uint x, uint y, uint bit, uint numBits) {
 
 MGPU_HOST_DEVICE uint prmt(uint a, uint b, uint index) {
 	uint result;
-//#if __CUDA_ARCH__ >= 200
-#if (__CUDA_ARCH__ >= 200) && defined(__HIP_PLATFORM_NVCC__)
+#if __CUDA_ARCH__ >= 200
 	result = prmt_ptx(a, b, index);
 #else
 	result = 0;
@@ -272,8 +269,7 @@ MGPU_HOST_DEVICE int FindLog2(int x, bool roundUp = false) {
 ////////////////////////////////////////////////////////////////////////////////
 // vset4
 
-//#if __CUDA_ARCH__ >= 300
-#if (__CUDA_ARCH__ >= 300) && defined(__HIP_PLATFORM_NVCC__)
+#if __CUDA_ARCH__ >= 300
 
 // Performs four byte-wise comparisons and returns 1 for each byte that
 // satisfies the conditional, and zero otherwise.
@@ -293,8 +289,7 @@ MGPU_DEVICE uint vset4_eq_ptx(uint a, uint b) {
 
 MGPU_HOST_DEVICE uint vset4_lt_add(uint a, uint b, uint c) {
 	uint result;
-//#if __CUDA_ARCH__ >= 300
-#if (__CUDA_ARCH__ >= 300) && defined(__HIP_PLATFORM_NVCC__)
+#if __CUDA_ARCH__ >= 300
 	result = vset4_lt_add_ptx(a, b, c);
 #else
 	result = c;
@@ -308,8 +303,7 @@ MGPU_HOST_DEVICE uint vset4_lt_add(uint a, uint b, uint c) {
 
 MGPU_HOST_DEVICE uint vset4_eq(uint a, uint b) {
 	uint result;
-//#if __CUDA_ARCH__ >= 300
-#if (__CUDA_ARCH__ >= 300) && defined(__HIP_PLATFORM_NVCC__)
+#if __CUDA_ARCH__ >= 300
 	result = vset4_eq_ptx(a, b);
 #else
 	result = 0;
@@ -325,8 +319,7 @@ MGPU_HOST_DEVICE uint vset4_eq(uint a, uint b) {
 //
 
 MGPU_HOST_DEVICE uint umulhi(uint x, uint y) {
-//#if __CUDA_ARCH__ >= 100
-#if ((__CUDA_ARCH__ >= 100) && defined(__HIP_PLATFORM_NVCC__)) || defined(__HIP_PLATFORM_HCC__)
+#if __CUDA_ARCH__ >= 100
 	return __umulhi(x, y);
 #else
 	uint64 product = (uint64)x * y;
@@ -353,7 +346,7 @@ struct LdgShim {
 	}
 };
 
-#if (__CUDA_ARCH__ >= 320 && __CUDA_ARCH__ < 400 && defined(__HIP_PLATFORM_NVCC__)) || defined(__HIP_PLATFORM_HCC__)
+#if __CUDA_ARCH__ >= 320 && __CUDA_ARCH__ < 400
 
 	// List of __ldg-compatible types from sm_32_intrinsics.h.
 	DEFINE_LDG_TYPE(char)

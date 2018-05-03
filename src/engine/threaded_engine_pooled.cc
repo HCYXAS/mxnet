@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  * Copyright (c) 2015 by Contributors
  * \file threaded_engine_pooled.cc
@@ -82,11 +101,11 @@ class ThreadedEnginePooled : public ThreadedEngine {
   void DoExecute(OprBlock* opr_block) {
     assert(opr_block->wait.load() == 0);
     if (opr_block->ctx.dev_mask() == gpu::kDevMask) {
-      #if MXNET_USE_CUDA
-      CUDA_CALL(hipSetDevice(opr_block->ctx.dev_id));
-      #else   // MXNET_USE_CUDA
+      #if MXNET_USE_GPU
+      CUDA_CALL(gpuSetDevice(opr_block->ctx.dev_id));
+      #else   // MXNET_USE_GPU
       LOG(FATAL) << "Please compile with CUDA enabled";
-      #endif  // MXNET_USE_CUDA
+      #endif  // MXNET_USE_GPU
     }
     bool is_copy = (opr_block->opr->prop == FnProperty::kCopyFromGPU ||
                     opr_block->opr->prop == FnProperty::kCopyToGPU);

@@ -1,8 +1,10 @@
-#include "hip/hip_runtime.h"
 #pragma once
+
 
 #include "ctc_helper.h"
 #include "gpu_ctc_kernels.h"
+
+namespace mxnet_warpctc {
 
 template <typename ProbT>
 class GpuCTC {
@@ -10,7 +12,7 @@ class GpuCTC {
         GpuCTC(int alphabet_size,
                int minibatch,
                void *workspace,
-               hipStream_t stream,
+               CUstream stream,
                int blank_label) :
             out_dim_(alphabet_size), minibatch_(minibatch),
             gpu_workspace_(workspace), stream_(stream),
@@ -38,13 +40,13 @@ class GpuCTC {
     private:
 
         template<int NT, int VT>
-        ctcStatus_t launch_alpha_beta_kernels(const ProbT* const probs,
+        ctcStatus_t launch_alpha_beta_kernels(const ProbT* const log_probs,
                                               ProbT *grads,
                                               bool compute_alpha,
                                               bool compute_beta);
 
         ctcStatus_t
-        launch_gpu_kernels(const ProbT* const probs,
+        launch_gpu_kernels(const ProbT* const log_probs,
                            ProbT *grads,
                            size_t config,
                            bool launch_alpha,
@@ -62,7 +64,7 @@ class GpuCTC {
                                           size_t& best_config);
 
         ctcStatus_t
-        compute_probs(const ProbT* const activations);
+        compute_log_probs(const ProbT* const activations);
 
         ctcStatus_t
         compute_cost_and_score(const ProbT* const activations,
@@ -84,7 +86,7 @@ class GpuCTC {
         int activation_cols_; // Number of columns in activations
 
         void *gpu_workspace_; // Buffer for all temporary GPU memory
-        hipStream_t stream_;
+        CUstream stream_;
         int blank_label_;
 
         int *utt_length_; // T
@@ -97,7 +99,7 @@ class GpuCTC {
         ProbT *nll_forward_;
         ProbT *nll_backward_;
         ProbT *denoms_; // Temporary storage for denoms for softmax
-        ProbT *probs_; // Temporary storage for probabilities (softmax output)
+        ProbT *log_probs_; // Temporary storage for probabilities (log softmax output)
 };
 
 template<typename ProbT>
@@ -149,7 +151,7 @@ GpuCTC<ProbT>::setup_gpu_metadata(const int* const flat_labels,
 
     const int num_passes = ctc_helper::div_up(minibatch_, cpu_buffer_size);
 
-    hipError_t cuda_status;
+    gpuError_t cuda_status;
 
     for (int pass = 0; pass < num_passes; ++pass) {
 
@@ -180,17 +182,17 @@ GpuCTC<ProbT>::setup_gpu_metadata(const int* const flat_labels,
             Lmax = std::max(Lmax, L);
         }
 
-        cuda_status = hipMemcpyAsync(&(repeats_[start_idx]), repeats,
+        cuda_status = gpuMemcpyAsync(&(repeats_[start_idx]), repeats,
                                       (end_idx - start_idx) * sizeof(int),
-                                      hipMemcpyHostToDevice, stream_);
-        if (cuda_status != hipSuccess)
+                                      gpuMemcpyHostToDevice, stream_);
+        if (cuda_status != gpuSuccess)
             return CTC_STATUS_MEMOPS_FAILED;
 
 
-        cuda_status = hipMemcpyAsync(&(label_offsets_[start_idx]), label_offsets,
+        cuda_status = gpuMemcpyAsync(&(label_offsets_[start_idx]), label_offsets,
                                       (end_idx - start_idx) * sizeof(int),
-                                      hipMemcpyHostToDevice, stream_);
-        if (cuda_status != hipSuccess)
+                                      gpuMemcpyHostToDevice, stream_);
+        if (cuda_status != gpuSuccess)
             return CTC_STATUS_MEMOPS_FAILED;
     }
 
@@ -205,30 +207,30 @@ GpuCTC<ProbT>::setup_gpu_metadata(const int* const flat_labels,
                                 gpu_bytes_used);
     gpu_bytes_used += minibatch_  * sizeof(int);
 
-    cuda_status = hipMemcpyAsync(utt_length_, input_lengths,
+    cuda_status = gpuMemcpyAsync(utt_length_, input_lengths,
                                   minibatch_ * sizeof(int),
-                                  hipMemcpyHostToDevice, stream_);
-    if (cuda_status != hipSuccess)
+                                  gpuMemcpyHostToDevice, stream_);
+    if (cuda_status != gpuSuccess)
         return CTC_STATUS_MEMOPS_FAILED;
 
     label_sizes_ =
         reinterpret_cast<int *>(static_cast<char*>(gpu_workspace_) +
                                 gpu_bytes_used);
     gpu_bytes_used += minibatch_ * sizeof(int);
-    cuda_status = hipMemcpyAsync(label_sizes_, label_lengths,
+    cuda_status = gpuMemcpyAsync(label_sizes_, label_lengths,
                                   minibatch_ * sizeof(int),
-                                  hipMemcpyHostToDevice, stream_);
-    if (cuda_status != hipSuccess)
+                                  gpuMemcpyHostToDevice, stream_);
+    if (cuda_status != gpuSuccess)
         return CTC_STATUS_MEMOPS_FAILED;
 
     labels_without_blanks_ =
         reinterpret_cast<int *>(static_cast<char*>(gpu_workspace_) +
                                 gpu_bytes_used);
     gpu_bytes_used += Lmax * minibatch_ * sizeof(int);
-    cuda_status = hipMemcpyAsync(labels_without_blanks_, flat_labels,
+    cuda_status = gpuMemcpyAsync(labels_without_blanks_, flat_labels,
                                   total_label_length * sizeof(int),
-                                  hipMemcpyHostToDevice, stream_);
-    if (cuda_status != hipSuccess)
+                                  gpuMemcpyHostToDevice, stream_);
+    if (cuda_status != gpuSuccess)
         return CTC_STATUS_MEMOPS_FAILED;
 
     labels_with_blanks_ =
@@ -247,7 +249,7 @@ GpuCTC<ProbT>::setup_gpu_metadata(const int* const flat_labels,
                                   gpu_bytes_used);
     gpu_bytes_used += activation_cols_ * sizeof(ProbT);
 
-    probs_ =
+    log_probs_ =
         reinterpret_cast<ProbT *>(static_cast<char*>(gpu_workspace_) +
                                   gpu_bytes_used);
     gpu_bytes_used += out_dim_ * activation_cols_ * sizeof(ProbT);
@@ -257,7 +259,7 @@ GpuCTC<ProbT>::setup_gpu_metadata(const int* const flat_labels,
 
 template<typename ProbT>
 template<int NT, int VT>
-ctcStatus_t GpuCTC<ProbT>::launch_alpha_beta_kernels(const ProbT* const probs,
+ctcStatus_t GpuCTC<ProbT>::launch_alpha_beta_kernels(const ProbT* const log_probs,
                                                      ProbT* grads,
                                                      bool compute_alpha,
                                                      bool compute_beta ) {
@@ -270,22 +272,24 @@ ctcStatus_t GpuCTC<ProbT>::launch_alpha_beta_kernels(const ProbT* const probs,
     const int stride = minibatch_;
 
     if (compute_alpha)
-        hipLaunchKernelGGL(HIP_KERNEL_NAME(compute_alpha_kernel<ProbT, NT, VT>), dim3(grid_size), dim3(NT), 0, stream_, probs, label_sizes_, utt_length_,
+        compute_alpha_kernel<ProbT, NT, VT><<<grid_size, NT, 0, stream_>>>
+            (log_probs, label_sizes_, utt_length_,
              repeats_, labels_without_blanks_, label_offsets_,
              labels_with_blanks_, alphas_, nll_forward_,
              stride, out_dim_, S_, T_, blank_label_);
 
 
     if (compute_beta) {
-        hipLaunchKernelGGL(HIP_KERNEL_NAME(compute_betas_and_grad_kernel<ProbT, NT, VT>), dim3(grid_size), dim3(NT), 0, stream_, probs, label_sizes_, utt_length_, repeats_,
+        compute_betas_and_grad_kernel<ProbT, NT, VT><<<grid_size, NT, 0, stream_>>>
+            (log_probs, label_sizes_, utt_length_, repeats_,
              labels_with_blanks_, alphas_, nll_forward_, nll_backward_,
              grads, stride, out_dim_, S_, T_, blank_label_);
 
-        hipStreamSynchronize(stream_);
+        gpuStreamSynchronize(stream_);
     }
 
-    hipError_t err = hipGetLastError();
-    if (err != hipSuccess)
+    gpuError_t err = gpuGetLastError();
+    if (err != gpuSuccess)
         return CTC_STATUS_EXECUTION_FAILED;
 
     return CTC_STATUS_SUCCESS;
@@ -327,25 +331,25 @@ GpuCTC<ProbT>::create_metadata_and_choose_config(const int* const flat_labels,
 
 template<typename ProbT>
 ctcStatus_t
-GpuCTC<ProbT>::launch_gpu_kernels(const ProbT* const probs,
+GpuCTC<ProbT>::launch_gpu_kernels(const ProbT* const log_probs,
                                   ProbT* grads,
                                   size_t config,
                                   bool l_a,
                                   bool l_b) {
 
     switch(config) {
-        case 0:   {return launch_alpha_beta_kernels<32,   1>(probs, grads, l_a, l_b);}
-        case 1:   {return launch_alpha_beta_kernels<64,   1>(probs, grads, l_a, l_b);}
-        case 2:   {return launch_alpha_beta_kernels<128,  1>(probs, grads, l_a, l_b);}
-        case 3:   {return launch_alpha_beta_kernels<64,   3>(probs, grads, l_a, l_b);}
-        case 4:   {return launch_alpha_beta_kernels<128,  2>(probs, grads, l_a, l_b);}
-        case 5:   {return launch_alpha_beta_kernels<32,   9>(probs, grads, l_a, l_b);}
-        case 6:   {return launch_alpha_beta_kernels<64,   6>(probs, grads, l_a, l_b);}
-        case 7:   {return launch_alpha_beta_kernels<128,  4>(probs, grads, l_a, l_b);}
-        case 8:   {return launch_alpha_beta_kernels<64,   9>(probs, grads, l_a, l_b);}
-        case 9:   {return launch_alpha_beta_kernels<128,  6>(probs, grads, l_a, l_b);}
-        case 10:  {return launch_alpha_beta_kernels<128,  9>(probs, grads, l_a, l_b);}
-        case 11:  {return launch_alpha_beta_kernels<128, 10>(probs, grads, l_a, l_b);}
+        case 0:   {return launch_alpha_beta_kernels<32,   1>(log_probs, grads, l_a, l_b);}
+        case 1:   {return launch_alpha_beta_kernels<64,   1>(log_probs, grads, l_a, l_b);}
+        case 2:   {return launch_alpha_beta_kernels<128,  1>(log_probs, grads, l_a, l_b);}
+        case 3:   {return launch_alpha_beta_kernels<64,   3>(log_probs, grads, l_a, l_b);}
+        case 4:   {return launch_alpha_beta_kernels<128,  2>(log_probs, grads, l_a, l_b);}
+        case 5:   {return launch_alpha_beta_kernels<32,   9>(log_probs, grads, l_a, l_b);}
+        case 6:   {return launch_alpha_beta_kernels<64,   6>(log_probs, grads, l_a, l_b);}
+        case 7:   {return launch_alpha_beta_kernels<128,  4>(log_probs, grads, l_a, l_b);}
+        case 8:   {return launch_alpha_beta_kernels<64,   9>(log_probs, grads, l_a, l_b);}
+        case 9:   {return launch_alpha_beta_kernels<128,  6>(log_probs, grads, l_a, l_b);}
+        case 10:  {return launch_alpha_beta_kernels<128,  9>(log_probs, grads, l_a, l_b);}
+        case 11:  {return launch_alpha_beta_kernels<128, 10>(log_probs, grads, l_a, l_b);}
     }
 
     return CTC_STATUS_EXECUTION_FAILED;
@@ -353,14 +357,14 @@ GpuCTC<ProbT>::launch_gpu_kernels(const ProbT* const probs,
 
 template<typename ProbT>
 ctcStatus_t
-GpuCTC<ProbT>::compute_probs(const ProbT* const activations) {
+GpuCTC<ProbT>::compute_log_probs(const ProbT* const activations) {
 
-    hipError_t cuda_status;
+    gpuError_t cuda_status;
     cuda_status =
-        hipMemcpyAsync(probs_, activations,
+        gpuMemcpyAsync(log_probs_, activations,
                         activation_cols_ * out_dim_ *sizeof(ProbT),
-                        hipMemcpyDeviceToHost, stream_);
-    if (cuda_status != hipSuccess)
+                        gpuMemcpyDeviceToDevice, stream_);
+    if (cuda_status != gpuSuccess)
         return CTC_STATUS_MEMOPS_FAILED;
 
 
@@ -370,9 +374,9 @@ GpuCTC<ProbT>::compute_probs(const ProbT* const activations) {
     using namespace mshadow::expr;
     Stream<mxnet::gpu> mxstream;
     mxstream.stream_ = stream_;
-    Tensor<mxnet::gpu, 2, ProbT> probs_handle(probs_, mshadow::Shape2(activation_cols_, out_dim_), &mxstream);
+    Tensor<mxnet::gpu, 2, ProbT> log_probs_handle(log_probs_, mshadow::Shape2(activation_cols_, out_dim_), &mxstream);
     Tensor<mxnet::gpu, 1, ProbT> denoms_handle(denoms_, mshadow::Shape1(activation_cols_), &mxstream);
-    denoms_handle = reduce_with_axis<red::maximum, false>(probs_handle, 1);
+    denoms_handle = reduce_with_axis<red::maximum, false>(log_probs_handle, 1);
 
 
 
@@ -383,20 +387,22 @@ GpuCTC<ProbT>::compute_probs(const ProbT* const activations) {
     const int num_elements = out_dim_ * activation_cols_;
     const int grid_size = ctc_helper::div_up(num_elements, NV);
 
-    hipLaunchKernelGGL(HIP_KERNEL_NAME(prepare_stable_SM_kernel<ProbT, VT>), dim3(grid_size), dim3(NT), 0, stream_, ctc_helper::identity<ProbT>(), probs_,
-        static_cast<const ProbT* const> (denoms_), out_dim_, num_elements);
+    prepare_stable_LSM_kernel<ProbT, VT> <<< grid_size, NT, 0, stream_>>>
+       (ctc_helper::identity<ProbT>(), log_probs_,
+        denoms_, out_dim_, num_elements);
 
     // compute denominators for softmax
     denoms_handle = reduce_with_axis<red::sum, false>(
         F<mxnet::op::mshadow_op::exp>(
-            probs_handle -
-            broadcast<0>(reduce_with_axis<red::maximum, false>(probs_handle, 1),
-                         probs_handle.shape_)),
+            log_probs_handle -
+            broadcast<0>(reduce_with_axis<red::maximum, false>(log_probs_handle, 1),
+                         log_probs_handle.shape_)),
         1);
 
     // Kernel launch to calculate probabilities
-    hipLaunchKernelGGL(HIP_KERNEL_NAME(compute_probs_kernel<ProbT, VT>), dim3(grid_size), dim3(NT), 0, stream_, ctc_helper::exponential<ProbT>(), probs_,
-        static_cast<const ProbT* const>(denoms_), out_dim_, num_elements);
+    compute_log_probs_kernel<ProbT, VT><<<grid_size, NT, 0, stream_>>>
+        (ctc_helper::identity<ProbT>(), log_probs_,
+         denoms_, out_dim_, num_elements);
 
     return CTC_STATUS_SUCCESS;
 }
@@ -420,19 +426,19 @@ GpuCTC<ProbT>::compute_cost_and_score(const ProbT* const activations,
     if (status != CTC_STATUS_SUCCESS)
         return status;
 
-    status = compute_probs(activations);
+    status = compute_log_probs(activations);
     if (status != CTC_STATUS_SUCCESS)
         return status;
 
-    launch_gpu_kernels(probs_, grads, best_config,
+    launch_gpu_kernels(log_probs_, grads, best_config,
                        compute_alpha, compute_betas_and_grad);
 
-    hipError_t cuda_status_mem, cuda_status_sync;
-    cuda_status_mem = hipMemcpyAsync(costs, nll_forward_,
+    gpuError_t cuda_status_mem, cuda_status_sync;
+    cuda_status_mem = gpuMemcpyAsync(costs, nll_forward_,
                                       sizeof(ProbT) * minibatch_,
-                                      hipMemcpyDeviceToHost, stream_);
-    cuda_status_sync = hipStreamSynchronize(stream_);
-    if (cuda_status_mem != hipSuccess || cuda_status_sync != hipSuccess)
+                                      gpuMemcpyDeviceToHost, stream_);
+    cuda_status_sync = gpuStreamSynchronize(stream_);
+    if (cuda_status_mem != gpuSuccess || cuda_status_sync != gpuSuccess)
         return CTC_STATUS_MEMOPS_FAILED;
 
     return CTC_STATUS_SUCCESS;
@@ -478,3 +484,4 @@ GpuCTC<ProbT>::score_forward(const ProbT* const activations,
                                   label_lengths, input_lengths, true, false);
 }
 
+} // mxnet_warpctc

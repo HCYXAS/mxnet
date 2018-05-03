@@ -32,7 +32,7 @@ import ml.dmlc.mxnet.Base._
  *      For example, if name = "mykernel" and
  *      inputs = Array(("x", NDArray.zeros(10)))
  *      outputs = Array(("y", NDArray.zeros(10)))
- *      kernel = "y[hipThreadIdx_x] = x[hipThreadIdx_x];",
+ *      kernel = "y[threadIdx.x] = x[threadIdx.x];",
  *      the kernel that is compile will be:
  *      extern "C" __global__ mykernel(float *x, float *y) {
  *         const int x_ndim = 1;
@@ -40,7 +40,7 @@ import ml.dmlc.mxnet.Base._
  *         const int y_ndim = 1;
  *         const int y_dims[] = { 10 };
  *
- *         y[hipThreadIdx_x] = x[hipThreadIdx_x];
+ *         y[threadIdx.x] = x[threadIdx.x];
  *      }
  */
 class Rtc(name: String, inputs: Array[(String, NDArray)],

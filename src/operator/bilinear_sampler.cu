@@ -1,4 +1,22 @@
-#include <hip/hip_runtime.h>
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  * Copyright (c) 2017 by Contributors
  * \file bilinear_sampler.cu
@@ -25,9 +43,9 @@ __global__ void BilinearSamplerForwardKernel(const int i_c, const int i_h,
                                               const DType* grid, const int o_n,
                                               const int o_c, const int o_h,
                                               const int o_w, DType* out) {
-  for (int index = (hipBlockIdx_x + hipBlockIdx_y * hipGridDim_x) * hipBlockDim_x + hipThreadIdx_x;
+  for (int index = (blockIdx.x + blockIdx.y * gridDim.x) * blockDim.x + threadIdx.x;
        index < o_n * o_c * o_h * o_w;
-       index += hipBlockDim_x * hipGridDim_x * hipGridDim_y) {
+       index += blockDim.x * gridDim.x * gridDim.y) {
     // (n, c, h, w) is the element in out
     int w = index % o_w;
     int h = (index / o_w) % o_h;
@@ -69,9 +87,9 @@ __global__ void BilinearSamplerBackwardKernel(const int i_c, const int i_h,
                                               const int o_w, DType* g_input,
                                               const DType* grid_src,
                                               DType* grad_grid) {
-  for (int index = (hipBlockIdx_x + hipBlockIdx_y * hipGridDim_x) * hipBlockDim_x + hipThreadIdx_x;
+  for (int index = (blockIdx.x + blockIdx.y * gridDim.x) * blockDim.x + threadIdx.x;
        index < o_n * o_h * o_w;
-       index += hipBlockDim_x * hipGridDim_x * hipGridDim_y) {
+       index += blockDim.x * gridDim.x * gridDim.y) {
     // (n, c, h, w) is the element in grad
     int w = index % o_w;
     int h = (index / o_w) % o_h;
@@ -100,15 +118,18 @@ __global__ void BilinearSamplerBackwardKernel(const int i_c, const int i_h,
         top_left_v = *(data + data_index);
       }
       if (between(top_left_x+1, 0, i_w-1) && between(top_left_y, 0, i_h-1)) {
-       atomicAdd(&g_input[data_index + 1], *(grad + grad_index) * top_left_y_w* (1.0 - top_left_x_w));
+        atomicAdd(&g_input[data_index + 1], *(grad + grad_index) * top_left_y_w
+                                        * (1.0 - top_left_x_w));
         top_right_v = *(data + data_index + 1);
       }
       if (between(top_left_x, 0, i_w-1) && between(top_left_y+1, 0, i_h-1)) {
-       atomicAdd(&g_input[data_index+ i_w], *(grad + grad_index) * (1.0 - top_left_y_w)* top_left_x_w);
+        atomicAdd(&g_input[data_index+ i_w], *(grad + grad_index) * (1.0 - top_left_y_w)
+                                        * top_left_x_w);
         bottom_left_v = *(data + data_index + i_w);
       }
       if (between(top_left_x+1, 0, i_w-1) && between(top_left_y+1, 0, i_h-1)) {
-       atomicAdd(&g_input[data_index+ i_w + 1], *(grad + grad_index) * (1.0 - top_left_y_w)* (1.0 - top_left_x_w));
+        atomicAdd(&g_input[data_index+ i_w + 1], *(grad + grad_index) * (1.0 - top_left_y_w)
+                                            * (1.0 - top_left_x_w));
         bottom_right_v = *(data + data_index + i_w + 1);
       }
       // calc weight grad of top_left_w, then multiple -1 is the grad of grid_src
@@ -143,13 +164,12 @@ inline void BilinearSamplerForward(const Tensor<gpu, 4, DType> &output,
     dim3 num_blocks(grid_dim_x, grid_dim_y);
     dim3 threads_per_block(kMaxThreadsPerBlock);
     CheckLaunchParam(num_blocks, threads_per_block, "bilinear sampler forward");
-    hipStream_t stream = Stream<gpu>::GetStream(output.stream_);
-    /*cuda::BilinearSamplerForwardKernel<DType> << <num_blocks, threads_per_block, 0, stream >> >(
-      i_c, i_h, i_w, data, grid, o_n, o_c, o_h, o_w, out);*/
-     hipLaunchKernelGGL(HIP_KERNEL_NAME(cuda::BilinearSamplerForwardKernel<DType>), dim3(num_blocks), dim3(threads_per_block), 0, stream,i_c, i_h, i_w, data, grid, o_n, o_c, o_h, o_w, out);
+    gpuStream_t stream = Stream<gpu>::GetStream(output.stream_);
+    cuda::BilinearSamplerForwardKernel<DType> << <num_blocks, threads_per_block, 0, stream >> >(
+      i_c, i_h, i_w, data, grid, o_n, o_c, o_h, o_w, out);
     // post kernel check
-    hipError_t err = hipPeekAtLastError();
-    CHECK_EQ(err, hipSuccess) << hipGetErrorString(err);
+    gpuError err = gpuPeekAtLastError();
+    CHECK_EQ(err, gpuSuccess) << gpuGetErrorString(err);
 }
 
 template<typename DType>
@@ -175,13 +195,12 @@ inline void BilinearSamplerBackward(const Tensor<gpu, 4, DType> &input_grad,
   dim3 num_blocks(grid_dim_x, grid_dim_y);
   dim3 threads_per_block(kMaxThreadsPerBlock);
   CheckLaunchParam(num_blocks, threads_per_block, "bilinear sampler backward");
-  hipStream_t stream = Stream<gpu>::GetStream(input_grad.stream_);
-/*  cuda::BilinearSamplerBackwardKernel<DType> << <num_blocks, threads_per_block, 0, stream >> >(
-    i_c, i_h, i_w, grad, data, o_n, o_c, o_h, o_w, g_input, grid_src, grad_grid);*/
-     hipLaunchKernelGGL(HIP_KERNEL_NAME(cuda::BilinearSamplerBackwardKernel<DType>), dim3(num_blocks), dim3(threads_per_block), 0, stream,i_c, i_h, i_w, grad, data, o_n, o_c, o_h, o_w, g_input, grid_src, grad_grid);
+  gpuStream_t stream = Stream<gpu>::GetStream(input_grad.stream_);
+  cuda::BilinearSamplerBackwardKernel<DType> << <num_blocks, threads_per_block, 0, stream >> >(
+    i_c, i_h, i_w, grad, data, o_n, o_c, o_h, o_w, g_input, grid_src, grad_grid);
   // post kernel check
-  hipError_t err = hipPeekAtLastError();
-  CHECK_EQ(err, hipSuccess) << hipGetErrorString(err);
+  gpuError err = gpuPeekAtLastError();
+  CHECK_EQ(err, gpuSuccess) << gpuGetErrorString(err);
 }
 
 }  // namespace mshadow

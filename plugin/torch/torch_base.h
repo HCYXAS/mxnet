@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2015 by Contributors
  * \file torch_base.h
@@ -16,13 +35,13 @@ extern "C" {
 #include <TH/THTensor.h>
 }
 
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
 extern "C" {
 #include <THC/THCStorage.h>
 #include <THC/THCTensor.h>
 #include <THC/THCTensorCopy.h>
 }
-#endif  // MXNET_USE_CUDA
+#endif  // MXNET_USE_GPU
 
 #include <vector>
 
@@ -34,7 +53,7 @@ class TorchState {
   TorchState();
   static TorchState* ThreadSharedLuaState();
 
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
   THCState* CudaState() {
     lua_getglobal(L, "cutorch");
     CHECK(!lua_isnil(L, -1));
@@ -44,7 +63,7 @@ class TorchState {
     lua_pop(L, 2);
     return state;
   }
-#endif  // MXNET_USE_CUDA
+#endif  // MXNET_USE_GPU
 
   template<typename xpu>
   void SetStream(mshadow::Stream<xpu>* s);
@@ -125,11 +144,11 @@ class TorchTensor {
   }
 
   static const char* TensorType(TBlob data) {
-    return TensorType(data.dev_mask_);
+    return TensorType(data.dev_mask());
   }
 
   static const char* ModuleType(TBlob data) {
-    return TensorType(data.dev_mask_);
+    return TensorType(data.dev_mask());
   }
 
   static THGeneralTensor TBlobToTHTensor(TorchState* torchState, TBlob data) {
@@ -140,7 +159,7 @@ class TorchTensor {
       THLongStorage_set(thshape, i, data.shape_[i]);
     }
     CHECK_EQ(data.type_flag_, mshadow::kFloat32) << "Torch Interface only support float32";
-    switch (data.dev_mask_) {
+    switch (data.dev_mask()) {
       case cpu::kDevMask: {
         THFloatStorage* storage = THFloatStorage_newWithData(static_cast<real_t*>(data.dptr_),
                                                              size);
@@ -149,7 +168,7 @@ class TorchTensor {
         THFloatStorage_free(storage);
         break;
       }
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
       case gpu::kDevMask: {
         THCState* state = torchState->CudaState();
         THCudaStorage* storage = THCudaStorage_newWithData(state, static_cast<real_t*>(data.dptr_),
@@ -176,7 +195,7 @@ class TorchTensor {
         THFloatStorage_free(original);
         break;
       }
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
       case gpu::kDevMask: {
         THCState* state = torchState->CudaState();
         THCudaStorage* original = static_cast<THCudaTensor*>(tensor)->storage;
@@ -191,7 +210,7 @@ class TorchTensor {
 
   static void SetInternal(TorchState* torchState, THGeneralTensor tensor, const TBlob& blob) {
     size_t size = blob.Size();
-    switch (blob.dev_mask_) {
+    switch (blob.dev_mask()) {
       case cpu::kDevMask: {
         THFloatStorage* storage = THFloatStorage_newWithData(static_cast<real_t*>(blob.dptr_),
                                                              size);
@@ -201,7 +220,7 @@ class TorchTensor {
         THFloatStorage_free(original);
         break;
       }
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
       case gpu::kDevMask: {
         THCState* state = torchState->CudaState();
         THCudaStorage* storage = THCudaStorage_newWithData(state,
@@ -216,7 +235,7 @@ class TorchTensor {
       }
 #endif
       default:
-        LOG(FATAL) << "Unknown device type " << blob.dev_mask_;
+        LOG(FATAL) << "Unknown device type " << blob.dev_mask();
     }
   }
 
@@ -249,21 +268,21 @@ class TorchTensor {
   static void CopyIfDifferent(TorchState* torchState, TBlob dst, THGeneralTensor th_dst) {
     lua_State* L = torchState->L;
     if (luaT_isudata(L, -1, TorchTensor::TensorType(cpu::kDevMask))) {
-      CHECK_EQ(dst.dev_mask_, cpu::kDevMask) << "Device type mismatch.";
+      CHECK_EQ(dst.dev_mask(), cpu::kDevMask) << "Device type mismatch.";
       THFloatTensor* src = static_cast<THFloatTensor*>(
         luaT_toudata(L, -1, TorchTensor::TensorType(cpu::kDevMask)));
       if (src->storage != static_cast<THFloatTensor*>(th_dst)->storage) {
         THFloatTensor_copy(static_cast<THFloatTensor*>(th_dst), src);
       }
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
     } else if (luaT_isudata(L, -1, TorchTensor::TensorType(gpu::kDevMask))) {
-      CHECK_EQ(dst.dev_mask_, gpu::kDevMask) << "Device type mismatch.";
+      CHECK_EQ(dst.dev_mask(), gpu::kDevMask) << "Device type mismatch.";
       THCudaTensor* src = static_cast<THCudaTensor*>(
         luaT_toudata(L, -1, TorchTensor::TensorType(gpu::kDevMask)));
       if (src->storage != static_cast<THCudaTensor*>(th_dst)->storage) {
         THCudaTensor_copy(torchState->CudaState(), static_cast<THCudaTensor*>(th_dst), src);
       }
-#endif  // MXNET_USE_CUDA
+#endif  // MXNET_USE_GPU
     } else {
       LOG(FATAL) << "Unsupported Torch tensor type " << luaT_typename(L, -1);
     }

@@ -18,11 +18,13 @@ ifndef NNVM_PATH
 	NNVM_PATH = $(ROOTDIR)/nnvm
 endif
 
+ifndef DLPACK_PATH
+	DLPACK_PATH = $(ROOTDIR)/dlpack
+endif
+
 ifneq ($(USE_OPENMP), 1)
 	export NO_OPENMP = 1
 endif
-
-HIP_PLATFORM := $(shell hipconfig -P)
 
 # use customized config file
 include $(config)
@@ -51,26 +53,12 @@ ifeq ($(DEBUG), 1)
 else
 	CFLAGS += -O3
 endif
-
-HIPINCLUDE += -I. -I./Thrust -I/opt/rocm/hipblas/include -I/opt/rocm/hiprand/include -I/opt/rocm/hipfft/include
-
-CFLAGS     += $(HIPINCLUDE) -I$(ROOTDIR)/mshadow/ -I$(ROOTDIR)/dmlc-core/include -fPIC -I$(NNVM_PATH)/include -Iinclude $(MSHADOW_CFLAGS)
-LDFLAGS    =  -pthread $(MSHADOW_LDFLAGS) $(DMLC_LDFLAGS)
-HIPFLAGS   = $(shell hipconfig -C)
-ifeq ($(HIP_PLATFORM), nvcc)
-	CCBINCLUDES = -ccbin $(CXX)
-	CXXFLAGS    = -std=c++11
-	HIPCCFLAGS  = \"$(CFLAGS)\"
-	LINKER      = $(CXX)
-else ifeq ($(HIP_PLATFORM), hcc)
-	CXXFLAGS    = -std=c++11
-	HIPCCFLAGS  = $(CFLAGS)
-	LINKER      = $(NVCC) $(CUDA_ARCH)
-endif
+CFLAGS += -I. -I$(ROOTDIR)/mshadow/ -I$(ROOTDIR)/dmlc-core/include -fPIC -I$(NNVM_PATH)/include -I$(DLPACK_PATH)/include -Iinclude $(MSHADOW_CFLAGS)
+LDFLAGS = -pthread $(MSHADOW_LDFLAGS) $(DMLC_LDFLAGS)
 ifeq ($(DEBUG), 1)
-	NVCCFLAGS = $(CXXFLAGS) -Xcompiler -D_FORCE_INLINES -g -G -O0 $(CCBINCLUDES) $(MSHADOW_NVCCFLAGS)
+	NVCCFLAGS = -std=c++11 -Xcompiler -D_FORCE_INLINES -g -G -O0 -ccbin $(CXX) $(MSHADOW_NVCCFLAGS)
 else
-	NVCCFLAGS = $(CXXFLAGS) -Xcompiler -D_FORCE_INLINES -g -O3 $(CCBINCLUDES) $(MSHADOW_NVCCFLAGS)
+	NVCCFLAGS = -std=c++11 -Xcompiler -D_FORCE_INLINES -g -O3 -ccbin $(CXX) $(MSHADOW_NVCCFLAGS)
 endif
 
 # CFLAGS for profiler
@@ -120,7 +108,7 @@ endif
 
 ifeq ($(USE_CUDNN), 1)
 	CFLAGS += -DMSHADOW_USE_CUDNN=1
-	LDFLAGS += -L/opt/rocm/miopen/lib -lMIOpen
+	LDFLAGS += -lcudnn
 endif
 
 
@@ -138,7 +126,37 @@ ifneq ($(ADD_LDFLAGS), NONE)
 endif
 
 ifneq ($(USE_CUDA_PATH), NONE)
-#	NVCC=$(USE_CUDA_PATH)/bin/nvcc
+	NVCC=$(USE_CUDA_PATH)/bin/nvcc
+endif
+
+# Sets 'CUDA_ARCH', which determines the GPU architectures supported
+# by the compiled kernels.  Users can edit the KNOWN_CUDA_ARCHS list below
+# to remove archs they don't wish to support to speed compilation, or they can
+# pre-set the CUDA_ARCH args in config.mk to a non-null value for full control.
+#
+# For archs in this list, nvcc will create a fat-binary that will include
+# the binaries (SASS) for all architectures supported by the installed version
+# of the cuda toolkit, plus the assembly (PTX) for the most recent such architecture.
+# If these kernels are then run on a newer-architecture GPU, the binary will
+# be JIT-compiled by the updated driver from the included PTX.
+ifeq ($(USE_CUDA), 1)
+ifeq ($(CUDA_ARCH),)
+	KNOWN_CUDA_ARCHS := 30 35 50 52 60 61 70
+	# Run nvcc on a zero-length file to check architecture-level support.
+	# Create args to include SASS in the fat binary for supported levels.
+	CUDA_ARCH := $(foreach arch,$(KNOWN_CUDA_ARCHS), \
+				$(shell $(NVCC) -arch=sm_$(arch) -E --x cu /dev/null >/dev/null 2>&1 && \
+						echo -gencode arch=compute_$(arch),code=sm_$(arch)))
+	# Convert a trailing "code=sm_NN" to "code=[sm_NN,compute_NN]" to also
+	# include the PTX of the most recent arch in the fat-binaries for
+	# forward compatibility with newer GPUs.
+	CUDA_ARCH := $(shell echo $(CUDA_ARCH) | sed 's/sm_\([0-9]*\)$$/[sm_\1,compute_\1]/')
+	# Add fat binary compression if supported by nvcc.
+	COMPRESS := --fatbin-options -compress-all
+	CUDA_ARCH += $(shell $(NVCC) -cuda $(COMPRESS) --x cu /dev/null -o /dev/null >/dev/null 2>&1 && \
+						 echo $(COMPRESS))
+endif
+$(info Running CUDA_ARCH: $(CUDA_ARCH))
 endif
 
 # ps-lite
@@ -158,7 +176,7 @@ all: lib/libmxnet.a lib/libmxnet.so $(BIN) extra-packages
 
 SRC = $(wildcard src/*/*/*.cc src/*/*.cc src/*.cc)
 OBJ = $(patsubst %.cc, build/%.o, $(SRC))
-CUSRC = $(wildcard src/*/*/*.cu src/*/*.cu src/*.cu *.cu)
+CUSRC = $(wildcard src/*/*/*.cu src/*/*.cu src/*.cu)
 CUOBJ = $(patsubst %.cu, build/%_gpu.o, $(CUSRC))
 
 # extra operators
@@ -200,24 +218,12 @@ endif
 LIB_DEP += $(DMLC_CORE)/libdmlc.a $(NNVM_PATH)/lib/libnnvm.a
 ALL_DEP = $(OBJ) $(EXTRA_OBJ) $(PLUGIN_OBJ) $(LIB_DEP)
 
-ifeq ($(USE_CUDA), 1)
-	CFLAGS += -I$(ROOTDIR)/cub-hip
+ifeq ($(USE_GPU), 1)
+	CFLAGS += -I$(ROOTDIR)/cub
 	ALL_DEP += $(CUOBJ) $(EXTRA_CUOBJ) $(PLUGIN_CUOBJ)
-	LDFLAGS += -L/opt/rocm/hip/lib -lhip_hcc
-	ifneq (, $(findstring nvcc, $(HIP_PLATFORM)))
-		LDFLAGS += -L/opt/rocm/hipblas/lib  -lhipblas
-		LDFLAGS += -L/opt/rocm/hiprand/lib  -lhiprand
-		LDFLAGS += -L/opt/rocm/hipfft/lib -lhipfft
-		LDFLAGS += -lcudart -lcuda -lcufft -lcublas
-	else
-		HIPINCLUDE += -I/opt/rocm/rocblas/include -I/opt/rocm/rocrand/include
-		LDFLAGS += -L/opt/rocm/hipblas/lib  -lhipblas
-		LDFLAGS += -L/opt/rocm/rocblas/lib  -lrocblas
-		LDFLAGS += -L/opt/rocm/hiprand/lib  -lhiprand
-		LDFLAGS += -L/opt/rocm/rocrand/lib  -lrocrand
-		LDFLAGS += -L/opt/rocm/hipfft/lib   -lhipfft
-	endif
-
+	ifeq ($(USE_CUDA), 1)
+		LDFLAGS += -lcuda -lcufft
+        endif
 	SCALA_PKG_PROFILE := $(SCALA_PKG_PROFILE)-gpu
 else
 	SCALA_PKG_PROFILE := $(SCALA_PKG_PROFILE)-cpu
@@ -235,34 +241,32 @@ endif
 
 build/src/%.o: src/%.cc
 	@mkdir -p $(@D)
-	$(CXX) -std=c++11 -c $(HIPFLAGS) $(CFLAGS) -MMD -c $< -o $@
+	$(CXX) -std=c++11 -c $(CFLAGS) -MMD -c $< -o $@
 
-build/%_gpu.o: %.cu
+build/src/%_gpu.o: src/%.cu
 	@mkdir -p $(@D)
-	$(NVCC) $(NVCCFLAGS) $(CUDA_ARCH) -Xcompiler $(HIPCCFLAGS) -M -MT build/$*_gpu.o $< >build/$*_gpu.d
-	$(NVCC) -c -o $@ $(NVCCFLAGS) $(CUDA_ARCH) -Xcompiler $(HIPCCFLAGS) $<
-
+	$(NVCC) $(NVCCFLAGS) $(CUDA_ARCH) -Xcompiler "$(CFLAGS)" -M -MT build/src/$*_gpu.o $< >build/src/$*_gpu.d
+	$(NVCC) -c -o $@ $(NVCCFLAGS) $(CUDA_ARCH) -Xcompiler "$(CFLAGS)" $<
 
 # A nvcc bug cause it to generate "generic/xxx.h" dependencies from torch headers.
 # Use CXX to generate dependency instead.
 build/plugin/%_gpu.o: plugin/%.cu
 	@mkdir -p $(@D)
-	$(CXX) -std=c++11 $(HIPFLAGS) $(CFLAGS) -MM -MT build/plugin/$*_gpu.o $< >build/plugin/$*_gpu.d
-	$(NVCC) -c -o $@ $(NVCCFLAGS) $(CUDA_ARCH) -Xcompiler $(HIPCCFLAGS) $<
+	$(CXX) -std=c++11 $(CFLAGS) -MM -MT build/plugin/$*_gpu.o $< >build/plugin/$*_gpu.d
+	$(NVCC) -c -o $@ $(NVCCFLAGS) $(CUDA_ARCH) -Xcompiler "$(CFLAGS)" $<
 
 build/plugin/%.o: plugin/%.cc
 	@mkdir -p $(@D)
-	$(CXX) -std=c++11 -c $(HIPFLAGS) $(CFLAGS) -MMD -c $< -o $@
+	$(CXX) -std=c++11 -c $(CFLAGS) -MMD -c $< -o $@
 
 %_gpu.o: %.cu
 	@mkdir -p $(@D)
-	$(NVCC) $(NVCCFLAGS) $(CUDA_ARCH) -Xcompiler $(HIPCCFLAGS) -Isrc/operator -M -MT $*_gpu.o $< >$*_gpu.d
-	$(NVCC) -c -o $@ $(NVCCFLAGS) $(CUDA_ARCH) -Xcompiler $(HIPCCFLAGS) -Isrc/operator $<
-
+	$(NVCC) $(NVCCFLAGS) $(CUDA_ARCH) -Xcompiler "$(CFLAGS) -Isrc/operator" -M -MT $*_gpu.o $< >$*_gpu.d
+	$(NVCC) -c -o $@ $(NVCCFLAGS) $(CUDA_ARCH) -Xcompiler "$(CFLAGS) -Isrc/operator" $<
 
 %.o: %.cc
 	@mkdir -p $(@D)
-	$(CXX) -std=c++11 -c $(HIPFLAGS) $(CFLAGS) -MMD -Isrc/operator -c $< -o $@
+	$(CXX) -std=c++11 -c $(CFLAGS) -MMD -Isrc/operator -c $< -o $@
 
 # NOTE: to statically link libmxnet.a we need the option
 # --Wl,--whole-archive -lmxnet --Wl,--no-whole-archive
@@ -272,7 +276,7 @@ lib/libmxnet.a: $(ALLX_DEP)
 
 lib/libmxnet.so: $(ALLX_DEP)
 	 @mkdir -p $(@D)
-	 $(LINKER) $(HIPFLAGS) $(CFLAGS) -shared -o $@ $(filter-out %libnnvm.a, $(filter %.o %.a, $^)) $(LDFLAGS) \
+	 $(CXX) $(CFLAGS) -shared -o $@ $(filter-out %libnnvm.a, $(filter %.o %.a, $^)) $(LDFLAGS) \
 	 -Wl,${WHOLE_ARCH} $(filter %libnnvm.a, $^) -Wl,${NO_WHOLE_ARCH}
 
 $(PS_PATH)/build/libps.a: PSLITE
@@ -294,7 +298,7 @@ bin/im2rec: tools/im2rec.cc $(ALLX_DEP)
 
 $(BIN) :
 	@mkdir -p $(@D)
-	$(LINKER) $(HIPFLAGS) $(CFLAGS) -std=c++11  -o $@ $(filter %.cpp %.o %.c %.a %.cc, $^) $(LDFLAGS)
+	$(CXX) $(CFLAGS) -std=c++11  -o $@ $(filter %.cpp %.o %.c %.a %.cc, $^) $(LDFLAGS)
 
 # CPP Package
 ifeq ($(USE_CPP_PACKAGE), 1)

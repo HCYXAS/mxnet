@@ -23,12 +23,6 @@ namespace ctc_helper {
 
 static const float threshold = 1e-1;
 
-#if defined(__HIPCC__) && (__HIP_DEVICE_COMPILE__ == 1) //TODO not defined for __device__
-
-__device__ float __builtin_inff() { return 0.0; }
-
-#endif
-
 template<typename T>
 HOSTDEVICE
 T neg_inf() { return -T(INFINITY); }
@@ -60,7 +54,7 @@ template <typename Arg, typename Res = Arg> struct negate {
 };
 
 template <typename Arg, typename Res = Arg> struct exponential {
-    HOSTDEVICE Res operator()(const Arg& x) const {return exp(x);}
+    HOSTDEVICE Res operator()(const Arg& x) const {return std::exp(x);}
 };
 
 template<typename Arg1, typename Arg2 = Arg1, typename Res=Arg1>

@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  * Copyright (c) 2016 by Contributors
  * \file multibox_detection.cc
@@ -41,10 +60,10 @@ inline void TransformLocations(DType *out, const DType *anchors,
   DType py = loc_pred[1];
   DType pw = loc_pred[2];
   DType ph = loc_pred[3];
-  DType ox = px * DType(vx) * aw + ax;
-  DType oy = py * DType(vy) * ah + ay;
-  DType ow = DType(exp(pw * DType(vw))) * aw / 2;
-  DType oh = DType(exp(ph * DType(vh))) * ah / 2;
+  DType ox = px * vx * aw + ax;
+  DType oy = py * vy * ah + ay;
+  DType ow = exp(pw * vw) * aw / 2;
+  DType oh = exp(ph * vh) * ah / 2;
   out[0] = clip ? std::max(DType(0), std::min(DType(1), ox - ow)) : (ox - ow);
   out[1] = clip ? std::max(DType(0), std::min(DType(1), oy - oh)) : (oy - oh);
   out[2] = clip ? std::max(DType(0), std::min(DType(1), ox + ow)) : (ox + ow);
@@ -118,7 +137,7 @@ inline void MultiBoxDetectionForward(const Tensor<cpu, 3, DType> &out,
     for (int i = 0; i < valid_count; ++i) {
       sorter.push_back(SortElemDescend<DType>(p_out[i * 6 + 1], i));
     }
-    std::stable_sort(sorter.begin(), sorter.end()); //TODO .TO fix type conversion error
+    std::stable_sort(sorter.begin(), sorter.end());
     // re-order output
     DType *ptemp = temp_space.dptr_ + nbatch * num_anchors * 6;
     int nkeep = static_cast<int>(sorter.size());
@@ -176,7 +195,7 @@ MXNET_REGISTER_OP_PROPERTY(_contrib_MultiBoxDetection, MultiBoxDetectionProp)
 .describe("Convert multibox detection predictions.")
 .add_argument("cls_prob", "NDArray-or-Symbol", "Class probabilities.")
 .add_argument("loc_pred", "NDArray-or-Symbol", "Location regression predictions.")
-.add_argument("anchors", "NDArray-or-Symbol", "Multibox prior anchor boxes")
+.add_argument("anchor", "NDArray-or-Symbol", "Multibox prior anchor boxes")
 .add_arguments(MultiBoxDetectionParam::__FIELDS__());
 }  // namespace op
 }  // namespace mxnet

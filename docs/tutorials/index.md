@@ -1,95 +1,84 @@
 # Tutorials
 
-These tutorials introduce fundamental concepts in deep learning and their realizations in _MXNet_. Under the _basics_ section, you'll find tutorials covering manipulating arrays, building networks, loading and preprocessing data, etc. Further sections introduce fundamental models for image classification, natural language processing, speech recognition, and unsupervised learning. While most tutorials are currently presented in Python, we also present a subset of tutorials using the R and Scala front ends.
+## Gluon
 
-### Python
+Gluon is the high-level interface for MXNet. It is more intuitive and easier to use than the lower level interface.
+Gluon supports dynamic (define-by-run) graphs with JIT-compilation to achieve both flexibility and efficiency.
 
-#### Basics
+This is a selected subset of Gluon tutorials that explain basic usage of Gluon and fundamental concepts in deep learning. For a comprehensive tutorial on Gluon that covers topics from basic statistics and probability theory to reinforcement learning and recommender systems, please see [gluon.mxnet.io](http://gluon.mxnet.io).
 
-- [Introduction to NDArray - Imperative tensor operations on CPU & GPU](http://mxnet.io/tutorials/python/ndarray.html)
+### Basics
 
-- [Introduction to Symbol - Neural network graphs and auto-differentiation](http://mxnet.io/tutorials/python/symbol.html)
+- [Manipulate data the MXNet way with ndarray](http://gluon.mxnet.io/chapter01_crashcourse/ndarray.html)
+- [Automatic differentiation with autograd](http://gluon.mxnet.io/chapter01_crashcourse/autograd.html)
+- [Linear regression with gluon](http://gluon.mxnet.io/chapter02_supervised-learning/linear-regression-gluon.html)
+- [Serialization - saving, loading and checkpointing](http://gluon.mxnet.io/chapter03_deep-neural-networks/serialization.html)
 
-- [Introduction to Module - MXNet's high-level interface for neural network training](http://mxnet.io/tutorials/python/module.html)
+### Neural Networks
 
-- [MXNet Iterators - Load data for neural network training](http://mxnet.io/tutorials/python/data.html)
+- [Multilayer perceptrons in gluon](http://gluon.mxnet.io/chapter03_deep-neural-networks/mlp-gluon.html)
+- [Convolutional Neural Networks in gluon](http://gluon.mxnet.io/chapter04_convolutional-neural-networks/cnn-gluon.html)
+- [Recurrent Neural Networks with gluon](http://gluon.mxnet.io/chapter05_recurrent-neural-networks/rnns-gluon.html)
 
-- [Image IO - Loading and pre-processing images](http://mxnet.io/tutorials/python/image_io.html)
+### Advanced
 
-- [Record IO - Pack free-format data in binary files ](http://mxnet.io/tutorials/python/record_io.html)
+- [Plumbing: A look under the hood of gluon](http://gluon.mxnet.io/chapter03_deep-neural-networks/plumbing.html)
+- [Designing a custom layer with gluon](http://gluon.mxnet.io/chapter03_deep-neural-networks/custom-layer.html)
+- [Fast, portable neural networks with Gluon HybridBlocks](http://gluon.mxnet.io/chapter07_distributed-learning/hybridize.html)
+- [Training on multiple GPUs with gluon](http://gluon.mxnet.io/chapter07_distributed-learning/multiple-gpus-gluon.html)
 
-- [Custom Image IO - Write high-performance data-pipelines using mxnet.image](http://mxnet.io/tutorials/python/advanced_img_io.html)
+## MXNet
 
-#### Computer Vision
+These tutorials introduce a few fundamental concepts in deep learning and how to implement them in _MXNet_. The _Basics_ section contains tutorials on manipulating arrays, building networks, loading/preprocessing data, etc. The _Training and Inference_ section talks about implementing Linear Regression, training a Handwritten digit classifier using MLP and CNN, running inferences using a pre-trained model, and lastly, efficiently training a large scale image classifier.
 
-- [Classifying Handwritten Digits with Convolutional Neural Networks](http://mxnet.io/tutorials/python/mnist.html)
+### Basics
 
-- [Object Detection using Faster R-CNN](https://github.com/dmlc/mxnet/tree/master/example/rcnn) 
+```eval_rst
+.. toctree::
+   :maxdepth: 1
 
-- [Object Detection using SSD](https://github.com/dmlc/mxnet/tree/master/example/ssd)
+   basic/ndarray
+   basic/ndarray_indexing
+   basic/symbol
+   basic/module
+   basic/data
+```
 
-- [Neural Art - Transfer the style of one image onto the content the content of another image](https://github.com/dmlc/mxnet/tree/master/example/neural-style)
+### Training and Inference
 
-- [Large Scale Image Classification](https://github.com/dmlc/mxnet/tree/master/example/image-classification)
+```eval_rst
+.. toctree::
+   :maxdepth: 1
 
-#### Natural Language Processing
+   python/linear-regression
+   python/mnist
+   python/predict_image
+   vision/large_scale_classification
+```
 
-- [Character-Level LSTM - Generate new text, one character at a time](http://mxnet.io/tutorials/python/char_lstm.html)
+### Sparse NDArray
 
-- [Text Classification using Convolutional Neural Networks](http://mxnet.io/tutorials/nlp/cnn.html)
+```eval_rst
+.. toctree::
+   :maxdepth: 1
 
-- [NCE Loss - Speed up text classification with large output layers](http://mxnet.io/tutorials/nlp/nce_loss.html)
+   sparse/csr
+   sparse/row_sparse
+   sparse/train
+```
 
-#### Speech Recognition
+### Advanced Neural networks
 
-- [Phoneme Classification - Use LSTM recurrent nets to recognize phonemes in audio](http://mxnet.io/tutorials/speech_recognition/speech_lstm.html)
+```eval_rst
+.. toctree::
+   :maxdepth: 1
 
-- [Baidu Warp CTC - Jointly learn predictions and alignments with CTC loss](http://mxnet.io/tutorials/speech_recognition/baidu_warp_ctc.html)
+   unsupervised_learning/gan
+```
 
-#### Unsupervised Learning and Generative Modeling
-
-- [Generative Adversarial Networks](http://mxnet.io/tutorials/unsupervised_learning/gan.html)
-
-- [Autoencoders - Find low dimensional representations of data](http://mxnet.io/tutorials/unsupervised_learning/auto_encoders.html)
-
-- [Matrix Factorization - Discover latent factors of user preference in MovieLens data](http://mxnet.io/tutorials/python/matrix_factorization.html)
-
-- [Recommender Systems - Build a complete recommender system with matrix factorization](http://mxnet.io/tutorials/general_ml/recommendation_systems.html)
-
-
-### R
-
-- [Neural Networks with MXNet in Five Minutes](http://mxnet.io/tutorials/r/fiveMinutesNeuralNetwork.html)
-
-- [Classifying Handwritten Digits with Convolutional Neural Networks](http://mxnet.io/tutorials/r/mnistCompetition.html)
-
-- [Classify Real-world Images with a Pre-trained Model](http://mxnet.io/tutorials/r/classifyRealImageWithPretrainedModel.html)
-
-- [Dogs vs. Cats Classification with Fine-tuning](https://statist-bhfz.github.io/cats_dogs_finetune)
-
-- [Character-Level Language Modeling with LSTM RNNs](http://mxnet.io/tutorials/r/charRnnModel.html)
-
-
-### Scala
-
-- [Create MXNet Scala Applications with the IntelliJ IDE](http://mxnet.io/tutorials/scala/mxnet_scala_on_intellij.html)
-
-- [Handwritten Digit Classification with Multilayer Perceptrons](http://mxnet.io/tutorials/scala/mnist.html)
-
-- [Character-Level Language Modeling with LSTM RNNs](http://mxnet.io/tutorials/scala/char_lstm.html)
-
-### C++
-
-- [Basics](http://mxnet.io/tutorials/c++/basics.html)
-
-### Perl
-
-- [Calculator, handwritten digits and roboshakespreare](http://blogs.perl.org/users/sergey_kolychev/2017/04/machine-learning-in-perl-part2-a-calculator-handwritten-digits-and-roboshakespeare.html)
+<br>
+More tutorials and examples are available in the GitHub [repository](https://github.com/dmlc/mxnet/tree/master/example).
 
 ## Contributing Tutorials
 
 Want to contribute an MXNet tutorial? To get started, download the [tutorial template](https://github.com/dmlc/mxnet/tree/master/example/MXNetTutorialTemplate.ipynb).
-
-## Other Resources
-- [MXNet Code Examples](https://github.com/dmlc/mxnet/tree/master/example)
-- [MXNet Tutorials for NVidia GTC 2016](https://github.com/dmlc/mxnet-gtc-tutorial)

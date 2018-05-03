@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  * Copyright (c) 2015 by Contributors
  * \file roi_pooling.cc
@@ -34,17 +53,16 @@ inline void ROIPoolForward(const Tensor<cpu, 4, Dtype> &out,
   const int pooled_width_ = out.size(3);
 
   const int num_rois = bbox.size(0);
-  const int batch_size = data.size(0);
   const int data_size = data.size(1) * data.size(2) * data.size(3);
   // For each ROI R = [batch_index x1 y1 x2 y2]: max pool over R
   for (int n = 0; n < num_rois; ++n) {
     int roi_batch_ind = bottom_rois[0];
-    int roi_start_w = round(bottom_rois[1] * Dtype(spatial_scale_));
-    int roi_start_h = round(bottom_rois[2] * Dtype(spatial_scale_));
-    int roi_end_w = round(bottom_rois[3] * Dtype(spatial_scale_));
-    int roi_end_h = round(bottom_rois[4] * Dtype(spatial_scale_));
+    int roi_start_w = round(bottom_rois[1] * spatial_scale_);
+    int roi_start_h = round(bottom_rois[2] * spatial_scale_);
+    int roi_end_w = round(bottom_rois[3] * spatial_scale_);
+    int roi_end_h = round(bottom_rois[4] * spatial_scale_);
     assert(roi_batch_ind >= 0);
-    assert(roi_batch_ind < batch_size);
+    assert(static_cast<index_t>(roi_batch_ind) < data.size(0) /* batch size */);
 
     // force malformed ROIs to be 1 * 1
     int roi_height = max(roi_end_h - roi_start_h + 1, 1);
@@ -145,10 +163,10 @@ inline void ROIPoolBackwardAcc(const Tensor<cpu, 4, Dtype> &in_grad,
               continue;
             }
 
-            int roi_start_w = round(offset_bottom_rois[1] * Dtype(spatial_scale_));
-            int roi_start_h = round(offset_bottom_rois[2] * Dtype(spatial_scale_));
-            int roi_end_w = round(offset_bottom_rois[3] * Dtype(spatial_scale_));
-            int roi_end_h = round(offset_bottom_rois[4] * Dtype(spatial_scale_));
+            int roi_start_w = round(offset_bottom_rois[1] * spatial_scale_);
+            int roi_start_h = round(offset_bottom_rois[2] * spatial_scale_);
+            int roi_end_w = round(offset_bottom_rois[3] * spatial_scale_);
+            int roi_end_h = round(offset_bottom_rois[4] * spatial_scale_);
 
             bool in_roi = (w >= roi_start_w && w <= roi_end_w &&
                            h >= roi_start_h && h <= roi_end_h);
@@ -217,10 +235,6 @@ Operator *CreateOp<cpu>(ROIPoolingParam param, int dtype) {
 
 Operator *ROIPoolingProp::CreateOperatorEx(Context ctx, std::vector<TShape> *in_shape,
                                            std::vector<int> *in_type) const {
-  std::vector<TShape> out_shape, aux_shape;
-  std::vector<int> out_type, aux_type;
-  CHECK(InferType(in_type, &out_type, &aux_type));
-  CHECK(InferShape(in_shape, &out_shape, &aux_shape));
   DO_BIND_DISPATCH(CreateOp, param_, in_type->at(0));
 }
 

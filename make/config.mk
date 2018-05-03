@@ -22,7 +22,7 @@
 
 export CC = gcc
 export CXX = g++
-export NVCC = hipcc
+export NVCC = nvcc
 
 # whether compile with options for MXNet developer
 DEV = 0
@@ -32,6 +32,9 @@ DEBUG = 0
 
 # whether compiler with profiler
 USE_PROFILER =
+
+# whether to turn on segfault signal handler to log the stack trace
+USE_SIGNAL_HANDLER =
 
 # the additional link flags you want to add
 ADD_LDFLAGS =
@@ -43,45 +46,55 @@ ADD_CFLAGS =
 # matrix computation libraries for CPU/GPU
 #---------------------------------------------
 
-# whether use CUDA during compile
+# whether use GPU during compile
+USE_GPU = 1
+
+# configure to use CUDA/HIP backend
 USE_CUDA = 1
+USE_HIP  = 0
+
+ifeq ($(USE_GPU), 1)
+	ifeq ($(USE_CUDA), 1)
+		ADD_CFLAGS += -DUSE_CUDA
+		USE_CUDA_PATH = /usr/local/cuda
+	else ifeq ($(USE_HIP),1)
+		HIP_PLATFORM := $(shell hipconfig -P)
+		ADD_CFLAGS += -DUSE_HIP
+		ADD_CFLAGS += $(shell hipconfig -C)
+		LDFLAGS += -L/opt/rocm/hip/lib -lhip_hcc
+		ifeq ($(HIP_PLATFORM), nvcc)
+			USE_CUDA_PATH = /usr/local/cuda
+		else
+			USE_CUDA_PATH = NONE
+		endif
+	endif
+endif
 
 # add the path to CUDA library to link and compile flag
 # if you have already add them to environment variable, leave it as NONE
-ifeq ($(HIP_PLATFORM), nvcc)
-	USE_CUDA_PATH = /usr/local/cuda
-else
-	USE_CUDA_PATH = NONE
-endif
+# USE_CUDA_PATH = /usr/local/cuda
+#USE_CUDA_PATH = NONE
 
 # whether use CuDNN R3 library
 USE_CUDNN = 0
 
-
-ifeq ($(HIP_PLATFORM),hcc)
-	CUDA_ARCH := --amdgpu-target=gfx803 --amdgpu-target=gfx900
-
-else ifeq ($(HIP_PLATFORM),nvcc)
-
-# CUDA architecture setting: going with all of them.
-# For CUDA < 6.0, comment the *_50 lines for compatibility.
-	CUDA_ARCH := -gencode arch=compute_30,code=sm_30 \
-		-gencode arch=compute_35,code=sm_35 \
-		-gencode arch=compute_50,code=sm_50 \
-		-gencode arch=compute_50,code=compute_50
-endif
-
-# whether use cuda runtime compiling for writing kernels in native language (i.e. Python)
-USE_NVRTC = 0
+#whether to use NCCL library
+USE_NCCL = 0
+#add the path to NCCL library
+USE_NCCL_PATH = NONE
 
 # whether use opencv during compilation
 # you can disable it, however, you will not able to use
 # imbin iterator
 USE_OPENCV = 1
 
+#whether use libjpeg-turbo for image decode without OpenCV wrapper
+USE_LIBJPEG_TURBO = 0
+#add the path to libjpeg-turbo library
+USE_LIBJPEG_TURBO_PATH = NONE
+
 # use openmp for parallelization
 USE_OPENMP = 1
-
 
 # MKL ML Library for Intel CPU/Xeon Phi
 # Please refer to MKL_README.md for details
@@ -109,6 +122,19 @@ ifeq ($(UNAME_S), Darwin)
 USE_BLAS = apple
 else
 USE_BLAS = atlas
+endif
+
+# whether use lapack during compilation
+# only effective when compiled with blas versions openblas/apple/atlas/mkl
+USE_LAPACK = 1
+
+# path to lapack library in case of a non-standard installation
+USE_LAPACK_PATH =
+
+# by default, disable lapack when using MKL
+# switch on when there is a full installation of MKL available (not just MKL2017/MKL_ML)
+ifeq ($(USE_BLAS), mkl)
+USE_LAPACK = 0
 endif
 
 # add path to intel library, you may need it for MKL, if you did not add the path
@@ -152,6 +178,18 @@ LIBJVM=$(JAVA_HOME)/jre/lib/amd64/server
 # libcurl4-openssl-dev is required, it can be installed on Ubuntu by
 # sudo apt-get install -y libcurl4-openssl-dev
 USE_S3 = 0
+
+#----------------------------
+# performance settings
+#----------------------------
+# Use operator tuning
+USE_OPERATOR_TUNING = 1
+
+# Use gperftools if found
+USE_GPERFTOOLS = 1
+
+# Use JEMalloc if found, and not using gperftools
+USE_JEMALLOC = 1
 
 #----------------------------
 # additional operators

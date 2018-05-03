@@ -54,7 +54,7 @@ object ExampleCustomOpWithRtc {
       inData: Array[NDArray], outData: Array[NDArray], aux: Array[NDArray]): Unit = {
       if (fwdKernel == null) {
         fwdKernel = new Rtc("softmax", Array(("x", inData(0))), Array(("y", outData(0))), """
-          int i = hipThreadIdx_x + hipBlockIdx_x*hipBlockDim_x;
+          int i = threadIdx.x + blockIdx.x*blockDim.x;
           float max_x = x[i*x_dims[1]];
           for (int j = 1; j < x_dims[1]; ++j) {
               if (max_x < x[i*x_dims[1]+j]) {
@@ -86,8 +86,8 @@ object ExampleCustomOpWithRtc {
       val dx = inGrad(0)
       if (bwdKernel == null) {
         bwdKernel = new Rtc("softmax_grad", Array(("y", y), ("l", l)), Array(("dx", dx)), """
-          int i = hipBlockIdx_x;
-          int j = hipThreadIdx_x;
+          int i = blockIdx.x;
+          int j = threadIdx.x;
           int k = static_cast<int>(l[i]);
           if (j == k) {
               dx[i*dx_dims[1]+j] = y[i*dx_dims[1]+j] - 1.0f;

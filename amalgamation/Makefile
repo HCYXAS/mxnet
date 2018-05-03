@@ -30,7 +30,7 @@ endif
 
 .PHONY: all clean
 
-DEFS+=-DMSHADOW_USE_CUDA=0 -DMSHADOW_USE_MKL=0 -DMSHADOW_RABIT_PS=0 -DMSHADOW_DIST_PS=0 -DDMLC_LOG_STACK_TRACE=0
+DEFS+=-DMSHADOW_USE_GPU=0 -DMSHADOW_USE_MKL=0 -DMSHADOW_RABIT_PS=0 -DMSHADOW_DIST_PS=0 -DDMLC_LOG_STACK_TRACE=0
 DEFS+=-DMSHADOW_FORCE_STREAM -DMXNET_USE_OPENCV=0 -DMXNET_PREDICT_ONLY=1
 CFLAGS=-std=c++11 -Wno-unknown-pragmas -Wall $(DEFS)
 ifneq ($(MIN), 1)
@@ -61,8 +61,9 @@ dmlc.d: dmlc-minimum0.cc
 
 mxnet_predict0.d: mxnet_predict0.cc nnvm.d dmlc.d
 	${CXX} ${CFLAGS} -M -MT mxnet_predict0.o \
-	-I ${MXNET_ROOT}/ -I ${MXNET_ROOT}/mshadow/ -I ${MXNET_ROOT}/dmlc-core/include \
+	-I ${MXNET_ROOT}/ -I ${MXNET_ROOT}/mshadow/ -I ${MXNET_ROOT}/dmlc-core/include -I ${MXNET_ROOT}/dmlc-core/src \
 	-I ${MXNET_ROOT}/nnvm/include \
+	-I ${MXNET_ROOT}/dlpack/include \
 	-I ${MXNET_ROOT}/include \
 	-D__MIN__=$(MIN) mxnet_predict0.cc > mxnet_predict0.d
 	cat dmlc.d >> mxnet_predict0.d

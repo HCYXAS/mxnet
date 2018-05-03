@@ -1,5 +1,26 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
 # pylint: skip-file
-from data import mnist_iterator
+import os
+import sys
+curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
+sys.path.append(os.path.join(curr_path, "../../tests/python/common"))
+from get_data import MNISTIterator
 import mxnet as mx
 import numpy as np
 import logging
@@ -10,7 +31,7 @@ class NDArraySoftmax(mx.operator.NDArrayOp):
         super(NDArraySoftmax, self).__init__(False)
         self.fwd_kernel = None
         self.bwd_kernel = None
-    
+
     def list_arguments(self):
         return ['data', 'label']
 
@@ -28,7 +49,7 @@ class NDArraySoftmax(mx.operator.NDArrayOp):
         y = out_data[0]
         if self.fwd_kernel is None:
             self.fwd_kernel = mx.rtc('softmax', [('x', x)], [('y', y)], """
-int i = hipThreadIdx_x + hipBlockIdx_x*hipBlockDim_x;
+int i = threadIdx.x + blockIdx.x*blockDim.x;
 float max_x = x[i*x_dims[1]];
 for (int j = 1; j < x_dims[1]; ++j) {
     if (max_x < x[i*x_dims[1]+j]) {
@@ -51,8 +72,8 @@ for (int j = 0; j < x_dims[1]; ++j) {
         dx = in_grad[0]
         if self.bwd_kernel is None:
             self.bwd_kernel = mx.rtc('softmax_grad', [('y', y), ('l', l)], [('dx', dx)], """
-int i = hipBlockIdx_x;
-int j = hipThreadIdx_x;
+int i = blockIdx.x;
+int j = threadIdx.x;
 int k = static_cast<int>(l[i]);
 if (j == k) {
     dx[i*dx_dims[1]+j] = y[i*dx_dims[1]+j] - 1.0f;
@@ -76,7 +97,7 @@ mlp = mysoftmax(data=fc3, name = 'softmax')
 
 # data
 
-train, val = mnist_iterator(batch_size=100, input_shape = (784,))
+train, val = MNISTIterator(batch_size=100, input_shape = (784,))
 
 # train
 
