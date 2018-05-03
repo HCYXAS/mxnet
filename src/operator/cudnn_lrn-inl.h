@@ -66,7 +66,7 @@ class CuDNNLocalResponseNormOp : public Operator {
                                            data.dptr_,
                                            &beta,
                                            shape_desc_,
-                                           out.dptr_, false, workspace));
+                                           out.dptr_, true, workspace));
   }
 
   virtual void Backward(const OpContext &ctx,
@@ -91,18 +91,6 @@ class CuDNNLocalResponseNormOp : public Operator {
     Tensor<gpu, 4, DType> output_data = out_data[lrn_enum::kOut].get<gpu, 4, DType>(s);
     Tensor<gpu, 4, DType> input_grad = in_grad[lrn_enum::kData].get<gpu, 4, DType>(s);
     CHECK_EQ(s->dnn_handle_ownership_, mshadow::Stream<gpu>::OwnHandle);
-
-    size_t temp_workspaceSize = 0;
-   miopenLRNGetWorkSpaceSize(shape_desc_, &temp_workspaceSize);
-   if (temp_workspaceSize > workspaceSize) {
-
-    workspaceSize = temp_workspaceSize;
-
-    hipFree(workspace);
-
-    hipMalloc(&workspace, workspaceSize);
-
-}
 
     CUDNN_CALL(miopenLRNBackward(s->dnn_handle_,
                                             lrn_desc_,

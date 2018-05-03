@@ -84,7 +84,7 @@ class CuDNNPoolingOp : public Operator {
                                      &beta,
                                      out_desc_,
                                      out.dptr_,
-                                     false,
+                                     true,
 				     workspace,
 				     workspaceSize));
     } else if (param_.kernel.ndim() == 3) {
@@ -112,7 +112,7 @@ class CuDNNPoolingOp : public Operator {
                                      &beta,
                                      out_desc_,
                                      out.dptr_,
-                                     false,
+                                     true,
                                      workspace,
                                      workspaceSize));
 
@@ -140,19 +140,6 @@ class CuDNNPoolingOp : public Operator {
     CHECK_EQ(s->dnn_handle_ownership_, mshadow::Stream<gpu>::OwnHandle);
     typename DataType<DType>::ScaleType alpha = 1.0f;
     typename DataType<DType>::ScaleType beta = 0.0f;
-
-
-      size_t temp_workspaceSize = 0;
-   CUDNN_CALL(miopenPoolingGetWorkSpaceSize(out_desc_, &temp_workspaceSize));
-   if (temp_workspaceSize > 0 && temp_workspaceSize > workspaceSize ) {
-
-    workspaceSize = temp_workspaceSize;
-
-    hipFree(workspace);
-
-    hipMalloc(&workspace, workspaceSize);
-
-}
 
     if (param_.kernel.ndim() == 2) {
       // 2d pool

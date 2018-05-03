@@ -204,18 +204,15 @@ ifeq ($(USE_CUDA), 1)
 	CFLAGS += -I$(ROOTDIR)/cub-hip
 	ALL_DEP += $(CUOBJ) $(EXTRA_CUOBJ) $(PLUGIN_CUOBJ)
 	LDFLAGS += -L/opt/rocm/hip/lib -lhip_hcc
+	LDFLAGS += -L/opt/rocm/hipblas/lib  -lhipblas
+	LDFLAGS += -L/opt/rocm/hiprand/lib  -lhiprand
+	LDFLAGS += -L/opt/rocm/hipfft/lib   -lhipfft
 	ifneq (, $(findstring nvcc, $(HIP_PLATFORM)))
-		LDFLAGS += -L/opt/rocm/hipblas/lib  -lhipblas
-		LDFLAGS += -L/opt/rocm/hiprand/lib  -lhiprand
-		LDFLAGS += -L/opt/rocm/hipfft/lib -lhipfft
 		LDFLAGS += -lcudart -lcuda -lcufft -lcublas
 	else
 		HIPINCLUDE += -I/opt/rocm/rocblas/include -I/opt/rocm/rocrand/include
-		LDFLAGS += -L/opt/rocm/hipblas/lib  -lhipblas
 		LDFLAGS += -L/opt/rocm/rocblas/lib  -lrocblas
-		LDFLAGS += -L/opt/rocm/hiprand/lib  -lhiprand
 		LDFLAGS += -L/opt/rocm/rocrand/lib  -lrocrand
-		LDFLAGS += -L/opt/rocm/hipfft/lib   -lhipfft
 	endif
 
 	SCALA_PKG_PROFILE := $(SCALA_PKG_PROFILE)-gpu
