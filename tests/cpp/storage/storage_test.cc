@@ -42,7 +42,7 @@ TEST(Storage, Basic_CPU) {
   storage->Free(handle);
 }
 
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
 TEST(Storage, Basic_GPU) {
   if (mxnet::test::unitTestsWithCuda) {
     constexpr size_t kSize = 1024;
@@ -60,5 +60,5 @@ TEST(Storage, Basic_GPU) {
     storage->Free(handle);
   }
 }
-#endif  // MXNET_USE_CUDA
+#endif  // MXNET_USE_GPU
 

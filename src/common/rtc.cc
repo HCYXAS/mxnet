@@ -23,7 +23,7 @@
 #include "../common/cuda_utils.h"
 #include "../operator/operator_common.h"
 
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
 
 namespace mxnet {
 namespace rtc {
@@ -64,14 +64,14 @@ CudaModule::Chunk::Chunk(
 
 CudaModule::Chunk::~Chunk() {
   for (const auto& kv : mod_) {
-    CUDA_DRIVER_CALL(cuModuleUnload(kv.second));
+    CUDA_DRIVER_CALL(gpuModuleUnload(kv.second));
   }
   NVRTC_CALL(nvrtcDestroyProgram(&prog_));
   delete ptx_;
 }
 
 
-CUfunction CudaModule::Chunk::GetFunction(
+gpufunction CudaModule::Chunk::GetFunction(
     const std::string& mangled_name,
     const Context& ctx) {
   CHECK_EQ(ctx.dev_mask(), Context::kGPU)
@@ -81,12 +81,12 @@ CUfunction CudaModule::Chunk::GetFunction(
   if (iter != mod_.end()) {
     module = iter->second;
   } else {
-    CUDA_CALL(cudaSetDevice(ctx.dev_id));
-    CUDA_DRIVER_CALL(cuModuleLoadDataEx(&module, ptx_, 0, 0, 0));
+    CUDA_CALL(gpuSetDevice(ctx.dev_id));
+    CUDA_DRIVER_CALL(gpuModuleLoadDataEx(&module, ptx_, 0, 0, 0));
     mod_[ctx.dev_id] = module;
   }
-  CUfunction function;
-  auto err = cuModuleGetFunction(&function, module, mangled_name.c_str());
+  gpufunction function;
+  auto err = gpuModuleGetFunction(&function, module, mangled_name.c_str());
   if (err == CUDA_ERROR_NOT_FOUND) {
     LOG(FATAL) << "Cannot find cuda kernel with name '" << mangled_name
                << "'. Please either prepend kernel definition "
@@ -130,7 +130,7 @@ void CudaModule::Kernel::Launch(
   auto mod = mod_;
   auto arg_types = signature();
 
-  CUfunction function;
+  gpufunction function;
   auto iter = func_.find(ctx.dev_id);
   if (iter != func_.end()) {
     function = iter->second;
@@ -171,12 +171,12 @@ void CudaModule::Kernel::Launch(
     }
 
     mshadow::Stream<gpu> *s = rctx.get_stream<gpu>();
-    CUDA_DRIVER_CALL(cuLaunchKernel(
+    CUDA_DRIVER_CALL(gpuModuleLaunchKernel(
         function, grid_dim_x, grid_dim_y, grid_dim_z,
         block_dim_x, block_dim_y, block_dim_z,
         shared_mem, s->stream_,
         p_args.data(), 0));
-    CUDA_CALL(cudaStreamSynchronize(s->stream_));
+    CUDA_CALL(gpuStreamSynchronize(s->stream_));
   }, ctx, read_vars, write_vars, FnProperty::kNormal, 0,
   PROFILER_MESSAGE(mangled_name_.c_str()));
 }
@@ -185,4 +185,4 @@ void CudaModule::Kernel::Launch(
 }  // namespace rtc
 }  // namespace mxnet
 
-#endif  // ((MXNET_USE_CUDA) && (MXNET_USE_NVRTC))
+#endif  // ((MXNET_USE_GPU) && (MXNET_USE_NVRTC))

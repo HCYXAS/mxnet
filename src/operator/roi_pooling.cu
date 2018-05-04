@@ -125,10 +125,10 @@ inline void ROIPoolForward(const Tensor<gpu, 4, Dtype> &out,
   dim3 dimGrid(kMaxGridDim, (gridSize + kMaxGridDim - 1) / kMaxGridDim);
   dim3 dimBlock(kMaxThreadsPerBlock);
   CheckLaunchParam(dimGrid, dimBlock, "ROIPooling Forward");
-  cudaStream_t stream = Stream<gpu>::GetStream(out.stream_);
-  ROIPoolForwardKernel<Dtype><<<dimGrid, dimBlock, 0, stream>>>(
-      count, bottom_data, spatial_scale, channels, height, width,
-      pooled_height, pooled_width, bottom_rois, top_data, argmax_data);
+  gpuStream_t stream = Stream<gpu>::GetStream(out.stream_);
+  
+  gpuLaunchKernel(GPU_KERNEL_NAME(ROIPoolForwardKernel<Dtype>), dim3(dimGrid), dim3(dimBlock), 0, stream, count, bottom_data,
+  spatial_scale, channels, height, width, pooled_height, pooled_width, bottom_rois, top_data, argmax_data);
 }
 
 template<typename Dtype>
@@ -228,10 +228,10 @@ inline void ROIPoolBackwardAcc(const Tensor<gpu, 4, Dtype> &in_grad,
   dim3 dimGrid(kMaxGridDim, (gridSize + kMaxGridDim - 1) / kMaxGridDim);
   dim3 dimBlock(kMaxThreadsPerBlock);
   CheckLaunchParam(dimGrid, dimBlock, "ROIPooling Backward");
-  cudaStream_t stream = Stream<gpu>::GetStream(in_grad.stream_);
-  ROIPoolBackwardAccKernel<Dtype><<<dimGrid, dimBlock, 0, stream>>>(
-      count, top_diff, argmax_data, num_rois, spatial_scale, channels, height, width,
-      pooled_height, pooled_width, bottom_diff, bottom_rois);
+  gpuStream_t stream = Stream<gpu>::GetStream(in_grad.stream_);
+  
+  gpuLaunchKernel(GPU_KERNEL_NAME(ROIPoolBackwardAccKernel<Dtype>), dim3(dimGrid), dim3(dimBlock), 0, stream, count, top_diff,
+  argmax_data, num_rois, spatial_scale, channels, height, width, pooled_height, pooled_width, bottom_diff, bottom_rois);
 }
 
 }  // namespace cuda

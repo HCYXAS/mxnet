@@ -25,9 +25,9 @@
 #ifndef MXNET_STORAGE_POOLED_STORAGE_MANAGER_H_
 #define MXNET_STORAGE_POOLED_STORAGE_MANAGER_H_
 
-#if MXNET_USE_CUDA
-  #include <cuda_runtime.h>
-#endif  // MXNET_USE_CUDA
+#if MXNET_USE_GPU
+  #include "gpu_runtime.h"
+#endif  // MXNET_USE_GPU
 #include <mxnet/base.h>
 #include <mxnet/storage.h>
 #include <unordered_map>
@@ -41,7 +41,7 @@
 namespace mxnet {
 namespace storage {
 
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
 /*!
  * \brief Storage manager with a memory pool on gpu.
  */
@@ -69,11 +69,11 @@ class GPUPooledStorageManager final : public StorageManager {
   }
 
   void DirectFreeNoLock(Storage::Handle handle) {
-    cudaError_t err = cudaFree(handle.dptr);
+    gpuError_t err = gpuFree(handle.dptr);
     size_t size = handle.size + NDEV;
     // ignore unloading error, as memory has already been recycled
-    if (err != cudaSuccess && err != cudaErrorCudartUnloading) {
-      LOG(FATAL) << "CUDA: " << cudaGetErrorString(err);
+    if (err != gpuSuccess && err != gpuErrorCudartUnloading) {
+      LOG(FATAL) << "CUDA: " << gpuGetErrorString(err);
     }
     used_memory_ -= size;
   }
@@ -97,14 +97,14 @@ void GPUPooledStorageManager::Alloc(Storage::Handle* handle) {
   auto&& reuse_it = memory_pool_.find(size);
   if (reuse_it == memory_pool_.end() || reuse_it->second.size() == 0) {
     size_t free, total;
-    cudaMemGetInfo(&free, &total);
+    gpuMemGetInfo(&free, &total);
     if (free <= total * reserve_ / 100 || size > free - total * reserve_ / 100)
       ReleaseAll();
 
     void* ret = nullptr;
-    cudaError_t e = cudaMalloc(&ret, size);
-    if (e != cudaSuccess && e != cudaErrorCudartUnloading) {
-      LOG(FATAL) << "cudaMalloc failed: " << cudaGetErrorString(e);
+    gpuError_t e = gpuMalloc(&ret, size);
+    if (e != gpuSuccess && e != gpuErrorCudartUnloading) {
+      LOG(FATAL) << "gpuMalloc failed: " << gpuGetErrorString(e);
     }
     used_memory_ += size;
     handle->dptr = ret;
@@ -135,7 +135,7 @@ void GPUPooledStorageManager::ReleaseAll() {
   memory_pool_.clear();
 }
 
-#endif  // MXNET_USE_CUDA
+#endif  // MXNET_USE_GPU
 
 }  // namespace storage
 }  // namespace mxnet

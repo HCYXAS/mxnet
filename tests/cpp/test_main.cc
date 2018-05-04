@@ -50,15 +50,15 @@ bool csv = false;
 }  // namespace test
 }  // namespace mxnet
 
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
 
 static bool checkForWorkingCuda() {
   int count = 0;
-  if (cudaSuccess == cudaGetDeviceCount(&count)) {
+  if (gpuSuccess == gpuGetDeviceCount(&count)) {
     if (count == 0) return -1;
     for (int device = 0; device < count; ++device) {
-      cudaDeviceProp prop;
-      if (cudaSuccess == cudaGetDeviceProperties(&prop, device)) {
+      gpuDeviceProp prop;
+      if (gpuSuccess == gpuGetDeviceProperties(&prop, device)) {
         std::printf("%d.%d ", prop.major, prop.minor);
         return true;
       }

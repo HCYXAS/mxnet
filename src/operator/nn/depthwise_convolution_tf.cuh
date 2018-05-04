@@ -590,11 +590,14 @@ void LaunchDepthwiseConv2dGPUSmall(mshadow::Stream<mxnet::gpu> *stream,
                              (unsigned)mshadow::cuda::kMaxGridNum);
   auto s = mshadow::Stream<mxnet::gpu>::GetStream(stream);
   if (args.filter_height == 3 && args.filter_width == 3) {
-    cuda::DepthwiseConv2dKernelSmall<DType, kDirection, kBlockSlices, kEvenHeight, 3, 3>
-        <<<block_count, block_dim, shared_memory_size, s>>>(args, input, filter, output);
+   
+  gpuLaunchKernel(GPU_KERNEL_NAME(cuda::DepthwiseConv2dKernelSmall<DType, kDirection, kBlockSlices, kEvenHeight, 3, 3>),
+  dim3(block_count), dim3(block_dim), shared_memory_size, s, args, input, filter, output);
   } else {
-    cuda::DepthwiseConv2dKernelSmall<DType, kDirection, kBlockSlices, kEvenHeight, -1, -1>
-        <<<block_count, block_dim, shared_memory_size, s>>>(args, input, filter, output);
+    
+
+  gpuLaunchKernel(GPU_KERNEL_NAME(cuda::DepthwiseConv2dKernelSmall<DType, kDirection, kBlockSlices, kEvenHeight, -1, -1>),
+  dim3(block_count), dim3(block_dim), shared_memory_size, s, args, input, filter, output);
   }
   MSHADOW_CUDA_POST_KERNEL_CHECK(DepthwiseConv2dKernelSmall);
 }
@@ -651,13 +654,13 @@ bool TryLaunchDepthwiseConv2dBackwardFilterGPUSmall(mshadow::Stream<mxnet::gpu> 
   int block_count = num_out_grad/(block_dim.x * block_dim.y * block_dim.z) + 1;
   auto s = mshadow::Stream<mxnet::gpu>::GetStream(stream);
   if (args.filter_height == 3 && args.filter_width == 3) {
-    cuda::DepthwiseConv2dBackwardFilterKernelSmall<DType, kBlockSlices, kAccumPixels, 3, 3>
-        <<<block_count, block_dim, shared_memory_size, s>>>(
-            args, out_grad, input, filter_grad);
+    
+   gpuLaunchKernel(GPU_KERNEL_NAME(cuda::DepthwiseConv2dBackwardFilterKernelSmall<DType, kBlockSlices, kAccumPixels, 3, 3>),
+   dim3(block_count), dim3(block_dim), shared_memory_size, s, args, out_grad, input, filter_grad);
   } else {
-    cuda::DepthwiseConv2dBackwardFilterKernelSmall<DType, kBlockSlices, kAccumPixels, -1, -1>
-        <<<block_count, block_dim, shared_memory_size, s>>>(
-            args, out_grad, input, filter_grad);
+    
+  gpuLaunchKernel(GPU_KERNEL_NAME(cuda::DepthwiseConv2dBackwardFilterKernelSmall<DType, kBlockSlices, kAccumPixels, -1, -1>),
+  dim3(block_count), dim3(block_dim), shared_memory_size, s, args, out_grad, input, filter_grad);
   }
   MSHADOW_CUDA_POST_KERNEL_CHECK(DepthwiseConv2dBackwardFilterKernelSmall);
   return true;

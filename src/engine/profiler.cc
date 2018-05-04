@@ -30,7 +30,7 @@
 #include <thread>
 #include "./profiler.h"
 
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
 #include "../common/cuda_utils.h"
 #endif
 
@@ -46,7 +46,7 @@ Profiler::Profiler()
   this->init_time_ = NowInUsec();
 
   this->cpu_num_ = std::thread::hardware_concurrency();
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
   int kMaxNumGpus = 32;
   this->gpu_num_ = kMaxNumGpus;
 #else

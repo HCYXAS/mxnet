@@ -147,7 +147,7 @@ void TorchOp(NDArray **u, real_t *s, NDArray **out,
       }, ctx, var_const, var_out);
       break;
     }
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
     case gpu::kDevMask: {
       Engine::Get()->PushSync([arr_in, arr_out, param](RunContext rctx) {
         TorchRunOp<mshadow::gpu, OP>(arr_in, arr_out, param, rctx);

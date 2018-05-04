@@ -1318,7 +1318,7 @@ void GraphExecutor::InitCachedOps() {
       // call on complete only if it is async op
       if (!is_async) {
         if (is_gpu) {
-        #if MXNET_USE_CUDA
+        #if MXNET_USE_GPU
           // Wait GPU kernel to finish.
           ctx.get_stream<gpu>()->Wait();
         #else
@@ -1545,7 +1545,7 @@ GraphExecutor::CachedSegOpr GraphExecutor::CreateCachedSegOpr(size_t topo_start,
       exec->Run(ctx, is_gpu);
     }
     if (is_gpu) {
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
       // Wait GPU kernel to finish.
       ctx.get_stream<gpu>()->Wait();
 #else

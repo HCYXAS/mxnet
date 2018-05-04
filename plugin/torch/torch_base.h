@@ -35,13 +35,13 @@ extern "C" {
 #include <TH/THTensor.h>
 }
 
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
 extern "C" {
 #include <THC/THCStorage.h>
 #include <THC/THCTensor.h>
 #include <THC/THCTensorCopy.h>
 }
-#endif  // MXNET_USE_CUDA
+#endif  // MXNET_USE_GPU
 
 #include <vector>
 
@@ -53,7 +53,7 @@ class TorchState {
   TorchState();
   static TorchState* ThreadSharedLuaState();
 
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
   THCState* CudaState() {
     lua_getglobal(L, "cutorch");
     CHECK(!lua_isnil(L, -1));
@@ -63,7 +63,7 @@ class TorchState {
     lua_pop(L, 2);
     return state;
   }
-#endif  // MXNET_USE_CUDA
+#endif  // MXNET_USE_GPU
 
   template<typename xpu>
   void SetStream(mshadow::Stream<xpu>* s);
@@ -168,7 +168,7 @@ class TorchTensor {
         THFloatStorage_free(storage);
         break;
       }
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
       case gpu::kDevMask: {
         THCState* state = torchState->CudaState();
         THCudaStorage* storage = THCudaStorage_newWithData(state, static_cast<real_t*>(data.dptr_),
@@ -195,7 +195,7 @@ class TorchTensor {
         THFloatStorage_free(original);
         break;
       }
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
       case gpu::kDevMask: {
         THCState* state = torchState->CudaState();
         THCudaStorage* original = static_cast<THCudaTensor*>(tensor)->storage;
@@ -220,7 +220,7 @@ class TorchTensor {
         THFloatStorage_free(original);
         break;
       }
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
       case gpu::kDevMask: {
         THCState* state = torchState->CudaState();
         THCudaStorage* storage = THCudaStorage_newWithData(state,
@@ -274,7 +274,7 @@ class TorchTensor {
       if (src->storage != static_cast<THFloatTensor*>(th_dst)->storage) {
         THFloatTensor_copy(static_cast<THFloatTensor*>(th_dst), src);
       }
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
     } else if (luaT_isudata(L, -1, TorchTensor::TensorType(gpu::kDevMask))) {
       CHECK_EQ(dst.dev_mask(), gpu::kDevMask) << "Device type mismatch.";
       THCudaTensor* src = static_cast<THCudaTensor*>(
@@ -282,7 +282,7 @@ class TorchTensor {
       if (src->storage != static_cast<THCudaTensor*>(th_dst)->storage) {
         THCudaTensor_copy(torchState->CudaState(), static_cast<THCudaTensor*>(th_dst), src);
       }
-#endif  // MXNET_USE_CUDA
+#endif  // MXNET_USE_GPU
     } else {
       LOG(FATAL) << "Unsupported Torch tensor type " << luaT_typename(L, -1);
     }

@@ -5,7 +5,7 @@ ifeq ($(USE_CUDNN), 1)
 	CFLAGS += -DUSE_CUDNN=1
 endif
 
-ifeq ($(USE_CUDA), 0)
+ifeq ($(USE_GPU), 0)
 	CFLAGS += -DCPU_ONLY=1
 endif
 

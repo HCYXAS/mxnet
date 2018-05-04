@@ -24,7 +24,7 @@
  */
 #ifndef MXNET_STORAGE_PINNED_MEMORY_STORAGE_H_
 #define MXNET_STORAGE_PINNED_MEMORY_STORAGE_H_
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
 
 #include <dmlc/logging.h>
 #include "mxnet/base.h"
@@ -56,7 +56,7 @@ inline void* PinnedMemoryStorage::Alloc(size_t size) {
   std::lock_guard<std::mutex> lock(Storage::Get()->GetMutex(Context::kGPU));
 #endif
   // make the memory available across all devices
-  CUDA_CALL(cudaHostAlloc(&ret, size, cudaHostAllocPortable));
+  CUDA_CALL(gpuHostAlloc(&ret, size, gpuHostAllocPortable));
   return ret;
 }
 
@@ -64,15 +64,15 @@ inline void PinnedMemoryStorage::Free(void* ptr) {
 #if MXNET_USE_NCCL
   std::lock_guard<std::mutex> lock(Storage::Get()->GetMutex(Context::kGPU));
 #endif
-  cudaError_t err = cudaFreeHost(ptr);
+  gpuError_t err = gpuFreeHost(ptr);
   // ignore unloading error, as memory has already been recycled
-  if (err != cudaSuccess && err != cudaErrorCudartUnloading) {
-    LOG(FATAL) << "CUDA: " << cudaGetErrorString(err);
+  if (err != gpuSuccess && err != gpuErrorCudartUnloading) {
+    LOG(FATAL) << "CUDA: " << gpuGetErrorString(err);
   }
 }
 
 }  // namespace storage
 }  // namespace mxnet
 
-#endif  // MXNET_USE_CUDA
+#endif  // MXNET_USE_GPU
 #endif  // MXNET_STORAGE_PINNED_MEMORY_STORAGE_H_

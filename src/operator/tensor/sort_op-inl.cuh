@@ -63,7 +63,7 @@ inline void SortByKey(mshadow::Tensor<gpu, 1, KDType> keys, mshadow::Tensor<gpu,
   CHECK_EQ(keys.CheckContiguous(), true);
   CHECK_EQ(values.CheckContiguous(), true);
 #if CUDA_VERSION >= 7000
-  cudaStream_t stream = mshadow::Stream<gpu>::GetStream(keys.stream_);
+  gpuStream_t stream = mshadow::Stream<gpu>::GetStream(keys.stream_);
 #ifndef SORT_WITH_THRUST
   if (workspace != NULL) {
     // Workspace given, sort using CUB

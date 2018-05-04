@@ -272,7 +272,7 @@ class CommCPU : public Comm {
                              const NDArray& src,
                              const NDArray& indices,
                              NDArray* dst) {
-#if MXNET_USE_CUDA == 1
+#if MXNET_USE_GPU == 1
     CHECK_EQ(src.storage_type(), kRowSparseStorage)
       << "CopyRetainedRowsToGPU expects row-sparse src NDArray";
     CHECK_EQ(src.ctx().dev_mask(), Context::kCPU)
@@ -626,7 +626,7 @@ class CommDevice : public Comm {
 
  private:
   void EnableP2P(const std::vector<Context>& devs) {
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
     std::vector<int> gpus;
     for (const auto& d : devs) {
       if (d.dev_mask() == gpu::kDevMask) {
@@ -637,13 +637,13 @@ class CommDevice : public Comm {
     int enabled = 0;
     std::vector<int> p2p(n*n);
     for (int i = 0; i < n; ++i) {
-      cudaSetDevice(gpus[i]);
+      gpuSetDevice(gpus[i]);
       for (int j = 0; j < n; j++) {
         int access;
-        cudaDeviceCanAccessPeer(&access, gpus[i], gpus[j]);
+        gpuDeviceCanAccessPeer(&access, gpus[i], gpus[j]);
         if (access) {
-          cudaError_t e = cudaDeviceEnablePeerAccess(gpus[j], 0);
-          if (e == cudaSuccess || e == cudaErrorPeerAccessAlreadyEnabled) {
+          gpuError_t e = gpuDeviceEnablePeerAccess(gpus[j], 0);
+          if (e == gpuSuccess || e == gpuErrorPeerAccessAlreadyEnabled) {
             ++enabled;
             p2p[i*n+j] = 1;
           }

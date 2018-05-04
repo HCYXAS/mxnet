@@ -46,13 +46,47 @@ ADD_CFLAGS =
 # matrix computation libraries for CPU/GPU
 #---------------------------------------------
 
-# whether use CUDA during compile
-USE_CUDA = 0
+# whether use GPU during compile
+USE_GPU  = 1
+
+# configure to use CUDA/HIP backend
+USE_CUDA = 1
+USE_HIP  = 0
+
+# Error check for the backend selection
+ifeq ($(USE_GPU),1)
+	ifeq ($(USE_CUDA),1)
+	     ifeq ($(USE_HIP),1)
+               $(error Cannot enable CUDA and HIP backend at Once.Please choose one)
+	     endif
+	endif
+endif
+
+ifeq ($(USE_GPU), 1)
+        ADD_CFLAGS += -DUSE_GPU
+	ifeq ($(USE_CUDA), 1)
+		ADD_CFLAGS += -DUSE_CUDA
+		USE_CUDA_PATH = /usr/local/cuda
+	else ifeq ($(USE_HIP),1)
+		HIP_PLATFORM := $(shell hipconfig -P)
+		ADD_CFLAGS += -DUSE_HIP
+		ADD_CFLAGS += $(shell hipconfig -C)
+		LDFLAGS += -L/opt/rocm/hip/lib -lhip_hcc
+		ifeq ($(HIP_PLATFORM), nvcc)
+			USE_CUDA_PATH = /usr/local/cuda
+		else
+			USE_CUDA_PATH = NONE
+		endif
+	endif
+else
+	USE_CUDA = 0
+	USE_HIP  = 0
+endif
 
 # add the path to CUDA library to link and compile flag
 # if you have already add them to environment variable, leave it as NONE
 # USE_CUDA_PATH = /usr/local/cuda
-USE_CUDA_PATH = NONE
+#USE_CUDA_PATH = NONE
 
 # whether use CuDNN R3 library
 USE_CUDNN = 0
@@ -192,6 +226,11 @@ USE_CPP_PACKAGE = 0
 # You also need to add CAFFE_PATH/build/lib to your LD_LIBRARY_PATH
 # CAFFE_PATH = $(HOME)/caffe
 # MXNET_PLUGINS += plugin/caffe/caffe.mk
+
+# whether to use torch integration. This requires installing torch.
+# You also need to add TORCH_PATH/install/lib to your LD_LIBRARY_PATH
+# TORCH_PATH = $(HOME)/torch
+# MXNET_PLUGINS += plugin/torch/torch.mk
 
 # WARPCTC_PATH = $(HOME)/warp-ctc
 # MXNET_PLUGINS += plugin/warpctc/warpctc.mk

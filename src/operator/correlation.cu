@@ -33,10 +33,10 @@
 #define WARPS_PER_BLOCK 1
 #define THREADS_PER_WARP 32
 #define CORRELATION_CUDA_CHECK(condition) \
-  /* Code block avoids redefinition of cudaError_t error */ \
+  /* Code block avoids redefinition of gpuError_t error */ \
   do { \
-    cudaError_t error = condition; \
-    CHECK_EQ(error, cudaSuccess) << " " << cudaGetErrorString(error); \
+    gpuError_t error = condition; \
+    CHECK_EQ(error, gpuSuccess) << " " << gpuGetErrorString(error); \
   } while (0)
 #define CUDA_KERNEL_LOOP(i, n) \
 for (int i = blockIdx.x * blockDim.x + threadIdx.x; \
@@ -439,8 +439,8 @@ void Forward_gpu(
       int top_channels_, int top_height_, int top_width_, int pad_size_,
       bool is_multiply, int max_displacement_, int kernel_size_,
       int neighborhood_grid_radius_, int neighborhood_grid_width_,
-      int  kernel_radius_, int stride1_, int stride2_, cudaStream_t stream,
-      cudaStream_t stream_tmp1, cudaStream_t stream_tmp2) {
+      int  kernel_radius_, int stride1_, int stride2_, gpuStream_t stream,
+      gpuStream_t stream_tmp1, gpuStream_t stream_tmp2) {
     const Dtype *bottom_data1 = data1.dptr_;
     const Dtype *bottom_data2 = data2.dptr_;
     Dtype *rbot1 = tmp1.dptr_;
@@ -456,10 +456,12 @@ void Forward_gpu(
     int threads_per_block = 16;
     dim3 totalBlocksRearr((bwidthheight - 1) / threads_per_block + 1, bchannels, bnum);
     const int pwidthheight = (bwidth + 2 * pad_size_) * (bheight + 2 * pad_size_);
-    blob_rearrange_kernel2<Dtype><<<totalBlocksRearr, threads_per_block, 0, stream_tmp1>>>
-    (bottom_data1, rbot1, bnum, bchannels, bwidth, bheight, bwidthheight, pad_size_, pwidthheight);
-    blob_rearrange_kernel2<Dtype><<<totalBlocksRearr, threads_per_block, 0, stream_tmp2>>>
-    (bottom_data2, rbot2, bnum, bchannels, bwidth, bheight, bwidthheight, pad_size_, pwidthheight);
+
+
+    gpuLaunchKernel(GPU_KERNEL_NAME(blob_rearrange_kernel2<Dtype>), dim3(totalBlocksRearr), dim3(threads_per_block), 0, stream_tmp1,
+    bottom_data1, rbot1, bnum, bchannels, bwidth, bheight, bwidthheight, pad_size_, pwidthheight);
+    gpuLaunchKernel(GPU_KERNEL_NAME(blob_rearrange_kernel2<Dtype>), dim3(totalBlocksRearr), dim3(threads_per_block), 0, stream_tmp2,
+    bottom_data2, rbot2, bnum, bchannels, bwidth, bheight, bwidthheight, pad_size_, pwidthheight);
     const int num = bnum;
     const int channels = bchannels;
     const int height = bheight + 2 * pad_size_;
@@ -469,29 +471,23 @@ void Forward_gpu(
         //  CorrelationLayer
         int topThreadCount = topcount;
         dim3 totalBlocksCorr(top_width_, top_height_, num);
-        CorrelateData<Dtype><<<totalBlocksCorr, threadsPerBlock,
-        shared_memory_per_block * sizeof(Dtype), stream>>>(
-            topThreadCount,
-            num, top_width_, top_height_, top_channels_, topcount,
-            max_displacement_, neighborhood_grid_radius_,
-            neighborhood_grid_width_, kernel_radius_, kernel_size_,
-            stride1_, stride2_,
-            width, height, channels,
-            rbot1, rbot2, top);
-        CORRELATION_CUDA_CHECK(cudaPeekAtLastError());
+        
+   gpuLaunchKernel(GPU_KERNEL_NAME(CorrelateData<Dtype>), dim3(totalBlocksCorr), dim3( threadsPerBlock),
+   shared_memory_per_block * sizeof(Dtype), stream, topThreadCount, num, top_width_, top_height_, top_channels_, topcount,
+   max_displacement_, neighborhood_grid_radius_, neighborhood_grid_width_, kernel_radius_, kernel_size_, stride1_, stride2_, width,
+   height, channels, rbot1, rbot2, top);
+        CORRELATION_CUDA_CHECK(gpuPeekAtLastError());
     } else {
         //  CorrelationLayer
         for (int n = 0; n < num; n++) {
             int topThreadCount = topcount;
             const int gridSize = (topThreadCount + kMaxThreadsPerBlock - 1)\
              / kMaxThreadsPerBlock;
-            CorrelateDataSubtract<Dtype><<<gridSize, kMaxThreadsPerBlock, 0, stream>>>(
-                topThreadCount,
-                num, n, top_width_, top_height_, top_channels_, topcount,
-                max_displacement_, neighborhood_grid_radius_,
-                neighborhood_grid_width_, kernel_radius_,
-                stride1_, stride2_, width, height, channels, rbot1, rbot2, top);
-         CORRELATION_CUDA_CHECK(cudaPeekAtLastError());
+            
+   gpuLaunchKernel(GPU_KERNEL_NAME(CorrelateDataSubtract<Dtype>), dim3(gridSize), dim3(kMaxThreadsPerBlock), 0, stream,
+   topThreadCount,  num, n, top_width_, top_height_, top_channels_, topcount, max_displacement_, neighborhood_grid_radius_,
+   neighborhood_grid_width_, kernel_radius_, stride1_, stride2_, width, height, channels, rbot1, rbot2, top);
+         CORRELATION_CUDA_CHECK(gpuPeekAtLastError());
         }
     }
 }
@@ -507,7 +503,7 @@ void Backward_gpu(
       int max_displacement_, int kernel_size_,
       int neighborhood_grid_radius_, int neighborhood_grid_width_,
       int  kernel_radius_, int stride1_, int stride2_,
-      cudaStream_t stream0, cudaStream_t stream1,
+      gpuStream_t stream0, gpuStream_t stream1,
       int num, int channels, int height, int width) {
     //  Get top diff, compute bottom diff
     const Dtype* top_diff = out_grad.dptr_;
@@ -529,48 +525,41 @@ void Backward_gpu(
          / static_cast<float>(stride1_))) + 1) * top_channels_;
         //  == Run kernel Backward 0
         for (int n = 0; n < num; n++) {
-        CorrelateDataBackward0<Dtype><<<gridSize, kMaxThreadsPerBlock, 0, stream0>>>(
-            botThreadCount,
-            num, n, top_width_, top_height_, top_channels_,
-            max_displacement_, neighborhood_grid_radius_, neighborhood_grid_width_, kernel_radius_,
-            stride1_, stride2_,
-            width, height, paddedwidth, paddedheight, channels, bottomcount, pad_size_,
-            bottom0_diff, rbot2, top_diff);
-        CORRELATION_CUDA_CHECK(cudaPeekAtLastError());
+        
+    gpuLaunchKernel(GPU_KERNEL_NAME(CorrelateDataBackward0<Dtype>), dim3(gridSize), dim3(kMaxThreadsPerBlock), 0, stream0,
+    botThreadCount, num, n, top_width_, top_height_, top_channels_, max_displacement_, neighborhood_grid_radius_,
+    neighborhood_grid_width_, kernel_radius_, stride1_, stride2_, width, height, paddedwidth, paddedheight, channels, bottomcount,
+    pad_size_, bottom0_diff, rbot2, top_diff);
+        CORRELATION_CUDA_CHECK(gpuPeekAtLastError());
         }
         //  == Run kernel Backward 1
         for (int n = 0; n < num; n++) {
-        CorrelateDataBackward1<Dtype><<<gridSize, kMaxThreadsPerBlock, 0, stream1>>>(
-            botThreadCount,
-            num, n, top_width_, top_height_, top_channels_,
-            max_displacement_, neighborhood_grid_radius_, neighborhood_grid_width_, kernel_radius_,
-            stride1_, stride2_,
-            width, height, paddedwidth, paddedheight, channels, bottomcount, pad_size_,
-            rbot1, bottom1_diff, top_diff);
-       CORRELATION_CUDA_CHECK(cudaPeekAtLastError());
+        
+
+   gpuLaunchKernel(GPU_KERNEL_NAME(CorrelateDataBackward1<Dtype>), dim3(gridSize), dim3( kMaxThreadsPerBlock), 0, stream1,
+   botThreadCount, num, n, top_width_, top_height_, top_channels_, max_displacement_, neighborhood_grid_radius_,
+   neighborhood_grid_width_, kernel_radius_, stride1_, stride2_, width, height, paddedwidth, paddedheight, channels, bottomcount,
+   pad_size_, rbot1, bottom1_diff, top_diff);
+       CORRELATION_CUDA_CHECK(gpuPeekAtLastError());
         }
     } else  {
         for (int n = 0; n < num; n++) {
         //  Bottom0:
-        CorrelateDataBackward0Subtract<Dtype><<<gridSize, kMaxThreadsPerBlock, 0, stream0>>>(
-            botThreadCount,
-            num, n, top_width_, top_height_, top_channels_,
-            max_displacement_, neighborhood_grid_radius_, neighborhood_grid_width_, kernel_radius_,
-            stride1_, stride2_,
-            width, height, paddedwidth, paddedheight, channels, bottomcount, pad_size_,
-            bottom0_diff, rbot1, rbot2, top_diff);
-        CORRELATION_CUDA_CHECK(cudaPeekAtLastError());
+       
+   gpuLaunchKernel(GPU_KERNEL_NAME(CorrelateDataBackward0Subtract<Dtype>), dim3(gridSize), dim3(kMaxThreadsPerBlock), 0, stream0,
+   botThreadCount, num, n, top_width_, top_height_, top_channels_, max_displacement_, neighborhood_grid_radius_,
+   neighborhood_grid_width_, kernel_radius_, stride1_, stride2_, width, height, paddedwidth, paddedheight, channels, bottomcount,
+   pad_size_, bottom0_diff, rbot1, rbot2, top_diff);
+        CORRELATION_CUDA_CHECK(gpuPeekAtLastError());
         }
         for (int n = 0; n < num; n++) {
         //  Bottom1:
-        CorrelateDataBackward1Subtract<Dtype><<<gridSize, kMaxThreadsPerBlock, 0, stream1>>>(
-            botThreadCount,
-            num, n, top_width_, top_height_, top_channels_,
-            max_displacement_, neighborhood_grid_radius_, neighborhood_grid_width_, kernel_radius_,
-            stride1_, stride2_,
-            width, height, paddedwidth, paddedheight, channels, bottomcount, pad_size_,
-            rbot1, rbot2, bottom1_diff, top_diff);
-        CORRELATION_CUDA_CHECK(cudaPeekAtLastError());
+        
+  gpuLaunchKernel(GPU_KERNEL_NAME(CorrelateDataBackward1Subtract<Dtype>), dim3(gridSize), dim3(kMaxThreadsPerBlock), 0, stream1,
+  botThreadCount, num, n, top_width_, top_height_, top_channels_, max_displacement_, neighborhood_grid_radius_,
+  neighborhood_grid_width_, kernel_radius_, stride1_, stride2_, width, height, paddedwidth, paddedheight, channels, bottomcount,
+  pad_size_, rbot1, rbot2, bottom1_diff, top_diff);
+        CORRELATION_CUDA_CHECK(gpuPeekAtLastError());
         }
     }
 }
@@ -587,9 +576,9 @@ inline void CorrelationForward(const Tensor<gpu, 4, Dtype> &out,
                                int neighborhood_grid_radius_, int neighborhood_grid_width_,
                                int kernel_radius_, int stride1_, int stride2_
                            ) {
-  cudaStream_t stream = Stream<gpu>::GetStream(out.stream_);
-  cudaStream_t stream_tmp1 = Stream<gpu>::GetStream(tmp1.stream_);
-  cudaStream_t stream_tmp2 = Stream<gpu>::GetStream(tmp2.stream_);
+  gpuStream_t stream = Stream<gpu>::GetStream(out.stream_);
+  gpuStream_t stream_tmp1 = Stream<gpu>::GetStream(tmp1.stream_);
+  gpuStream_t stream_tmp2 = Stream<gpu>::GetStream(tmp2.stream_);
   cuda::Forward_gpu(out, data1, data2, tmp1, tmp2, top_channels_, top_height_,
                     top_width_, pad_size_, is_multiply, max_displacement_, kernel_size_,
                     neighborhood_grid_radius_, neighborhood_grid_width_, kernel_radius_,
@@ -609,8 +598,8 @@ inline void CorrelationBackward(const Tensor<gpu, 4, Dtype> &out_grad,
                             int  kernel_radius_, int stride1_,
                             int stride2_, int num, int channels, int height, int width
                             ) {
-  cudaStream_t stream0 = Stream<gpu>::GetStream(in_grad1.stream_);
-  cudaStream_t stream1 = Stream<gpu>::GetStream(in_grad2.stream_);
+  gpuStream_t stream0 = Stream<gpu>::GetStream(in_grad1.stream_);
+  gpuStream_t stream1 = Stream<gpu>::GetStream(in_grad2.stream_);
   cuda::Backward_gpu(out_grad, in_grad1, in_grad2, tmp1, tmp2, top_channels_,
                       top_height_, top_width_, pad_size_, is_multiply,
                       max_displacement_, kernel_size_, neighborhood_grid_radius_,

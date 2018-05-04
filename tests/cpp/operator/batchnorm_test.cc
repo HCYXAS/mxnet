@@ -546,7 +546,7 @@ static test::op::OpInfo<OperatorProp, OperatorExecutor> TestBatchNormOperatorFor
   const TShape& inputShape,
   const std::vector<std::pair<std::string, std::string> >& kwargs,
   const size_t count = 1) {
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
   if (isGPU && !test::unitTestsWithCuda) {
     LOG(INFO) << "GPU not found, running test as non-GPU";
   }
@@ -832,7 +832,7 @@ TEST(BATCH_NORM, TestStochasticTiming_2D) {
       timingTest<op::BatchNormProp, BNOperatorExecutor<DType, AccReal>>(
         "RANDOM: BatchNormProp<cpu>", false, true,
         blank_kwargs_nocudnn, GPU_TEST_DIMENSIONS); });
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
   if (test::unitTestsWithCuda) {
     MSHADOW_REAL_TYPE_SWITCH_EX(
       mshadow::kFloat32, DType, AccReal,
@@ -875,7 +875,7 @@ MSHADOW_REAL_TYPE_SWITCH_EX(
     false, false,
     blank_kwargs_nocudnn,
     2, THISCOUNT);
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
   if (test::unitTestsWithCuda) {
     timingTest<op::BatchNormV1Prop, BNOperatorExecutor<DType, AccReal>>(
       "BatchNormV1Prop<gpu> 2D",
@@ -1637,7 +1637,7 @@ TEST(BATCH_NORM, TestChannelAxis) {
 }
 #endif
 
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
 
 TEST(BATCH_NORM, Test2DForwardV12D_gpu) {
   MSHADOW_REAL_TYPE_SWITCH_EX(
@@ -1822,4 +1822,4 @@ TEST(BATCH_NORM, Test2DBackwardMixedComplex_gpu_cpu_ugs) {
   }
 }
 
-#endif  // MXNET_USE_CUDA
+#endif  // MXNET_USE_GPU

@@ -61,9 +61,9 @@ int get_num_threads(const int N);
 
 inline cudaDeviceProp cuda_get_device_prop() {
   int device;
-  CUDA_CALL(cudaGetDevice(&device));
-  cudaDeviceProp deviceProp;
-  CUDA_CALL(cudaGetDeviceProperties(&deviceProp, device));
+  CUDA_CALL(gpuGetDevice(&device));
+  gpuDeviceProp deviceProp;
+  CUDA_CALL(gpuGetDeviceProperties(&deviceProp, device));
   return deviceProp;
 }
 
@@ -553,18 +553,18 @@ struct Kernel<OP, gpu> {
   inline static void Launch(mshadow::Stream<gpu> *s, int N, Args... args) {
     using namespace mshadow::cuda;
     int ngrid = std::min(kMaxGridNum, (N + kBaseThreadNum - 1) / kBaseThreadNum);
-    mxnet_generic_kernel<OP, Args...>
-      <<<ngrid, kBaseThreadNum, 0, mshadow::Stream<gpu>::GetStream(s)>>>(
-        N, args...);
+   
+   gpuLaunchKernel(GPU_KERNEL_NAME(mxnet_generic_kernel<OP, Args...>), dim3(ngrid), dim3(kBaseThreadNum), 0,
+   mshadow::Stream<gpu>::GetStream(s), N, args...);
   }
 
   template<typename ...Args>
   inline static void LaunchEx(mshadow::Stream<gpu> *s, const int N, Args... args) {
     using namespace mshadow::cuda;
     int ngrid = std::min(kMaxGridNum, (N + kBaseThreadNum - 1) / kBaseThreadNum);
-    mxnet_generic_kernel_ex<OP, Args...>
-      <<<ngrid, kBaseThreadNum, 0, mshadow::Stream<gpu>::GetStream(s)>>>(
-        N, args...);
+  
+  gpuLaunchKernel(GPU_KERNEL_NAME(mxnet_generic_kernel_ex<OP, Args...>), dim3(ngrid), dim3(kBaseThreadNum), 0,
+   mshadow::Stream<gpu>::GetStream(s), N, args...);
   }
 };
 #endif  // __CUDACC__

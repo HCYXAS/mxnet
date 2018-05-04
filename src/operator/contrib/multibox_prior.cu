@@ -28,10 +28,10 @@
 #include <mshadow/cuda/tensor_gpu-inl.cuh>
 
 #define MULTIBOXPRIOR_CUDA_CHECK(condition) \
-  /* Code block avoids redefinition of cudaError_t error */ \
+  /* Code block avoids redefinition of gpuError_t error */ \
   do { \
-    cudaError_t error = condition; \
-    CHECK_EQ(error, cudaSuccess) << " " << cudaGetErrorString(error); \
+    gpuError_t error = condition; \
+    CHECK_EQ(error, gpuSuccess) << " " << gpuGetErrorString(error); \
   } while (0)
 
 namespace mshadow {
@@ -67,7 +67,7 @@ inline void MultiBoxPriorForward(const Tensor<gpu, 2, DType> &out,
                             const std::vector<float> &steps,
                             const std::vector<float> &offsets) {
   CHECK_EQ(out.CheckContiguous(), true);
-  cudaStream_t stream = Stream<gpu>::GetStream(out.stream_);
+  gpuStream_t stream = Stream<gpu>::GetStream(out.stream_);
   DType *out_ptr = out.dptr_;
   const float step_x = steps[1];
   const float step_y = steps[0];
@@ -85,20 +85,22 @@ inline void MultiBoxPriorForward(const Tensor<gpu, 2, DType> &out,
   int offset = 0;
   // ratio = 1, various sizes
   for (int i = 0; i < num_sizes; ++i) {
-    cuda::AssignPriors<DType><<<dimGrid, dimBlock, 0, stream>>>(out_ptr,
-      sizes[i], 1.f, in_width, in_height, step_x, step_y, offset_y, offset_x, stride, offset);
+    
+
+  gpuLaunchKernel(GPU_KERNEL_NAME(cuda::AssignPriors<DType>), dim3(dimGrid), dim3(dimBlock), 0, stream, out_ptr, sizes[i], 1.f, 
+  in_width, in_height, step_x, step_y, offset_y, offset_x, stride, offset);
     ++offset;
   }
-  MULTIBOXPRIOR_CUDA_CHECK(cudaPeekAtLastError());
+  MULTIBOXPRIOR_CUDA_CHECK(gpuPeekAtLastError());
 
   // size = sizes[0], various ratios
   for (int j = 1; j < num_ratios; ++j) {
-    cuda::AssignPriors<DType><<<dimGrid, dimBlock, 0, stream>>>(out_ptr,
-      sizes[0], sqrtf(ratios[j]), in_width, in_height, step_x, step_y,
-       offset_y, offset_x, stride, offset);
+   
+   gpuLaunchKernel(GPU_KERNEL_NAME(cuda::AssignPriors<DType>), dim3(dimGrid), dim3(dimBlock), 0, stream, out_ptr, sizes[0],
+   sqrtf(ratios[j]), in_width, in_height, step_x, step_y, offset_y, offset_x, stride, offset);
     ++offset;
   }
-  MULTIBOXPRIOR_CUDA_CHECK(cudaPeekAtLastError());
+  MULTIBOXPRIOR_CUDA_CHECK(gpuPeekAtLastError());
 }
 }  // namespace mshadow
 

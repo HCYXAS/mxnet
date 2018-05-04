@@ -26,7 +26,7 @@ apt-get install git-all
 ### Build MXNet with CPU support
 echo "BUILD make"
 cp ./make/config.mk .
-echo "USE_CUDA=1" >> ./config.mk
+echo "USE_GPU=1" >> ./config.mk
 echo "USE_CUDA_PATH=/usr/local/cuda" >> config.mk
 echo "USE_CUDNN=1" >> ./config.mk
 echo "USE_BLAS=openblas" >> ./config.mk

@@ -20,9 +20,9 @@
 #ifndef MXNET_RTC_H_
 #define MXNET_RTC_H_
 #include "./base.h"
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
 #include <nvrtc.h>
-#include <cuda.h>
+#include "gpu_runtime.h"
 
 #include <vector>
 #include <string>
@@ -56,7 +56,7 @@ class CudaModule {
      * \param ctx context to run kernel on
      * \return loaded function handle
      */
-    CUfunction GetFunction(const std::string& mangled_name, const Context& ctx);
+    gpufunction GetFunction(const std::string& mangled_name, const Context& ctx);
     /*! \brief nvrtc program handle. */
     nvrtcProgram prog_;
     /*! \brief compiled cuda PTX */
@@ -108,7 +108,7 @@ class CudaModule {
     /*! \brief module of this kernel */
     std::shared_ptr<Chunk> mod_;
     /*! \brief cached kernel function on each device */
-    std::unordered_map<int, CUfunction> func_;
+    std::unordered_map<int, gpufunction> func_;
   };
   /*!
    * \brief CudaModule constructor
@@ -132,5 +132,5 @@ class CudaModule {
 }  // namespace rtc
 }  // namespace mxnet
 
-#endif  // MXNET_USE_CUDA
+#endif  // MXNET_USE_GPU
 #endif  // MXNET_RTC_H_

@@ -76,7 +76,7 @@ TEST(ACTIVATION_PERF, TimingCPU) {
   }
 }
 
-#if MXNET_USE_CUDA == 1
+#if MXNET_USE_GPU == 1
 /*!
  * \brief ActivationOp timing test for GPU
  */
@@ -100,5 +100,5 @@ TEST(ACTIVATION_PERF, TimingGPU) {
     runner.TimingTest("Activation Operator GPU", true, false, kwargs, 2, 10, { shape });
   }
 }
-#endif  // MXNET_USE_CUDA == 1
+#endif  // MXNET_USE_GPU == 1
 

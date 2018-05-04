@@ -35,7 +35,7 @@ if [ "$WITH_CAFFE_PLUGIN" == "1" ]; then
 fi
 
 cp make/config.mk .
-echo "USE_CUDA=1" >> config.mk
+echo "USE_GPU=1" >> config.mk
 echo "USE_CUDA_PATH=/usr/local/cuda" >> config.mk
 echo "USE_CUDNN=1" >> config.mk
 echo "USE_PROFILER=1" >> config.mk

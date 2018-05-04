@@ -38,7 +38,7 @@
 #include "./init_op.h"
 #include "../../common/static_array.h"
 
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
 #include <thrust/device_vector.h>
 #endif
 
@@ -1705,12 +1705,12 @@ void ReverseOpForward(const nnvm::NodeAttrs& attrs,
   auto stride_workspace = workspace.dptr_;
   auto trailing_workspace = workspace.dptr_ + reverse_index * sizeof(index_t);
 
-  cudaMemcpyAsync(stride_workspace, thrust::raw_pointer_cast(stride_.data()),
+  gpuMemcpyAsync(stride_workspace, thrust::raw_pointer_cast(stride_.data()),
                   stride_.size() * sizeof(index_t),
-                  cudaMemcpyHostToDevice, mshadow::Stream<gpu>::GetStream(s));
-  cudaMemcpyAsync(trailing_workspace, thrust::raw_pointer_cast(trailing_.data()),
+                  gpuMemcpyHostToDevice, mshadow::Stream<gpu>::GetStream(s));
+  gpuMemcpyAsync(trailing_workspace, thrust::raw_pointer_cast(trailing_.data()),
                   trailing_.size() * sizeof(index_t),
-                  cudaMemcpyHostToDevice, mshadow::Stream<gpu>::GetStream(s));
+                  gpuMemcpyHostToDevice, mshadow::Stream<gpu>::GetStream(s));
 
 #endif
 

@@ -47,9 +47,9 @@ extern __cuda_fake_struct threadIdx;
 extern __cuda_fake_struct blockIdx;
 #endif
 
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
 
-#include <cuda_runtime.h>
+#include "gpu_runtime.h"
 #include <cublas_v2.h>
 #include <curand.h>
 
@@ -174,8 +174,8 @@ inline DType __device__ CudaMin(DType a, DType b) {
  */
 #define CHECK_CUDA_ERROR(msg)                                                \
   {                                                                          \
-    cudaError_t e = cudaGetLastError();                                      \
-    CHECK_EQ(e, cudaSuccess) << (msg) << " CUDA: " << cudaGetErrorString(e); \
+    gpuError_t e = gpuGetLastError();                                      \
+    CHECK_EQ(e, gpuSuccess) << (msg) << " CUDA: " << gpuGetErrorString(e); \
   }
 
 /*!
@@ -186,9 +186,9 @@ inline DType __device__ CudaMin(DType a, DType b) {
  */
 #define CUDA_CALL(func)                                            \
   {                                                                \
-    cudaError_t e = (func);                                        \
-    CHECK(e == cudaSuccess || e == cudaErrorCudartUnloading)       \
-        << "CUDA: " << cudaGetErrorString(e);                      \
+    gpuError_t e = (func);                                        \
+    CHECK(e == gpuSuccess || e == gpuErrorCudartUnloading)       \
+        << "CUDA: " << gpuGetErrorString(e);                      \
   }
 
 /*!
@@ -252,8 +252,8 @@ inline DType __device__ CudaMin(DType a, DType b) {
  */
 #define CUDA_DRIVER_CALL(func)                                          \
   {                                                                     \
-    CUresult e = (func);                                                \
-    if (e != CUDA_SUCCESS) {                                            \
+    gpuresult e = (func);                                                \
+    if (e != gpu_SUCCESS) {                                            \
       char const * err_msg = nullptr;                                         \
       if (cuGetErrorString(e, &err_msg) == CUDA_ERROR_INVALID_VALUE) {  \
         LOG(FATAL) << "CUDA Driver: Unknown error " << e;               \
@@ -279,8 +279,8 @@ inline DType __device__ CudaMin(DType a, DType b) {
  */
 inline int ComputeCapabilityMajor(int device_id) {
   int major = 0;
-  CUDA_CALL(cudaDeviceGetAttribute(&major,
-                                   cudaDevAttrComputeCapabilityMajor, device_id));
+  CUDA_CALL(gpuDeviceGetAttribute(&major,
+                                   gpuDevAttrComputeCapabilityMajor, device_id));
   return major;
 }
 
@@ -291,8 +291,8 @@ inline int ComputeCapabilityMajor(int device_id) {
  */
 inline int ComputeCapabilityMinor(int device_id) {
   int minor = 0;
-  CUDA_CALL(cudaDeviceGetAttribute(&minor,
-                                   cudaDevAttrComputeCapabilityMinor, device_id));
+  CUDA_CALL(gpuDeviceGetAttribute(&minor,
+                                   gpuDevAttrComputeCapabilityMinor, device_id));
   return minor;
 }
 
@@ -369,7 +369,7 @@ inline cublasMath_t SetCublasMathMode(cublasHandle_t blas_handle, cublasMath_t n
 }
 #endif
 
-#endif  // MXNET_USE_CUDA
+#endif  // MXNET_USE_GPU
 
 #if MXNET_USE_CUDNN
 

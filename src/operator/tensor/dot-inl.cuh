@@ -652,8 +652,8 @@ inline void DotCsrDnsRspImpl(const OpContext& ctx,
                                         num_cols_l,
                                         mshadow::Stream<gpu>::GetStream(s));
           dim_t nnr_out = 0;
-          CUDA_CALL(cudaMemcpy(&nnr_out, &row_flg_out[num_cols_l-1], sizeof(dim_t),
-                               cudaMemcpyDeviceToHost));
+          CUDA_CALL(gpuMemcpy(&nnr_out, &row_flg_out[num_cols_l-1], sizeof(dim_t),
+                               gpuMemcpyDeviceToHost));
           if (0 == nnr_out) {
             FillZerosRspImpl(s, *ret);
             return;
@@ -778,8 +778,8 @@ inline void DotCsrRspRspImpl(const OpContext& ctx,
                                           num_cols_l,
                                           mshadow::Stream<gpu>::GetStream(s));
             dim_t nnr_out = 0;
-            CUDA_CALL(cudaMemcpy(&nnr_out, &row_flg_out[num_cols_l-1], sizeof(dim_t),
-                                 cudaMemcpyDeviceToHost));
+            CUDA_CALL(gpuMemcpy(&nnr_out, &row_flg_out[num_cols_l-1], sizeof(dim_t),
+                                 gpuMemcpyDeviceToHost));
             if (0 == nnr_out) {
               FillZerosRspImpl(s, *ret);
               return;

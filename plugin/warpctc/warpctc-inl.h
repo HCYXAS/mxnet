@@ -144,7 +144,7 @@ class WarpCTCOp : public Operator {
       info.loc = CTC_CPU;
       info.num_threads = 1;
     } else if (data.dev_mask() == gpu::kDevMask) {
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
       info.loc = CTC_GPU;
       info.stream = ctx.get_stream<gpu>()->stream_;
     } else {
@@ -161,21 +161,21 @@ class WarpCTCOp : public Operator {
       input_lengths.push_back(T);
     }
 
-#if MXNET_USE_CUDA
-    cudaError_t cuda_status;
+#if MXNET_USE_GPU
+    gpuError_t cuda_status;
 #endif
     float* activations = static_cast<float*>(data.dptr_);
     int* flat_labels = static_cast<int*>(label.dptr_);
     int* cpu_raw_labels = flat_labels;
     float* grads = static_cast<float*>(in_grad[warpctc_enum::kData].dptr_);
     if (data.dev_mask() == gpu::kDevMask) {
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
       cpu_raw_labels = reinterpret_cast<int*>(malloc(sizeof(int) * label.Size()));
-      cuda_status = cudaMemcpyAsync(cpu_raw_labels, flat_labels,
+      cuda_status = gpuMemcpyAsync(cpu_raw_labels, flat_labels,
                                     label.Size()*sizeof(int),
-                                    cudaMemcpyDeviceToHost,
+                                    gpuMemcpyDeviceToHost,
                                     ctx.get_stream<gpu>()->stream_);
-      CHECK_EQ(cuda_status, cudaSuccess) << "cuda memcpy label error";
+      CHECK_EQ(cuda_status, gpuSuccess) << "cuda memcpy label error";
 #endif
     }
 
@@ -215,7 +215,7 @@ class WarpCTCOp : public Operator {
     if (data.dev_mask() == cpu::kDevMask) {
       free(cpu_labels);
     } else if (data.dev_mask() == gpu::kDevMask) {
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
       free(cpu_raw_labels);
       free(cpu_labels);
 #endif

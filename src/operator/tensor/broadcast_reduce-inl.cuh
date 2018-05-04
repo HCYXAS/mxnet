@@ -58,7 +58,7 @@ template<int ndim, typename DType, typename OP>
 void BinaryBroadcastComputeImpl(Stream<gpu> *s, const OpReqType req,
                                 const TBlob& lhs, const TBlob& rhs, const TBlob& out) {
   if (req == kNullOp) return;
-  cudaStream_t stream = Stream<gpu>::GetStream(s);
+  gpuStream_t stream = Stream<gpu>::GetStream(s);
   int N = out.shape_.Size();
   const int warpSize = 32;
   const int unroll = 2;
@@ -66,9 +66,10 @@ void BinaryBroadcastComputeImpl(Stream<gpu> *s, const OpReqType req,
   int ngrid = std::min(kBaseGridNum, (N + nthread*unroll - 1) / (nthread*unroll));
   Shape<ndim> lstride = calc_stride(lhs.shape_.get<ndim>());
   Shape<ndim> rstride = calc_stride(rhs.shape_.get<ndim>());
-  binary_broadcast_kernel<ndim, DType, OP, unroll><<<ngrid, nthread, 0, stream>>>(
-    N, req == kAddTo, lhs.dptr<DType>(), rhs.dptr<DType>(), out.dptr<DType>(), lstride, rstride,
-    out.shape_.get<ndim>());
+  
+  gpuLaunchKernel(GPU_KERNEL_NAME(binary_broadcast_kernel<ndim, DType, OP, unroll>), dim3(ngrid), dim3(nthread), 0, stream, N,
+  req == kAddTo, lhs.dptr<DType>(), rhs.dptr<DType>(), out.dptr<DType>(), lstride, rstride, out.shape_.get<ndim>());
+
 }
 
 const int nthread_reduce = kMaxThreadsPerBlock;
@@ -499,14 +500,14 @@ ReduceImplConfig<ndim> ConfigureReduceImpl(const TBlob& small, const TBlob& big,
   }
 
 template<typename Reducer, int ndim, typename DType, typename OP>
-void ReduceImpl(cudaStream_t stream, const TBlob& small, const OpReqType req,
+void ReduceImpl(gpuStream_t stream, const TBlob& small, const OpReqType req,
                 const TBlob& big, const Tensor<gpu, 1, char>& workspace,
                 const ReduceImplConfig<ndim>& config) {
   if (config.M == 1) {
-    reduce_kernel_M1<Reducer, ndim, DType, OP>
-    <<< config.kernel_1.gridDim, config.kernel_1.blockDim, 0, stream >>>(
-      config.N, req == kAddTo, big.dptr<DType>(), small.dptr<DType>(), big.shape_.get<ndim>(),
-      small.shape_.get<ndim>());
+   
+  gpuLaunchKernel(GPU_KERNEL_NAME(reduce_kernel_M1<Reducer, ndim, DType, OP>), dim3(config.kernel_1.gridDim),
+  dim3(config.kernel_1.blockDim), 0, stream, config.N, req == kAddTo, big.dptr<DType>(), small.dptr<DType>(), big.shape_.get<ndim>(),   small.shape_.get<ndim>());
+
   } else {
 
     DType* small_dptr = small.dptr<DType>();
@@ -525,31 +526,32 @@ void ReduceImpl(cudaStream_t stream, const TBlob& small, const OpReqType req,
       config.kernel_1.blockDim.x : config.kernel_1.blockDim.y;
     const bool do_unroll = ( config.M / (by*config.Mnext) >= config.unroll_reduce );
     KERNEL_UNROLL_SWITCH(do_unroll, ReduceImplConfig<ndim>::unroll_reduce, UNROLL, {
-      reduce_kernel<Reducer, ndim, DType, OP, UNROLL>
-      <<< config.kernel_1.gridDim, config.kernel_1.blockDim, config.kernel_1.shMemSize, stream>>>(
-        config.N, config.M, addto, big.dptr<DType>(), small_dptr, big.shape_.get<ndim>(),
-        small.shape_.get<ndim>(), config.rshape, config.rstride, config.Mnext,
-        config.kernel_1.do_transpose);
+     
+   gpuLaunchKernel(GPU_KERNEL_NAME(reduce_kernel<Reducer, ndim, DType, OP, UNROLL>), dim3(config.kernel_1.gridDim),
+   dim3(config.kernel_1.blockDim), config.kernel_1.shMemSize, stream,  config.N, config.M, addto, big.dptr<DType>(), small_dptr,
+   big.shape_.get<ndim>(), small.shape_.get<ndim>(), config.rshape, config.rstride, config.Mnext, config.kernel_1.do_transpose);
+
     });
 
     if (config.Mnext > 1) {
-      reduce_lines_kernel<Reducer, DType>
-      <<< config.kernel_2.gridSize, config.kernel_2.blockSize, 0, stream >>>
-        (config.N, config.Mnext, req == kAddTo, config.N, small_dptr, small.dptr<DType>());
+      
+
+   gpuLaunchKernel(GPU_KERNEL_NAME(reduce_lines_kernel<Reducer, DType>), dim3(config.kernel_2.gridSize),
+   dim3(config.kernel_2.blockSize), 0, stream, config.N, config.Mnext, req == kAddTo, config.N, small_dptr, small.dptr<DType>());
     }
   }
 }
 
 template<typename Reducer, int ndim, typename DType, typename OP1, typename OP2>
-void ReduceImpl(cudaStream_t stream, const TBlob& small, const TBlob& lhs, const TBlob& rhs,
+void ReduceImpl(gpuStream_t stream, const TBlob& small, const TBlob& lhs, const TBlob& rhs,
                 const OpReqType req, const TBlob& big, const Tensor<gpu, 1, char>& workspace,
                 const ReduceImplConfig<ndim>& config) {
   if (config.M == 1) {
-    reduce_kernel_M1<Reducer, ndim, DType, OP1, OP2>
-    <<< config.kernel_1.gridDim, config.kernel_1.blockDim, 0, stream >>>(
-      config.N, req == kAddTo, big.dptr<DType>(), lhs.dptr<DType>(), rhs.dptr<DType>(),
-      small.dptr<DType>(), big.shape_.get<ndim>(), lhs.shape_.get<ndim>(),
-      rhs.shape_.get<ndim>(), small.shape_.get<ndim>());
+    
+   gpuLaunchKernel(GPU_KERNEL_NAME(reduce_kernel_M1<Reducer, ndim, DType, OP1, OP2>), dim3(config.kernel_1.gridDim),
+   dim3(config.kernel_1.blockDim), 0, stream, config.N, req == kAddTo, big.dptr<DType>(), lhs.dptr<DType>(), rhs.dptr<DType>(),
+   small.dptr<DType>(), big.shape_.get<ndim>(), lhs.shape_.get<ndim>(),rhs.shape_.get<ndim>(), small.shape_.get<ndim>());
+
   } else {
     DType* small_dptr = small.dptr<DType>();
     bool addto = (req == kAddTo);
@@ -567,19 +569,19 @@ void ReduceImpl(cudaStream_t stream, const TBlob& small, const TBlob& lhs, const
       config.kernel_1.blockDim.x : config.kernel_1.blockDim.y;
     const bool do_unroll = ( config.M / (by*config.Mnext) >= config.unroll_reduce );
     KERNEL_UNROLL_SWITCH(do_unroll, ReduceImplConfig<ndim>::unroll_reduce, UNROLL, {
-      reduce_kernel<Reducer, ndim, DType, OP1, OP2, UNROLL>
-      <<< config.kernel_1.gridDim, config.kernel_1.blockDim, config.kernel_1.shMemSize, stream>>>(
-        config.N, config.M, addto, big.dptr<DType>(), lhs.dptr<DType>(), rhs.dptr<DType>(),
-        small_dptr, big.shape_.get<ndim>(), lhs.shape_.get<ndim>(),
-        rhs.shape_.get<ndim>(), small.shape_.get<ndim>(), config.rshape, config.lhs_shape,
-        config.rhs_shape, config.rstride, config.lhs_stride, config.rhs_stride, config.Mnext,
-        config.kernel_1.do_transpose);
+    
+
+   gpuLaunchKernel(GPU_KERNEL_NAME(reduce_kernel<Reducer, ndim, DType, OP1, OP2, UNROLL>), dim3(config.kernel_1.gridDim), 
+   dim3(config.kernel_1.blockDim), config.kernel_1.shMemSize, stream,  config.N, config.M, addto, big.dptr<DType>(), lhs.dptr<DType>()   , rhs.dptr<DType>(), small_dptr, big.shape_.get<ndim>(), lhs.shape_.get<ndim>(), rhs.shape_.get<ndim>(), small.shape_.get<ndim>(),    config.rshape, config.lhs_shape, config.rhs_shape, config.rstride, config.lhs_stride, config.rhs_stride, config.Mnext,
+   config.kernel_1.do_transpose);
+
     });
 
     if (config.Mnext > 1) {
-      reduce_lines_kernel<Reducer, DType>
-      <<< config.kernel_2.gridSize, config.kernel_2.blockSize, 0, stream >>>
-        (config.N, config.Mnext, req == kAddTo, config.N, small_dptr, small.dptr<DType>());
+     
+
+   gpuLaunchKernel(GPU_KERNEL_NAME(reduce_lines_kernel<Reducer, DType>), dim3(config.kernel_2.gridSize),
+   dim3(config.kernel_2.blockSize), 0, stream, config.N, config.Mnext, req == kAddTo, config.N, small_dptr, small.dptr<DType>());  
     }
   }
 }
@@ -590,7 +592,7 @@ template<typename Reducer, int ndim, typename DType, typename OP>
 void Reduce(Stream<gpu> *s, const TBlob& small, const OpReqType req,
             const Tensor<gpu, 1, char>& workspace, const TBlob& big) {
   if (req == kNullOp) return;
-  cudaStream_t stream = Stream<gpu>::GetStream(s);
+  gpuStream_t stream = Stream<gpu>::GetStream(s);
   ReduceImplConfig<ndim> config = ConfigureReduceImpl<ndim, DType>(small, big, NULL, NULL);
   ReduceImpl<Reducer, ndim, DType, OP>(stream, small, req, big, workspace, config);
 }
@@ -600,7 +602,7 @@ void Reduce(Stream<gpu> *s, const TBlob& small, const OpReqType req,
             const Tensor<gpu, 1, char>& workspace, const TBlob& big,
             const TBlob& lhs, const TBlob& rhs) {
   if (req == kNullOp) return;
-  cudaStream_t stream = Stream<gpu>::GetStream(s);
+  gpuStream_t stream = Stream<gpu>::GetStream(s);
   ReduceImplConfig<ndim> config = ConfigureReduceImpl<ndim, DType>(small, big, &lhs, &rhs);
   ReduceImpl<Reducer, ndim, DType, OP1, OP2>(stream, small, lhs, rhs, req, big, workspace, config);
 }

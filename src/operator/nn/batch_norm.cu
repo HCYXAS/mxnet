@@ -24,7 +24,7 @@
  * \author Chris Olivier, Bing Xu
  * Adapted from Torch
 */
-#include <cuda_runtime_api.h>
+#include "gpu_runtime.h"
 #include <algorithm>
 #include "batch_norm-inl.h"
 
@@ -508,11 +508,10 @@ static void BatchNormalizationUpdateOutput(mshadow::Stream<gpu> *s,
   if ((flags & IS_TRAINING_FLAG) == 0 || (flags & USE_GLOBAL_STATS_FLAG) != 0) {
     dim3 blocks(input.ChannelCount());
     dim3 threads(batchnorm::cuda::getNumThreads(input.InnerSize(), false));
-    BatchNormalizationUpdateOutputInferenceKernel<DType, AccReal, DeviceTensor1,
-      batchnorm::BNTensor3<DType>>
-      <<< blocks, threads, 0, mshadow::Stream<gpu>::GetStream(s) >>> (
-      input, output, runningMean, runningVar, saveMean,
-        saveInvStd, weight, bias, eps, flags);
+   
+   gpuLaunchKernel(GPU_KERNEL_NAME(BatchNormalizationUpdateOutputInferenceKernel<DType, AccReal, DeviceTensor1,
+   batchnorm::BNTensor3<DType>>), dim3(blocks), dim3(threads), 0, mshadow::Stream<gpu>::GetStream(s), input, output, runningMean, 
+   runningVar, saveMean, saveInvStd, weight, bias, eps, flags);
   } else {
     dim3 blocks(input.ChannelCount());
     dim3 threads(batchnorm::cuda::getNumThreads(input.InnerSize(), false));
@@ -562,9 +561,10 @@ static void BatchNormalizationBackward(mshadow::Stream<gpu> *s,
 #endif
   dim3 blocks(gradOutput.ChannelCount());
   dim3 threads(batchnorm::cuda::getNumThreads(gradOutput.InnerSize(), SMALLER_THREADS));
-  BatchNormalizationBackwardKernel<DType, AccReal, DeviceTensor1, batchnorm::BNTensor3<DType>>
-    <<< blocks, threads, 0, mshadow::Stream<gpu>::GetStream(s) >>> (
-    input, gradOutput, gradInput, tensors, flags, momentum, eps);
+ 
+  gpuLaunchKernel(GPU_KERNEL_NAME(BatchNormalizationBackwardKernel<DType, AccReal, DeviceTensor1, batchnorm::BNTensor3<DType>>), 
+  dim3(blocks), dim3(threads), 0, mshadow::Stream<gpu>::GetStream(s), input, gradOutput, gradInput, tensors, flags, momentum, eps);
+
   MSHADOW_CUDA_POST_KERNEL_CHECK(BatchNormalizationBackward);
 }
 

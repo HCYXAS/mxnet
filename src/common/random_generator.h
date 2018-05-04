@@ -29,10 +29,10 @@
 #include <random>
 #include <new>
 
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
 #include <curand_kernel.h>
 #include "../common/cuda_utils.h"
-#endif  // MXNET_USE_CUDA
+#endif  // MXNET_USE_GPU
 
 using namespace mshadow;
 
@@ -104,7 +104,7 @@ const int RandGenerator<cpu, DType>::kMinNumRandomPerThread = 64;
 template<typename DType>
 const int RandGenerator<cpu, DType>::kNumRandomStates = 1024;
 
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
 
 template<typename DType>
 class RandGenerator<gpu, DType> {
@@ -153,12 +153,12 @@ class RandGenerator<gpu, DType> {
   };  // class RandGenerator<gpu, DType>::Impl
 
   static void AllocState(RandGenerator<gpu, DType> *inst) {
-    CUDA_CALL(cudaMalloc(&inst->states_,
+    CUDA_CALL(gpuMalloc(&inst->states_,
                          kNumRandomStates * sizeof(curandStatePhilox4_32_10_t)));
   }
 
   static void FreeState(RandGenerator<gpu, DType> *inst) {
-    CUDA_CALL(cudaFree(inst->states_));
+    CUDA_CALL(gpuFree(inst->states_));
   }
 
   void Seed(Stream<gpu> *s, uint32_t seed);
@@ -212,7 +212,7 @@ class RandGenerator<gpu, double> {
   curandStatePhilox4_32_10_t *states_;
 };  // class RandGenerator<gpu, double>
 
-#endif  // MXNET_USE_CUDA
+#endif  // MXNET_USE_GPU
 
 }  // namespace random
 }  // namespace common

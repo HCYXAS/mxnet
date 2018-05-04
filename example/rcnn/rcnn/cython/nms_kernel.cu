@@ -31,9 +31,9 @@
 #define CUDA_CHECK(condition) \
   /* Code block avoids redefinition of cudaError_t error */ \
   do { \
-    cudaError_t error = condition; \
-    if (error != cudaSuccess) { \
-      std::cout << cudaGetErrorString(error) << std::endl; \
+    gpuError_t error = condition; \
+    if (error != gpuSuccess) { \
+      std::cout << gpuGetErrorString(error) << std::endl; \
     } \
   } while (0)
 
@@ -98,13 +98,13 @@ __global__ void nms_kernel(const int n_boxes, const float nms_overlap_thresh,
 
 void _set_device(int device_id) {
   int current_device;
-  CUDA_CHECK(cudaGetDevice(&current_device));
+  CUDA_CHECK(gpuGetDevice(&current_device));
   if (current_device == device_id) {
     return;
   }
   // The call to cudaSetDevice must come before any calls to Get, which
   // may perform initialization using the GPU.
-  CUDA_CHECK(cudaSetDevice(device_id));
+  CUDA_CHECK(gpuSetDevice(device_id));
 }
 
 void _nms(int* keep_out, int* num_out, const float* boxes_host, int boxes_num,
@@ -116,29 +116,26 @@ void _nms(int* keep_out, int* num_out, const float* boxes_host, int boxes_num,
 
   const int col_blocks = DIVUP(boxes_num, threadsPerBlock);
 
-  CUDA_CHECK(cudaMalloc(&boxes_dev,
+  CUDA_CHECK(gpuMalloc(&boxes_dev,
                         boxes_num * boxes_dim * sizeof(float)));
-  CUDA_CHECK(cudaMemcpy(boxes_dev,
+  CUDA_CHECK(gpuMemcpy(boxes_dev,
                         boxes_host,
                         boxes_num * boxes_dim * sizeof(float),
-                        cudaMemcpyHostToDevice));
+                        gpuMemcpyHostToDevice));
 
-  CUDA_CHECK(cudaMalloc(&mask_dev,
+  CUDA_CHECK(gpuMalloc(&mask_dev,
                         boxes_num * col_blocks * sizeof(unsigned long long)));
 
   dim3 blocks(DIVUP(boxes_num, threadsPerBlock),
               DIVUP(boxes_num, threadsPerBlock));
   dim3 threads(threadsPerBlock);
-  nms_kernel<<<blocks, threads>>>(boxes_num,
-                                  nms_overlap_thresh,
-                                  boxes_dev,
-                                  mask_dev);
+  gpuLaunchKernel(GPU_KERNEL_NAME(nms_kernel), dim3(blocks), dim3(threads), 0, 0,boxes_num, nms_overlap_thresh, boxes_dev, mask_dev);
 
   std::vector<unsigned long long> mask_host(boxes_num * col_blocks);
-  CUDA_CHECK(cudaMemcpy(&mask_host[0],
+  CUDA_CHECK(gpuMemcpy(&mask_host[0],
                         mask_dev,
                         sizeof(unsigned long long) * boxes_num * col_blocks,
-                        cudaMemcpyDeviceToHost));
+                        gpuMemcpyDeviceToHost));
 
   std::vector<unsigned long long> remv(col_blocks);
   memset(&remv[0], 0, sizeof(unsigned long long) * col_blocks);
@@ -158,6 +155,6 @@ void _nms(int* keep_out, int* num_out, const float* boxes_host, int boxes_num,
   }
   *num_out = num_to_keep;
 
-  CUDA_CHECK(cudaFree(boxes_dev));
-  CUDA_CHECK(cudaFree(mask_dev));
+  CUDA_CHECK(gpuFree(boxes_dev));
+  CUDA_CHECK(gpuFree(mask_dev));
 }

@@ -50,7 +50,7 @@ build() {
 
 cp ../../make/config.mk ../..
 cat >>../../config.mk <<EOF
-USE_CUDA=1
+USE_GPU=1
 USE_CUDA_PATH=/usr/local/cuda
 USE_CUDNN=1
 USE_DIST_KVSTORE=1

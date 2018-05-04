@@ -191,7 +191,7 @@ class BatchNormOp : public Operator {
                   const std::vector<TBlob> &in_grad,
                   const std::vector<TBlob> &aux_states);
 
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
   void DoForward(mshadow::Stream<gpu> *stream,
                  const OpContext &ctx,
                  const std::vector<TBlob> &in_data,
@@ -206,7 +206,7 @@ class BatchNormOp : public Operator {
                   const std::vector<OpReqType> &req,
                   const std::vector<TBlob> &in_grad,
                   const std::vector<TBlob> &aux_states);
-#endif  // MXNET_USE_CUDA
+#endif  // MXNET_USE_GPU
 
   /*! \brief Batch normalization operator parameters */
   BatchNormParam param_;

@@ -22,7 +22,7 @@
 
 echo "BUILD make"
 cp make/config.mk .
-echo "USE_CUDA=0" >> config.mk
+echo "USE_GPU=0" >> config.mk
 echo "USE_CUDNN=0" >> config.mk
 echo "USE_BLAS=openblas" >> config.mk
 echo "USE_CPP_PACKAGE=1" >> config.mk

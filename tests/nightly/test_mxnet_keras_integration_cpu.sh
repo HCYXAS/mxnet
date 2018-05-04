@@ -21,7 +21,7 @@ set -e
 ### Build MXNet with CPU support
 echo "BUILD make"
 cp ./make/config.mk .
-echo "USE_CUDA=0" >> ./config.mk
+echo "USE_GPU=0" >> ./config.mk
 echo "USE_CUDNN=0" >> ./config.mk
 echo "USE_BLAS=openblas" >> ./config.mk
 echo "ADD_CFLAGS += -I/usr/include/openblas" >> ./config.mk

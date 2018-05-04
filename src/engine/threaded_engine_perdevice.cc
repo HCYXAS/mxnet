@@ -108,7 +108,7 @@ class ThreadedEnginePerDevice : public ThreadedEngine {
     if ((opr_block->opr->prop == FnProperty::kAsync ||
          opr_block->opr->prop == FnProperty::kDeleteVar) && pusher_thread) {
       if (ctx.dev_mask() == Context::kGPU) {
-        #if MXNET_USE_CUDA
+        #if MXNET_USE_GPU
         MSHADOW_CATCH_ERROR(mshadow::SetDevice<gpu>(ctx.dev_id));
         #endif
       }
@@ -230,7 +230,7 @@ class ThreadedEnginePerDevice : public ThreadedEngine {
                         ThreadWorkerBlock<type> *block,
                         std::shared_ptr<ThreadPool::SimpleEvent> ready_event) {
     this->is_worker_ = true;
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
     mshadow::Stream<gpu> *stream;
     do {
       ThreadPool::SimpleEvent::SetReadyOnDestroy setReady(&ready_event);

@@ -151,7 +151,7 @@ GpuCTC<ProbT>::setup_gpu_metadata(const int* const flat_labels,
 
     const int num_passes = ctc_helper::div_up(minibatch_, cpu_buffer_size);
 
-    cudaError_t cuda_status;
+    gpuError_t cuda_status;
 
     for (int pass = 0; pass < num_passes; ++pass) {
 
@@ -182,17 +182,17 @@ GpuCTC<ProbT>::setup_gpu_metadata(const int* const flat_labels,
             Lmax = std::max(Lmax, L);
         }
 
-        cuda_status = cudaMemcpyAsync(&(repeats_[start_idx]), repeats,
+        cuda_status = gpuMemcpyAsync(&(repeats_[start_idx]), repeats,
                                       (end_idx - start_idx) * sizeof(int),
-                                      cudaMemcpyHostToDevice, stream_);
-        if (cuda_status != cudaSuccess)
+                                      gpuMemcpyHostToDevice, stream_);
+        if (cuda_status != gpuSuccess)
             return CTC_STATUS_MEMOPS_FAILED;
 
 
-        cuda_status = cudaMemcpyAsync(&(label_offsets_[start_idx]), label_offsets,
+        cuda_status = gpuMemcpyAsync(&(label_offsets_[start_idx]), label_offsets,
                                       (end_idx - start_idx) * sizeof(int),
-                                      cudaMemcpyHostToDevice, stream_);
-        if (cuda_status != cudaSuccess)
+                                      gpuMemcpyHostToDevice, stream_);
+        if (cuda_status != gpuSuccess)
             return CTC_STATUS_MEMOPS_FAILED;
     }
 
@@ -207,30 +207,30 @@ GpuCTC<ProbT>::setup_gpu_metadata(const int* const flat_labels,
                                 gpu_bytes_used);
     gpu_bytes_used += minibatch_  * sizeof(int);
 
-    cuda_status = cudaMemcpyAsync(utt_length_, input_lengths,
+    cuda_status = gpuMemcpyAsync(utt_length_, input_lengths,
                                   minibatch_ * sizeof(int),
-                                  cudaMemcpyHostToDevice, stream_);
-    if (cuda_status != cudaSuccess)
+                                  gpuMemcpyHostToDevice, stream_);
+    if (cuda_status != gpuSuccess)
         return CTC_STATUS_MEMOPS_FAILED;
 
     label_sizes_ =
         reinterpret_cast<int *>(static_cast<char*>(gpu_workspace_) +
                                 gpu_bytes_used);
     gpu_bytes_used += minibatch_ * sizeof(int);
-    cuda_status = cudaMemcpyAsync(label_sizes_, label_lengths,
+    cuda_status = gpuMemcpyAsync(label_sizes_, label_lengths,
                                   minibatch_ * sizeof(int),
-                                  cudaMemcpyHostToDevice, stream_);
-    if (cuda_status != cudaSuccess)
+                                  gpuMemcpyHostToDevice, stream_);
+    if (cuda_status != gpuSuccess)
         return CTC_STATUS_MEMOPS_FAILED;
 
     labels_without_blanks_ =
         reinterpret_cast<int *>(static_cast<char*>(gpu_workspace_) +
                                 gpu_bytes_used);
     gpu_bytes_used += Lmax * minibatch_ * sizeof(int);
-    cuda_status = cudaMemcpyAsync(labels_without_blanks_, flat_labels,
+    cuda_status = gpuMemcpyAsync(labels_without_blanks_, flat_labels,
                                   total_label_length * sizeof(int),
-                                  cudaMemcpyHostToDevice, stream_);
-    if (cuda_status != cudaSuccess)
+                                  gpuMemcpyHostToDevice, stream_);
+    if (cuda_status != gpuSuccess)
         return CTC_STATUS_MEMOPS_FAILED;
 
     labels_with_blanks_ =
@@ -272,24 +272,20 @@ ctcStatus_t GpuCTC<ProbT>::launch_alpha_beta_kernels(const ProbT* const log_prob
     const int stride = minibatch_;
 
     if (compute_alpha)
-        compute_alpha_kernel<ProbT, NT, VT><<<grid_size, NT, 0, stream_>>>
-            (log_probs, label_sizes_, utt_length_,
-             repeats_, labels_without_blanks_, label_offsets_,
-             labels_with_blanks_, alphas_, nll_forward_,
-             stride, out_dim_, S_, T_, blank_label_);
-
-
+       
+   gpuLaunchKernel(GPU_KERNEL_NAME(compute_alpha_kernel<ProbT, NT, VT>), dim3(grid_size), dim3(NT), 0, stream_, log_probs,
+   label_sizes_, utt_length_, repeats_, labels_without_blanks_, label_offsets_, labels_with_blanks_, alphas_, nll_forward_, stride, 
+   out_dim_, S_, T_, blank_label_);
     if (compute_beta) {
-        compute_betas_and_grad_kernel<ProbT, NT, VT><<<grid_size, NT, 0, stream_>>>
-            (log_probs, label_sizes_, utt_length_, repeats_,
-             labels_with_blanks_, alphas_, nll_forward_, nll_backward_,
-             grads, stride, out_dim_, S_, T_, blank_label_);
-
-        cudaStreamSynchronize(stream_);
+       
+   gpuLaunchKernel(GPU_KERNEL_NAME(compute_betas_and_grad_kernel<ProbT, NT, VT>), dim3(grid_size), dim3(NT), 0, stream_, log_probs,
+   label_sizes_, utt_length_, repeats_, labels_with_blanks_, alphas_, nll_forward_, nll_backward_, grads, stride, out_dim_, S_, T_, 
+   blank_label_);
+        gpuStreamSynchronize(stream_);
     }
 
-    cudaError_t err = cudaGetLastError();
-    if (err != cudaSuccess)
+    gpuError_t err = gpuGetLastError();
+    if (err != gpuSuccess)
         return CTC_STATUS_EXECUTION_FAILED;
 
     return CTC_STATUS_SUCCESS;
@@ -359,12 +355,12 @@ template<typename ProbT>
 ctcStatus_t
 GpuCTC<ProbT>::compute_log_probs(const ProbT* const activations) {
 
-    cudaError_t cuda_status;
+    gpuError_t cuda_status;
     cuda_status =
-        cudaMemcpyAsync(log_probs_, activations,
+        gpuMemcpyAsync(log_probs_, activations,
                         activation_cols_ * out_dim_ *sizeof(ProbT),
-                        cudaMemcpyDeviceToDevice, stream_);
-    if (cuda_status != cudaSuccess)
+                        gpuMemcpyDeviceToDevice, stream_);
+    if (cuda_status != gpuSuccess)
         return CTC_STATUS_MEMOPS_FAILED;
 
 
@@ -387,10 +383,9 @@ GpuCTC<ProbT>::compute_log_probs(const ProbT* const activations) {
     const int num_elements = out_dim_ * activation_cols_;
     const int grid_size = ctc_helper::div_up(num_elements, NV);
 
-    prepare_stable_LSM_kernel<ProbT, VT> <<< grid_size, NT, 0, stream_>>>
-       (ctc_helper::identity<ProbT>(), log_probs_,
-        denoms_, out_dim_, num_elements);
-
+  
+    gpuLaunchKernel(GPU_KERNEL_NAME(prepare_stable_LSM_kernel<ProbT, VT>), dim3(grid_size), dim3(NT), 0, stream_, 
+    ctc_helper::identity<ProbT>(), log_probs_, denoms_, out_dim_, num_elements);
     // compute denominators for softmax
     denoms_handle = reduce_with_axis<red::sum, false>(
         F<mxnet::op::mshadow_op::exp>(
@@ -400,10 +395,9 @@ GpuCTC<ProbT>::compute_log_probs(const ProbT* const activations) {
         1);
 
     // Kernel launch to calculate probabilities
-    compute_log_probs_kernel<ProbT, VT><<<grid_size, NT, 0, stream_>>>
-        (ctc_helper::identity<ProbT>(), log_probs_,
-         denoms_, out_dim_, num_elements);
-
+    
+    gpuLaunchKernel(GPU_KERNEL_NAME(compute_log_probs_kernel<ProbT, VT>), dim3(grid_size), dim3(NT), 0, stream_,
+    ctc_helper::identity<ProbT>(), log_probs_, denoms_, out_dim_, num_elements);
     return CTC_STATUS_SUCCESS;
 }
 
@@ -433,12 +427,12 @@ GpuCTC<ProbT>::compute_cost_and_score(const ProbT* const activations,
     launch_gpu_kernels(log_probs_, grads, best_config,
                        compute_alpha, compute_betas_and_grad);
 
-    cudaError_t cuda_status_mem, cuda_status_sync;
-    cuda_status_mem = cudaMemcpyAsync(costs, nll_forward_,
+    gpuError_t cuda_status_mem, cuda_status_sync;
+    cuda_status_mem = gpuMemcpyAsync(costs, nll_forward_,
                                       sizeof(ProbT) * minibatch_,
-                                      cudaMemcpyDeviceToHost, stream_);
-    cuda_status_sync = cudaStreamSynchronize(stream_);
-    if (cuda_status_mem != cudaSuccess || cuda_status_sync != cudaSuccess)
+                                      gpuMemcpyDeviceToHost, stream_);
+    cuda_status_sync = gpuStreamSynchronize(stream_);
+    if (cuda_status_mem != gpuSuccess || cuda_status_sync != gpuSuccess)
         return CTC_STATUS_MEMOPS_FAILED;
 
     return CTC_STATUS_SUCCESS;

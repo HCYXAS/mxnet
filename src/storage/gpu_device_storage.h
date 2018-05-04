@@ -28,9 +28,9 @@
 #include "mxnet/base.h"
 #include "mxnet/storage.h"
 #include "../common/cuda_utils.h"
-#if MXNET_USE_CUDA
-#include <cuda_runtime.h>
-#endif  // MXNET_USE_CUDA
+#if MXNET_USE_GPU
+#include "gpu_runtime.h"
+#endif  // MXNET_USE_GPU
 #include <new>
 
 namespace mxnet {
@@ -56,33 +56,33 @@ class GPUDeviceStorage {
 
 inline void* GPUDeviceStorage::Alloc(size_t size) {
   void* ret = nullptr;
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
 #if MXNET_USE_NCCL
   std::lock_guard<std::mutex> l(Storage::Get()->GetMutex(Context::kGPU));
 #endif  // MXNET_USE_NCCL
-  cudaError_t e = cudaMalloc(&ret, size);
-  if (e != cudaSuccess && e != cudaErrorCudartUnloading)
+  gpuError_t e = gpuMalloc(&ret, size);
+  if (e != gpuSuccess && e != gpuErrorCudartUnloading)
     throw std::bad_alloc();
-#else   // MXNET_USE_CUDA
+#else   // MXNET_USE_GPU
   LOG(FATAL) << "Please compile with CUDA enabled";
-#endif  // MXNET_USE_CUDA
+#endif  // MXNET_USE_GPU
   return ret;
 }
 
 inline void GPUDeviceStorage::Free(void* ptr) {
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
 #if MXNET_USE_NCCL
   std::lock_guard<std::mutex> l(Storage::Get()->GetMutex(Context::kGPU));
 #endif  // MXNET_USE_NCCL
   // throw special exception for caller to catch.
-  cudaError_t err = cudaFree(ptr);
+  gpuError_t err = gpuFree(ptr);
   // ignore unloading error, as memory has already been recycled
-  if (err != cudaSuccess && err != cudaErrorCudartUnloading) {
-    LOG(FATAL) << "CUDA: " << cudaGetErrorString(err);
+  if (err != gpuSuccess && err != gpuErrorCudartUnloading) {
+    LOG(FATAL) << "CUDA: " << gpuGetErrorString(err);
   }
-#else   // MXNET_USE_CUDA
+#else   // MXNET_USE_GPU
   LOG(FATAL) << "Please compile with CUDA enabled";
-#endif  // MXNET_USE_CUDA
+#endif  // MXNET_USE_GPU
 }
 
 }  // namespace storage

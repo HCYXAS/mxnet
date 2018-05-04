@@ -50,11 +50,11 @@ void RandGenerator<gpu, float>::Seed(Stream<gpu> *s, uint32_t seed) {
   int ngrid = std::min(kMaxGridNum,
                        (RandGenerator<gpu, float>::kNumRandomStates + kBaseThreadNum - 1) /
                          kBaseThreadNum);
-  rand_generator_seed_kernel
-      <<<ngrid, kBaseThreadNum, 0, Stream<gpu>::GetStream(s)>>>(
-          states_,
-          RandGenerator<gpu, float>::kNumRandomStates,
-          seed);
+ 
+
+
+gpuLaunchKernel(GPU_KERNEL_NAME(rand_generator_seed_kernel), dim3(ngrid), dim3(kBaseThreadNum), 0, Stream<gpu>::GetStream(s),states_,
+RandGenerator<gpu, float>::kNumRandomStates, seed);
 }
 
 }  // namespace random

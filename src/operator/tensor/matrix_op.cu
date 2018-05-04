@@ -114,8 +114,8 @@ void SliceDimTwoCsrImpl<gpu>(const TShape &begin, const TShape &end, const OpCon
                                       Stream<gpu>::GetStream(s));
         // retrieve nnr
         RType nnr = 0;
-        CUDA_CALL(cudaMemcpy(&nnr, &out_indptr[indptr_len-1], sizeof(RType),
-            cudaMemcpyDeviceToHost));
+        CUDA_CALL(gpuMemcpy(&nnr, &out_indptr[indptr_len-1], sizeof(RType),
+            gpuMemcpyDeviceToHost));
 
         // returns zeros in csr format if nnr = 0
         if (nnr == 0) {

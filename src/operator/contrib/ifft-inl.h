@@ -35,7 +35,7 @@
 #include "../operator_common.h"
 #include "../mshadow_op.h"
 
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
 #include <cufft.h>
 #endif
 
@@ -55,7 +55,7 @@ struct IFFTParam : public dmlc::Parameter<IFFTParam> {
   }
 };
 
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
 template<typename xpu, typename DType>
 class IFFTOp : public Operator {
  public:
@@ -204,7 +204,7 @@ class IFFTOp : public Operator {
   bool init_cufft_;
 };  // class IFFTOp
 
-#endif  // MXNET_USE_CUDA
+#endif  // MXNET_USE_GPU
 
 // Declare Factory Function, used for dispatch specialization
 template<typename xpu>

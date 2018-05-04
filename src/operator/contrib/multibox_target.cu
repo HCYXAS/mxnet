@@ -27,10 +27,10 @@
 #include <mshadow/cuda/tensor_gpu-inl.cuh>
 
 #define MULTIBOX_TARGET_CUDA_CHECK(condition) \
-  /* Code block avoids redefinition of cudaError_t error */ \
+  /* Code block avoids redefinition of gpuError_t error */ \
   do { \
-    cudaError_t error = condition; \
-    CHECK_EQ(error, cudaSuccess) << " " << cudaGetErrorString(error); \
+    gpuError_t error = condition; \
+    CHECK_EQ(error, gpuSuccess) << " " << gpuGetErrorString(error); \
   } while (0)
 
 namespace mshadow {
@@ -367,9 +367,11 @@ inline void MultiBoxTargetForward(const Tensor<gpu, 2, DType> &loc_target,
   dim3 init_thread_dim(num_threads);
   dim3 init_block_dim((num_batches * num_labels - 1) / num_threads + 1);
   cuda::CheckLaunchParam(init_block_dim, init_thread_dim, "MultiBoxTarget Init");
-  cuda::InitGroundTruthFlags<DType><<<init_block_dim, init_thread_dim>>>(
-    gt_flags, labels.dptr_, num_batches, num_labels, label_width);
-  MULTIBOX_TARGET_CUDA_CHECK(cudaPeekAtLastError());
+ 
+   gpuLaunchKernel(GPU_KERNEL_NAME(cuda::InitGroundTruthFlags<DType>), dim3(init_block_dim), dim3(init_thread_dim), 0, 0, gt_flags,
+   labels.dptr_, num_batches, num_labels, label_width);
+  
+MULTIBOX_TARGET_CUDA_CHECK(gpuPeekAtLastError());
 
   // compute best matches
   temp_space[2] = -1.f;
@@ -378,16 +380,19 @@ inline void MultiBoxTargetForward(const Tensor<gpu, 2, DType> &loc_target,
   DType *best_matches = temp_space[3].dptr_;
   const DType *overlaps = temp_space[0].dptr_;
   cuda::CheckLaunchParam(num_batches, num_threads, "MultiBoxTarget Matching");
-  cuda::FindBestMatches<DType><<<num_batches, num_threads>>>(best_matches,
-    gt_flags, anchor_flags, overlaps, num_anchors, num_labels);
-  MULTIBOX_TARGET_CUDA_CHECK(cudaPeekAtLastError());
+  
+
+  gpuLaunchKernel(GPU_KERNEL_NAME(cuda::FindBestMatches<DType>), dim3(num_batches), dim3( num_threads), 0, 0, best_matches, gt_flags,   anchor_flags, overlaps, num_anchors, num_labels); 
+ MULTIBOX_TARGET_CUDA_CHECK(gpuPeekAtLastError());
 
   // find good matches with overlap > threshold
   if (overlap_threshold > 0) {
-    cuda::FindGoodMatches<DType><<<num_batches, num_threads>>>(best_matches,
+    
+      gpuLaunchKernel(GPU_KERNEL_NAME(cuda::FindGoodMatches<DType>), dim3(num_batches), dim3(num_threads), 0, 0, best_matches,
       anchor_flags, overlaps, num_anchors, num_labels,
       overlap_threshold);
-    MULTIBOX_TARGET_CUDA_CHECK(cudaPeekAtLastError());
+
+    MULTIBOX_TARGET_CUDA_CHECK(gpuPeekAtLastError());
   }
 
   // do negative mining or not
@@ -395,24 +400,26 @@ inline void MultiBoxTargetForward(const Tensor<gpu, 2, DType> &loc_target,
     CHECK_GT(negative_mining_thresh, 0);
     temp_space[4] = 0;
     DType *buffer = temp_space[4].dptr_;
-    cuda::NegativeMining<DType><<<num_batches, num_threads>>>(overlaps,
-      cls_preds.dptr_, anchor_flags, buffer, negative_mining_ratio,
-      negative_mining_thresh, minimum_negative_samples,
-      num_anchors, num_labels, num_classes);
-    MULTIBOX_TARGET_CUDA_CHECK(cudaPeekAtLastError());
+   
+    gpuLaunchKernel(GPU_KERNEL_NAME(cuda::NegativeMining<DType>), dim3(num_batches), dim3(num_threads), 0, 0, overlaps,
+    cls_preds.dptr_, anchor_flags, buffer, negative_mining_ratio, negative_mining_thresh, minimum_negative_samples, num_anchors,
+    num_labels, num_classes); 
+   MULTIBOX_TARGET_CUDA_CHECK(gpuPeekAtLastError());
   } else {
     int num_blocks = (num_batches * num_anchors - 1) / num_threads + 1;
     cuda::CheckLaunchParam(num_blocks, num_threads, "MultiBoxTarget Negative");
-    cuda::UseAllNegatives<DType><<<num_blocks, num_threads>>>(anchor_flags,
-      num_batches * num_anchors);
-    MULTIBOX_TARGET_CUDA_CHECK(cudaPeekAtLastError());
+    
+   gpuLaunchKernel(GPU_KERNEL_NAME(cuda::UseAllNegatives<DType>), dim3(num_blocks), dim3(num_threads), 0, 0, anchor_flags,
+   num_batches * num_anchors); 
+   MULTIBOX_TARGET_CUDA_CHECK(gpuPeekAtLastError());
   }
 
-  cuda::AssignTrainigTargets<DType><<<num_batches, num_threads>>>(
-    loc_target.dptr_, loc_mask.dptr_, cls_target.dptr_, anchor_flags,
-    best_matches, labels.dptr_, anchors.dptr_, num_anchors, num_labels,
-    label_width, variances[0], variances[1], variances[2], variances[3]);
-  MULTIBOX_TARGET_CUDA_CHECK(cudaPeekAtLastError());
+  
+
+   gpuLaunchKernel(GPU_KERNEL_NAME(cuda::AssignTrainigTargets<DType>), dim3(num_batches), dim3(num_threads), 0, 0, loc_target.dptr_, 
+   loc_mask.dptr_, cls_target.dptr_, anchor_flags, best_matches, labels.dptr_, anchors.dptr_, num_anchors, num_labels, label_width,
+   variances[0], variances[1], variances[2], variances[3]);  
+ MULTIBOX_TARGET_CUDA_CHECK(gpuPeekAtLastError());
 }
 }  // namespace mshadow
 

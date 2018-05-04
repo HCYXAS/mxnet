@@ -170,9 +170,9 @@ inline void Softmax(Stream<gpu> *s, DType *in, DType *out,
   Shape<ndim> sshape = shape;
   sshape[axis] = 1;
 
-  softmax_compute_kernel<x_bits, OP, DType, ndim>
-    <<<N, x_size, 0, mshadow::Stream<gpu>::GetStream(s)>>>(
-      in, out, M, axis, sshape, stride);
+ 
+    gpuLaunchKernel(GPU_KERNEL_NAME(softmax_compute_kernel<x_bits, OP, DType, ndim>), dim3(N), dim3(x_size), 0, 
+    mshadow::Stream<gpu>::GetStream(s), in, out, M, axis, sshape, stride);
 }
 
 
@@ -213,9 +213,10 @@ inline void SoftmaxGrad(Stream<gpu> *s, DType *out, DType *ograd,
   Shape<ndim> sshape = shape;
   sshape[axis] = 1;
 
-  softmax_gradient_kernel<x_bits, OP1, OP2, DType, ndim>
-    <<<N, x_size, 0, mshadow::Stream<gpu>::GetStream(s)>>>(
-      out, ograd, igrad, M, axis, sshape, stride);
+
+  gpuLaunchKernel(GPU_KERNEL_NAME(softmax_gradient_kernel<x_bits, OP1, OP2, DType, ndim>), dim3(N), dim3(x_size), 0,
+  mshadow::Stream<gpu>::GetStream(s),out, ograd, igrad, M, axis, sshape, stride);
+
 }
 #endif
 

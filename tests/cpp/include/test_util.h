@@ -132,7 +132,7 @@ class StandaloneBlob : public TBlob {
   std::shared_ptr<BlobMemory>  memory_;
 };
 
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
 /*! \brief Return blob in CPU memory  */
 inline StandaloneBlob BlobOnCPU(const RunContext &rctx, const TBlob& src) {
   StandaloneBlob res(src.shape_, false, src.type_flag_);
@@ -148,7 +148,7 @@ inline StandaloneBlob BlobOnCPU(const RunContext &rctx, const TBlob& src) {
   }
   return res;
 }
-#endif  // MXNET_USE_CUDA
+#endif  // MXNET_USE_GPU
 
 constexpr const size_t MPRINT_PRECISION = 5;
 
@@ -280,11 +280,11 @@ inline StreamType& print_blob_(const RunContext& ctx,
                                const bool doChannels = true,
                                const bool doBatches = true,
                                const bool add_endl = true) {
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
   if (blob.dev_mask() == gpu::kDevMask) {
     return print_blob_<DType>(ctx, _os, BlobOnCPU(ctx, blob), doChannels, doBatches, add_endl);
   }
-#endif  // MXNET_USE_CUDA
+#endif  // MXNET_USE_GPU
 
   StreamType &os = *_os;
   const size_t dim = static_cast<size_t>(blob.ndim());

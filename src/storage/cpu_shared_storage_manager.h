@@ -20,9 +20,9 @@
 #ifndef MXNET_STORAGE_CPU_SHARED_STORAGE_MANAGER_H_
 #define MXNET_STORAGE_CPU_SHARED_STORAGE_MANAGER_H_
 
-#if MXNET_USE_CUDA
-  #include <cuda_runtime.h>
-#endif  // MXNET_USE_CUDA
+#if MXNET_USE_GPU
+  #include "gpu_runtime.h"
+#endif  // MXNET_USE_GPU
 #include <mxnet/base.h>
 
 #ifndef _WIN32
