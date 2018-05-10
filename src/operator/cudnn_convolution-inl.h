@@ -120,12 +120,17 @@ class CuDNNConvolutionOp : public Operator {
       out_ptr = out.dptr_;
     }
 
+
+    for (uint32_t g = 0; g < param_.num_group; ++g) {
+      typename DataType<DType>::ScaleType alpha = 1.0f;
+      typename DataType<DType>::ScaleType alpha2 = 1.0f;
+      typename DataType<DType>::ScaleType beta = 0.0f;
+      typename DataType<DType>::ScaleType beta_add = 1.0f;
+
       int req_algo_count;
- 
-        if (CUDNN_MAJOR == 6 && param_.layout.value() == mshadow::kNHWC) {
+      if (CUDNN_MAJOR == 6 && param_.layout.value() == mshadow::kNHWC) {
           algo_ = miopenConvolutionFwdAlgoGEMM;
         } else {
-
                  miopenConvAlgoPerf_t fwd_algo_pref;
 
 
@@ -133,15 +138,14 @@ class CuDNNConvolutionOp : public Operator {
                 fwd_algo_pref.bwd_weights_algo = miopenConvolutionBwdWeightsAlgoDirect;
                 fwd_algo_pref.bwd_data_algo = miopenConvolutionBwdDataAlgoDirect;
 
-
                  CUDNN_CALL(miopenFindConvolutionForwardAlgorithm(s->dnn_handle_,
                  in_desc_,
-                 data_ptr + data_offset_ ,
+                 data_ptr + data_offset_ * g,
                  filter_desc_,
-                 wmat_ptr + weight_offset_ ,
+                 wmat_ptr + weight_offset_ * g,
                  forward_conv_desc_,
                  out_desc_,
-                 out_ptr + out_offset_ ,
+                 out_ptr + out_offset_  * g,
                  1,
                  &req_algo_count,
                  &fwd_algo_pref,
@@ -151,11 +155,6 @@ class CuDNNConvolutionOp : public Operator {
                 algo_ = fwd_algo_pref.fwd_algo;
         }
 
-    for (uint32_t g = 0; g < param_.num_group; ++g) {
-      typename DataType<DType>::ScaleType alpha = 1.0f;
-      typename DataType<DType>::ScaleType alpha2 = 1.0f;
-      typename DataType<DType>::ScaleType beta = 0.0f;
-      typename DataType<DType>::ScaleType beta_add = 1.0f;
       CUDNN_CALL(miopenConvolutionForward(s->dnn_handle_,
                                        &alpha,
                                        in_desc_,
@@ -250,46 +249,7 @@ class CuDNNConvolutionOp : public Operator {
     Tensor<gpu, 1, DType> workspace =
       ctx.requested[conv::kTempSpace].get_space_typed<gpu, 1, DType>(
       mshadow::Shape1(backward_workspace_), s);
-    int req_alg_count = 0;
 
-    miopenConvAlgoPerf_t bwd_alg_pref;
-
-    bwd_alg_pref.fwd_algo = miopenConvolutionFwdAlgoDirect;
-    bwd_alg_pref.bwd_weights_algo = miopenConvolutionBwdWeightsAlgoDirect;
-    bwd_alg_pref.bwd_data_algo = miopenConvolutionBwdDataAlgoDirect;
-
-    CUDNN_CALL(miopenFindConvolutionBackwardWeightsAlgorithm(s->dnn_handle_,
-                 out_desc_,
-                 grad_ptr + out_offset_ ,
-                 in_desc_,
-                 data_ptr + data_offset_,
-                 backward_conv_desc_,
-                 filter_desc_,
-                 gwmat_ptr + weight_offset_ ,
-                 1,
-                 &req_alg_count,
-                 &bwd_alg_pref,
-                 workspace.dptr_,
-                 backward_workspace_byte_,
-                 false));
-    back_algo_w_ = bwd_alg_pref.bwd_weights_algo;
-
-
-    CUDNN_CALL(miopenFindConvolutionBackwardDataAlgorithm(s->dnn_handle_,
-                 out_desc_,
-                 grad_ptr + out_offset_ ,
-                 filter_desc_,
-                 wmat_ptr + weight_offset_,
-                 backward_conv_desc_,
-                 in_desc_,
-                 gdata_ptr + data_offset_,
-                 1,
-                 &req_alg_count,
-                 &bwd_alg_pref,
-                 workspace.dptr_,
-                 backward_workspace_byte_,
-                 false));
-    back_algo_=bwd_alg_pref.bwd_data_algo;
 
     for (uint32_t g = 0; g < param_.num_group; ++g) {
       typename DataType<DType>::ScaleType alpha = 1.0f;
@@ -301,10 +261,19 @@ class CuDNNConvolutionOp : public Operator {
                                               &alpha,
                                               out_desc_,
                                               grad_ptr + out_offset_ * g,
-                                              req[conv::kBias] == kAddTo ? &beta_add : &beta,
+                                               &beta,//req[conv::kBias] == kAddTo ? &beta_add : &beta,
                                               bias_desc_,
                                               gbias.dptr_ + bias_offset_ * g));
       }
+
+    int req_alg_count = 0;
+
+    miopenConvAlgoPerf_t bwd_alg_pref;
+
+    bwd_alg_pref.fwd_algo = miopenConvolutionFwdAlgoDirect;
+    bwd_alg_pref.bwd_weights_algo = miopenConvolutionBwdWeightsAlgoDirect;
+    bwd_alg_pref.bwd_data_algo = miopenConvolutionBwdDataAlgoDirect;
+
       if (req[conv::kWeight] != kNullOp) {
 //        #if CUDNN_MAJOR <= 4
           /*CUDNN_CALL(cudnnConvolutionBackwardFilter_v3(s->dnn_handle_,
@@ -323,6 +292,21 @@ class CuDNNConvolutionOp : public Operator {
            // cudnnConvolutionBackwardFilter_v3 is equivalent to cudnnConvolutionBackwardFilter as per cuDNN library documentation
            // for ref:  http://snurran.sics.se/hops/cudnn/v4-cudnn_library.pdf
   /*     #elif CUDNN_MAJOR >= 5*/
+    CUDNN_CALL(miopenFindConvolutionBackwardWeightsAlgorithm(s->dnn_handle_,
+                 out_desc_,
+                 grad_ptr + out_offset_ * g,
+                 in_desc_,
+                 data_ptr + data_offset_ * g ,
+                 backward_conv_desc_,
+                 filter_desc_,
+                 gwmat_ptr + weight_offset_ * g,
+                 1,
+                 &req_alg_count,
+                 &bwd_alg_pref,
+                 workspace.dptr_,
+                 backward_workspace_byte_,
+                 false));
+    back_algo_w_ = bwd_alg_pref.bwd_weights_algo;
           CUDNN_CALL(miopenConvolutionBackwardWeights(s->dnn_handle_,
                &alpha,
                out_desc_,
@@ -331,7 +315,7 @@ class CuDNNConvolutionOp : public Operator {
                data_ptr + data_offset_ * g,
                backward_conv_desc_,
                back_algo_w_,
-               req[conv::kWeight] == kAddTo? &beta_add : &beta,
+               &beta,//req[conv::kWeight] == kAddTo? &beta_add : &beta,
                filter_desc_,
                gwmat_ptr + weight_offset_ * g,
                workspace.dptr_,
@@ -357,6 +341,21 @@ class CuDNNConvolutionOp : public Operator {
            // for ref:  http://snurran.sics.se/hops/cudnn/v4-cudnn_library.pdf
 
    /*        #elif CUDNN_MAJOR >= 5*/
+    CUDNN_CALL(miopenFindConvolutionBackwardDataAlgorithm(s->dnn_handle_,
+                 out_desc_,
+                 grad_ptr + out_offset_ * g,
+                 filter_desc_,
+                 wmat_ptr + weight_offset_ * g,
+                 backward_conv_desc_,
+                 in_desc_,
+                 gdata_ptr + data_offset_ * g,
+                 1,
+                 &req_alg_count,
+                 &bwd_alg_pref,
+                 workspace.dptr_,
+                 backward_workspace_byte_,
+                 false));
+    back_algo_=bwd_alg_pref.bwd_data_algo;
           CUDNN_CALL(miopenConvolutionBackwardData(s->dnn_handle_,
                &alpha,
                out_desc_,
@@ -365,7 +364,7 @@ class CuDNNConvolutionOp : public Operator {
                wmat_ptr + weight_offset_ * g,
                backward_conv_desc_,
                back_algo_,
-               req[conv::kData] == kAddTo? &beta_add : &beta,
+               &beta,//req[conv::kData] == kAddTo? &beta_add : &beta,
                in_desc_,
                gdata_ptr + data_offset_ * g,
                workspace.dptr_,
