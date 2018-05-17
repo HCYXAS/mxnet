@@ -135,10 +135,8 @@ inline void PSROIPoolForward(const Tensor<gpu, 4, DType> &out,
   const int pooled_height = out.size(2);
   const int pooled_width = out.size(3);
   hipStream_t stream = Stream<gpu>::GetStream(out.stream_);
-  PSROIPoolForwardKernel<DType> << <mxnet::op::mxnet_op::cuda_get_num_blocks(count),
-    kBaseThreadNum, 0, stream >> >(
-      count, bottom_data, spatial_scale, channels, height, width,
-      pooled_height, pooled_width, bottom_rois, output_dim_, group_size_, top_data);
+  hipLaunchKernelGGL(HIP_KERNEL_NAME(PSROIPoolForwardKernel<DType>), dim3(count), dim3(kBaseThreadNum), 0, stream, count, bottom_data,
+  spatial_scale, channels, height, width, pooled_height, pooled_width, bottom_rois, output_dim_, group_size_, top_data);
   PSROIPOOLING_CUDA_CHECK(hipPeekAtLastError());
 }
 
@@ -232,8 +230,8 @@ inline void PSROIPoolBackwardAcc(const Tensor<gpu, 4, DType> &in_grad,
   const int pooled_height = out_grad.size(2);
   const int pooled_width = out_grad.size(3);
   hipStream_t stream = Stream<gpu>::GetStream(in_grad.stream_);
-  PSROIPoolBackwardAccKernel<DType> << <mxnet::op::mxnet_op::cuda_get_num_blocks(count),
-    kBaseThreadNum, 0, stream >> >(
+  hipLaunchKernelGGL(HIP_KERNEL_NAME(PSROIPoolBackwardAccKernel<DType>), dim3(count),
+    dim3(kBaseThreadNum), 0, stream,
       count, top_diff, num_rois, spatial_scale, channels, height, width,
       pooled_height, pooled_width, group_size_, output_dim_, bottom_diff, bottom_rois);
   PSROIPOOLING_CUDA_CHECK(hipPeekAtLastError());

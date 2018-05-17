@@ -61,7 +61,7 @@
  *\brief whether to use cusolver library
  */
 #ifndef MXNET_USE_CUSOLVER
-#define MXNET_USE_CUSOLVER MSHADOW_USE_CUSOLVER
+//#define MXNET_USE_CUSOLVER MSHADOW_USE_CUSOLVER
 #endif
 
 /*! \brief Error message for using gpu when MXNET_USE_CUDA==0 */

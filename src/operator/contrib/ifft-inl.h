@@ -36,7 +36,7 @@
 #include "../mshadow_op.h"
 
 #if MXNET_USE_CUDA
-#include <cufft.h>
+#include <hipfft.h>
 #endif
 
 namespace mxnet {
@@ -48,7 +48,7 @@ namespace ifft {
 }
 
 struct IFFTParam : public dmlc::Parameter<IFFTParam> {
-  int compute_size;  // the maximum size of sub-batch to be forwarded through cufft in one time
+  int compute_size;  // the maximum size of sub-batch to be forwarded through hipfft in one time
   DMLC_DECLARE_PARAMETER(IFFTParam){
     DMLC_DECLARE_FIELD(compute_size).set_default(128)
     .describe("Maximum size of sub-batch to be forwarded at one time");
@@ -61,7 +61,7 @@ class IFFTOp : public Operator {
  public:
   explicit IFFTOp(IFFTParam p) {
     this->param_ = p;
-    init_cufft_ = false;
+    init_hipfft_ = false;
     dim_ = 0;
   }
 
@@ -75,14 +75,14 @@ class IFFTOp : public Operator {
     CHECK_EQ(in_data.size(), 1);
     CHECK_EQ(out_data.size(), 1);
 
-    if (!init_cufft_) {
+    if (!init_hipfft_) {
       n_iffts = in_data[ifft::kData].shape_.ProdShape(0, in_data[ifft::kData].ndim()-1);
       // remember that input is complex
       dim_ = in_data[ifft::kData].shape_[in_data[ifft::kData].ndim()-1]/2;
       // stride_ in the number of complex numbers
       stride_ = param_.compute_size*dim_;
 
-      init_cufft_ = true;
+      init_hipfft_ = true;
 
       num_compute = n_iffts/param_.compute_size;
     }
@@ -102,36 +102,36 @@ class IFFTOp : public Operator {
                                               Shape2(param_.compute_size, dim_*2), s);
     #if MSHADOW_USE_CUDNN
     // start ifft
-    cufftHandle plan;
-    cufftPlanMany(&plan, 1, &dim_, nullptr, 0, 0, nullptr, 0, 0, CUFFT_C2C, param_.compute_size);
+    hipfftHandle plan;
+    hipfftPlanMany(&plan, 1, &dim_, nullptr, 0, 0, nullptr, 0, 0, HIPFFT_C2C, param_.compute_size);
     for (size_t idx=0; idx < num_compute; ++idx) {
-      cufftComplex* in_tmp = const_cast<cufftComplex*>(
-        reinterpret_cast<const cufftComplex*>(data.dptr_ + 2*idx*stride_));
-      cufftComplex* out_tmp = reinterpret_cast<cufftComplex*>(complex_data.dptr_);
-      CHECK_EQ(cufftExecC2C(plan, in_tmp, out_tmp, CUFFT_INVERSE), CUFFT_SUCCESS);
+      hipfftComplex* in_tmp = const_cast<hipfftComplex*>(
+        reinterpret_cast<const hipfftComplex*>(data.dptr_ + 2*idx*stride_));
+      hipfftComplex* out_tmp = reinterpret_cast<hipfftComplex*>(complex_data.dptr_);
+      CHECK_EQ(hipfftExecC2C(plan, in_tmp, out_tmp, HIPFFT_INVERSE), HIPFFT_SUCCESS);
 
       Assign(out.Slice(idx*param_.compute_size, (idx+1)*param_.compute_size),
              req[ifft::kOut], complex_toreal(complex_data));
     }
-    cufftDestroy(plan);
+    hipfftDestroy(plan);
     // handle the remaining samples
     size_t remain_num = n_iffts - param_.compute_size*num_compute;
     if (remain_num > 0) {
-      cufftHandle plan_remain;
-      cufftPlanMany(&plan_remain, 1, &dim_, nullptr, 0, 0, nullptr, 0, 0,
-                    CUFFT_C2C, remain_num);
+      hipfftHandle plan_remain;
+      hipfftPlanMany(&plan_remain, 1, &dim_, nullptr, 0, 0, nullptr, 0, 0,
+                    HIPFFT_C2C, remain_num);
 
       complex_data = Tensor<xpu, 2, DType>(workspace.dptr_,
                                               Shape2(remain_num, dim_*2), s);
 
-      cufftComplex* in_tmp = const_cast<cufftComplex*>(
-        reinterpret_cast<const cufftComplex*>(data.dptr_ + 2*num_compute*stride_));
-      cufftComplex* out_tmp = reinterpret_cast<cufftComplex*>(complex_data.dptr_);
-      CHECK_EQ(cufftExecC2C(plan_remain, in_tmp, out_tmp, CUFFT_INVERSE), CUFFT_SUCCESS);
+      hipfftComplex* in_tmp = const_cast<hipfftComplex*>(
+        reinterpret_cast<const hipfftComplex*>(data.dptr_ + 2*num_compute*stride_));
+      hipfftComplex* out_tmp = reinterpret_cast<hipfftComplex*>(complex_data.dptr_);
+      CHECK_EQ(hipfftExecC2C(plan_remain, in_tmp, out_tmp, HIPFFT_INVERSE), HIPFFT_SUCCESS);
         Assign(out.Slice(param_.compute_size*num_compute,
                          param_.compute_size*num_compute+remain_num),
              req[ifft::kOut], complex_toreal(complex_data));
-      cufftDestroy(plan_remain);
+      hipfftDestroy(plan_remain);
     }
     #endif
     // commenting this out to be consistant with caffe
@@ -158,7 +158,7 @@ class IFFTOp : public Operator {
           Shape2(n_iffts, dim_*2), s);
     Tensor<xpu, 2, DType> grad = out_grad[ifft::kOut].get_with_shape<xpu, 2, DType>(
           Shape2(n_iffts, dim_), s);
-    // need temp space to pad the data into complex numbers due to cufft interface
+    // need temp space to pad the data into complex numbers due to hipfft interface
     Tensor<xpu, 1, DType> workspace =
             ctx.requested[ifft::kTempSpace].get_space_typed<xpu, 1, DType>(
                 Shape1(param_.compute_size*dim_*2), s);
@@ -166,35 +166,35 @@ class IFFTOp : public Operator {
                                               Shape2(param_.compute_size, dim_*2), s);
     #if MSHADOW_USE_CUDNN
     // start fft
-    cufftHandle plan;
-    cufftPlanMany(&plan, 1, &dim_, nullptr, 0, 0, nullptr, 0, 0, CUFFT_C2C, param_.compute_size);
+    hipfftHandle plan;
+    hipfftPlanMany(&plan, 1, &dim_, nullptr, 0, 0, nullptr, 0, 0, HIPFFT_C2C, param_.compute_size);
     for (size_t idx = 0; idx < num_compute; ++idx) {
       complex_data = complex_pad_imag(grad.Slice(idx*param_.compute_size,
                                                  idx*param_.compute_size+param_.compute_size));
 
-      cufftComplex* in_tmp = const_cast<cufftComplex*>(
-        reinterpret_cast<const cufftComplex*>(complex_data.dptr_));
-      cufftComplex* out_tmp = reinterpret_cast<cufftComplex*>(gdata.dptr_ + 2*idx*stride_);
-      CHECK_EQ(cufftExecC2C(plan, in_tmp, out_tmp, CUFFT_FORWARD), CUFFT_SUCCESS);
+      hipfftComplex* in_tmp = const_cast<hipfftComplex*>(
+        reinterpret_cast<const hipfftComplex*>(complex_data.dptr_));
+      hipfftComplex* out_tmp = reinterpret_cast<hipfftComplex*>(gdata.dptr_ + 2*idx*stride_);
+      CHECK_EQ(hipfftExecC2C(plan, in_tmp, out_tmp, HIPFFT_FORWARD), HIPFFT_SUCCESS);
     }
-    cufftDestroy(plan);
+    hipfftDestroy(plan);
 
     // handle the remaining samples
     size_t remain_num = n_iffts - param_.compute_size*num_compute;
     if (remain_num > 0) {
-      cufftHandle plan_remain;
-      cufftPlanMany(&plan_remain, 1, &dim_, nullptr, 0, 0, nullptr, 0, 0,
-                    CUFFT_C2C, remain_num);
+      hipfftHandle plan_remain;
+      hipfftPlanMany(&plan_remain, 1, &dim_, nullptr, 0, 0, nullptr, 0, 0,
+                    HIPFFT_C2C, remain_num);
       complex_data = Tensor<xpu, 2, DType>(workspace.dptr_,
                                           Shape2(remain_num, dim_*2), s);
       complex_data = complex_pad_imag(grad.Slice(
           num_compute*param_.compute_size, num_compute*param_.compute_size+remain_num));
 
-      cufftComplex* in_tmp = const_cast<cufftComplex*>(
-        reinterpret_cast<const cufftComplex*>(complex_data.dptr_));
-      cufftComplex* out_tmp = reinterpret_cast<cufftComplex*>(gdata.dptr_ + 2*num_compute*stride_);
-      CHECK_EQ(cufftExecC2C(plan_remain, in_tmp, out_tmp, CUFFT_FORWARD), CUFFT_SUCCESS);
-      cufftDestroy(plan_remain);
+      hipfftComplex* in_tmp = const_cast<hipfftComplex*>(
+        reinterpret_cast<const hipfftComplex*>(complex_data.dptr_));
+      hipfftComplex* out_tmp = reinterpret_cast<hipfftComplex*>(gdata.dptr_ + 2*num_compute*stride_);
+      CHECK_EQ(hipfftExecC2C(plan_remain, in_tmp, out_tmp, HIPFFT_FORWARD), HIPFFT_SUCCESS);
+      hipfftDestroy(plan_remain);
     }
     #endif
     // commenting this out to be consistant with caffe
@@ -205,7 +205,7 @@ class IFFTOp : public Operator {
   IFFTParam param_;
   int dim_, stride_, n_iffts;
   size_t num_compute;
-  bool init_cufft_;
+  bool init_hipfft_;
 };  // class IFFTOp
 
 #endif  // MXNET_USE_CUDA

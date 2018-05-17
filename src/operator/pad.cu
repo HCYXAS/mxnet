@@ -263,9 +263,8 @@ inline void image_pad_reflect(Tensor<gpu, 4, DType> dst,
   dim3 dimGrid(xGridSize, dst.size(1), dst.size(0));
   CheckLaunchParam(dimGrid, dimBlock, "Pad");
   hipStream_t stream = Stream<gpu>::GetStream(dst.stream_);
-  image_2d_pad_reflect_kernel<kBaseThreadBits,
-                           DType><<<dimGrid, dimBlock, 0, stream>>>(dst, src,
-                                                                    padT, padL);
+  hipLaunchKernelGGL(HIP_KERNEL_NAME(image_2d_pad_reflect_kernel<kBaseThreadBits,DType>),
+	dim3(dimGrid), dim3(dimBlock), 0, stream, dst, src, padT, padL);
   MSHADOW_CUDA_POST_KERNEL_CHECK(image_2d_pad_reflect_kernel);
 }
 
@@ -314,8 +313,8 @@ inline void image_pad_reflect_grad(Tensor<gpu, 4, DType> grad_in,
   dim3 dimGrid(xGridSize, grad_out.size(1), grad_out.size(0));
   CheckLaunchParam(dimGrid, dimBlock, "Pad");
   hipStream_t stream = Stream<gpu>::GetStream(grad_out.stream_);
-  image_2d_pad_reflect_grad_kernel<kBaseThreadBits,
-                                DType><<<dimGrid, dimBlock, 0, stream>>>(
+  hipLaunchKernelGGL(HIP_KERNEL_NAME(image_2d_pad_reflect_grad_kernel<kBaseThreadBits,
+                                DType>), dim3(dimGrid), dim3(dimBlock), 0, stream,
       grad_in, grad_out, padT, padL);
   MSHADOW_CUDA_POST_KERNEL_CHECK(image_2d_pad_reflect_grad_kernel);
 }
@@ -594,8 +593,8 @@ inline void image_pad_reflect(Tensor<gpu, 5, DType> dst,
   dim3 dimGrid(xGridSize, dst.size(1), dst.size(0));
   CheckLaunchParam(dimGrid, dimBlock, "Pad");
   hipStream_t stream = Stream<gpu>::GetStream(dst.stream_);
-  image_3d_pad_reflect_kernel<kBaseThreadBits,
-                           DType><<<dimGrid, dimBlock, 0, stream>>>(
+  hipLaunchKernelGGL(HIP_KERNEL_NAME(image_3d_pad_reflect_kernel<kBaseThreadBits,
+                           DType>), dim3(dimGrid), dim3(dimBlock), 0, stream,
       dst, src, padF, padT, padL);
   MSHADOW_CUDA_POST_KERNEL_CHECK(image_3d_pad_reflect_kernel);
 }
@@ -687,8 +686,8 @@ inline void image_pad_reflect_grad(Tensor<gpu, 5, DType> grad_in,
   dim3 dimGrid(xGridSize, grad_out.size(1), grad_out.size(0));
   CheckLaunchParam(dimGrid, dimBlock, "Pad");
   hipStream_t stream = Stream<gpu>::GetStream(grad_out.stream_);
-  image_3d_pad_reflect_grad_kernel<kBaseThreadBits,
-                                DType><<<dimGrid, dimBlock, 0, stream>>>(
+  hipLaunchKernelGGL(HIP_KERNEL_NAME(image_3d_pad_reflect_grad_kernel<kBaseThreadBits,
+                                DType>), dim3(dimGrid), dim3(dimBlock), 0, stream,
       grad_in, grad_out, padF, padT, padL);
   MSHADOW_CUDA_POST_KERNEL_CHECK(image_3d_pad_reflect_grad_kernel);
 }

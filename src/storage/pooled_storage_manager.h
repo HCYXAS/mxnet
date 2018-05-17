@@ -73,7 +73,7 @@ class GPUPooledStorageManager final : public StorageManager {
     hipError_t err = hipFree(handle.dptr);
     size_t size = handle.size + NDEV;
     // ignore unloading error, as memory has already been recycled
-    if (err != hipSuccess && err != cudaErrorCudartUnloading) {
+    if (err != hipSuccess) {
      // LOG(FATAL) << "CUDA: " << hipGetErrorString(err);
     }
     used_memory_ -= size;
@@ -104,7 +104,7 @@ void GPUPooledStorageManager::Alloc(Storage::Handle* handle) {
 
     void* ret = nullptr;
     hipError_t e = hipMalloc(&ret, size);
-    if (e != hipSuccess && e != cudaErrorCudartUnloading) {
+    if (e != hipSuccess) {
       LOG(FATAL) << "hipMalloc failed: " << hipGetErrorString(e);
     }
     used_memory_ += size;

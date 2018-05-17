@@ -66,7 +66,7 @@ inline void PinnedMemoryStorage::Free(void* ptr) {
 #endif
   hipError_t err = hipHostFree(ptr);
   // ignore unloading error, as memory has already been recycled
-  if (err != hipSuccess && err != cudaErrorCudartUnloading) {
+  if (err != hipSuccess) {
     LOG(FATAL) << "CUDA: " << hipGetErrorString(err);
   }
 }

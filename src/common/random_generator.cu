@@ -38,11 +38,11 @@ const int RandGenerator<gpu, float>::kMinNumRandomPerThread = 64;
 template<>
 const int RandGenerator<gpu, float>::kNumRandomStates = 32768;
 
-__global__ void rand_generator_seed_kernel(curandStatePhilox4_32_10_t *states_,
+__global__ void rand_generator_seed_kernel(hiprandStatePhilox4_32_10_t *states_,
                                            const int size,
                                            uint32_t seed) {
   int id = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
-  if (id < size) curand_init(seed, id, 0, states_ + id);
+  if (id < size) hiprand_init(seed, id, 0, states_ + id);
 }
 
 template<>

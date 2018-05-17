@@ -25,7 +25,8 @@ static const float threshold = 1e-1;
 
 template<typename T>
 HOSTDEVICE
-T neg_inf() { return -T(INFINITY); }
+T neg_inf() { return -T(0); } //TODO Hack to avoid compilation error
+//return -T(INFINITY); }
 
 inline int div_up(int x, int y) {
     return (x + y - 1) / y;

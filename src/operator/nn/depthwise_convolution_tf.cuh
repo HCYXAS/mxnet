@@ -37,12 +37,12 @@ namespace depthwise_conv {
 #if CUDA_VERSION < 9000
 template<typename DType>
 __forceinline__ __device__ DType  __shfl_xor_sync(unsigned, DType val, int delta) {
-  return __shfl_xor(val, delta);
+  return hc::__shfl_xor(val, delta);
 }
 
 template<typename DType>
 __forceinline__ __device__ DType  __shfl_down_sync(unsigned, DType val, int delta) {
-  return __shfl_down(val, delta);
+  return hc::__shfl_down(val, delta);
 }
 
 // shuffle masks not used before CUDA 9.
@@ -197,7 +197,11 @@ template <typename DType, DepthwiseConv2dDirection kDirection,
           int kBlockSlices, bool kEvenHeight, int kFilterHeight, int kFilterWidth>
 __global__ __launch_bounds__(1024, 2) void DepthwiseConv2dKernelSmall(
     const DepthwiseArgs args, const DType* input, const DType* filter, DType* output) {
-  extern __shared__ __align__(sizeof(DType)) unsigned char shared_memory[];
+  #ifdef __HIP_PLATFORM_NVCC__
+	extern __shared__ __align__(sizeof(DType)) unsigned char shared_memory[];
+  #elif defined(__HIP_PLATFORM_HCC__)
+	extern __shared__  __attribute__((aligned(sizeof(DType)))) unsigned char shared_memory[];
+  #endif
   DType* const shared_data = reinterpret_cast<DType*>(shared_memory);
 
   const int in_height = args.in_height;
@@ -491,7 +495,11 @@ template <typename DType, int kBlockSlices, int kAccumPixels, int kFilterHeight,
 __global__
 __launch_bounds__(1024, 2) void DepthwiseConv2dBackwardFilterKernelSmall(
     const DepthwiseArgs args, const DType* output, const DType* input, DType* filter) {
-  extern __shared__ __align__(sizeof(DType)) unsigned char shared_memory[];
+  #ifdef __HIP_PLATFORM_NVCC__
+	extern __shared__ __align__(sizeof(DType)) unsigned char shared_memory[];
+  #elif defined(__HIP_PLATFORM_HCC__)
+        extern __shared__  __attribute__((aligned(sizeof(DType)))) unsigned char shared_memory[];
+  #endif
   DType* const shared_data = reinterpret_cast<DType*>(shared_memory);
 
   const int in_height = args.in_height;
@@ -620,7 +628,7 @@ __launch_bounds__(1024, 2) void DepthwiseConv2dBackwardFilterKernelSmall(
         DType val = accum_data[i];
         // Warp-accumulate pixels of the same depth from the accumulator.
         int lane_id;
-        asm volatile ("mov.u32 %0, %laneid;" : "=r"(lane_id));
+        asm volatile ("mov.u32 %0, %%laneid;" : "=r"(lane_id));
         int sub_warp = lane_id / kAccumPixels;
         int zeros = sub_warp * kAccumPixels;
         unsigned mask = (kAccumPixels == 32) ? FULL_WARP_MASK : (((1U << kAccumPixels) - 1) << zeros);

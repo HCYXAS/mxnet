@@ -26,7 +26,9 @@
 */
 
 #include "./svm_output-inl.h"
+#ifdef __HIP_PLATFORM_NVCC__ //TODO as this file is not supported for hcc
 #include <device_launch_parameters.h>
+#endif
 #include "mshadow/tensor.h"
 
 
