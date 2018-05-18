@@ -20,11 +20,14 @@
 	path = 3rdparty/mkldnn
 	url = https://github.com/intel/mkl-dnn.git
 	branch = master
-[submodule "3rdparty/cub-hip"]
-	path = 3rdparty/cub-hip
-	url = https://github.com/ROCmSoftwarePlatform/cub-hip.git
-	branch = hip_port_1.7.3
 [submodule "3rdparty/mshadow"]
 	path = 3rdparty/mshadow
 	url = https://github.com/ROCmSoftwarePlatform/mshadow.git
 	branch = downstream_27Mar2018
+[submodule "3rdparty/cub-hip"]
+	path = 3rdparty/cub-hip
+	url = https://github.com/ROCmSoftwarePlatform/cub-hip.git
+	branch = cubhip_downstream_27Mar2018
+[submodule "3rdparty/Thrust"]
+	path = 3rdparty/Thrust
+	url = https://github.com/ROCmSoftwarePlatform/Thrust.git

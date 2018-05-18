@@ -95,8 +95,7 @@ else
 	CFLAGS += -O3 -DNDEBUG=1
 endif
 
-HIPINCLUDE += -I../Thrust
-HIPINCLUDE += -I. -I/opt/rocm/hipblas/include -I/opt/rocm/hiprand/include -I/opt/rocm/hipfft/include
+HIPINCLUDE += -I. -I./3rdparty/Thrust -I/opt/rocm/hipblas/include -I/opt/rocm/hiprand/include -I/opt/rocm/hcfft/include
 CFLAGS += $(HIPINCLUDE) -I$(TPARTYDIR)/mshadow/ -I$(TPARTYDIR)/dmlc-core/include -fPIC -I$(NNVM_PATH)/include -I$(DLPACK_PATH)/include -I$(NNVM_PATH)/tvm/include -Iinclude $(MSHADOW_CFLAGS)
 LDFLAGS = -pthread $(MSHADOW_LDFLAGS) $(DMLC_LDFLAGS)
 
@@ -347,7 +346,7 @@ all: lib/libmxnet.a lib/libmxnet.so $(BIN) extra-packages
 
 SRC = $(wildcard src/*/*/*/*.cc src/*/*/*.cc src/*/*.cc src/*.cc)
 OBJ = $(patsubst %.cc, build/%.o, $(SRC))
-CUSRC = $(wildcard src/*/*/*/*.cu src/*/*/*.cu src/*/*.cu src/*.cu)
+CUSRC = $(wildcard src/*/*/*/*.cu src/*/*/*.cu src/*/*.cu src/*.cu *.cu)
 CUOBJ = $(patsubst %.cu, build/%_gpu.o, $(CUSRC))
 
 # extra operators
@@ -391,10 +390,17 @@ ifeq ($(USE_CUDA), 1)
 	CFLAGS += -I$(ROOTDIR)/3rdparty/cub-hip
 	ALL_DEP += $(CUOBJ) $(EXTRA_CUOBJ) $(PLUGIN_CUOBJ)
 	LDFLAGS += -L/opt/rocm/hip/lib -lhip_hcc
-	LDFLAGS += -lcudart -lcuda -lcufft -lcublas
-	ifeq ($(ENABLE_CUDA_RTC), 1)
-		LDFLAGS += -lcuda -lnvrtc
-		CFLAGS += -DMXNET_ENABLE_CUDA_RTC=1
+        LDFLAGS += -L/opt/rocm/hipblas/lib  -lhipblas
+	LDFLAGS += -L/opt/rocm/hiprand/lib  -lhiprand
+	LDFLAGS += -L/opt/rocm/hcfft/lib -lhipfft
+	ifneq (, $(findstring nvcc, $(HIP_PLATFORM)))
+		LDFLAGS += -L/opt/rocm/hcfft/lib -lhipfft
+		LDFLAGS += -lcudart -lcuda -lcufft -lcublas
+	else
+		HIPINCLUDE += -I/opt/rocm/rocblas/include -I/opt/rocm/rocrand/include
+		LDFLAGS += -L/opt/rocm/hcfft/lib    -lhcfft
+		LDFLAGS += -L/opt/rocm/rocblas/lib  -lrocblas
+		LDFLAGS += -L/opt/rocm/rocrand/lib  -lrocrand
 	endif
 	# Make sure to add stubs as fallback in order to be able to build
 	# without full CUDA install (especially if run without nvidia-docker)
@@ -433,9 +439,10 @@ build/src/%.o: src/%.cc
 	@mkdir -p $(@D)
 	$(CXX) -std=c++11 -c $(HIPFLAGS) $(CFLAGS) -MMD -c $< -o $@
 
-build/src/%_gpu.o: src/%.cu
+#build/src/%_gpu.o: src/%.cu
+build/%_gpu.o: %.cu
 	@mkdir -p $(@D)
-	$(NVCC) $(NVCCFLAGS) $(CUDA_ARCH) -Xcompiler $(HIPCCFLAGS) -M -MT build/src/$*_gpu.o $< >build/src/$*_gpu.d
+	$(NVCC) $(NVCCFLAGS) $(CUDA_ARCH) -Xcompiler $(HIPCCFLAGS) -M -MT build/$*_gpu.o $< >build/$*_gpu.d
 	$(NVCC) -c -o $@ $(NVCCFLAGS) $(CUDA_ARCH) -Xcompiler $(HIPCCFLAGS) $<
 
 # A nvcc bug cause it to generate "generic/xxx.h" dependencies from torch headers.
