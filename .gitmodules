@@ -1,7 +1,7 @@
 [submodule "mshadow"]
 	path = mshadow
 	url  = https://github.com/ROCmSoftwarePlatform/mshadow.git 
-        branch = clean_compilation
+        branch = cc_mshadow
 [submodule "dmlc-core"]
 	path = dmlc-core
 	url  = https://github.com/ROCmSoftwarePlatform/dmlc-core.git 
