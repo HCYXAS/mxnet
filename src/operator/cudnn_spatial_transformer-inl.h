@@ -12,7 +12,7 @@
 #include "./spatial_transformer-inl.h"
 namespace mxnet {
 namespace op {
-#if defined(__HIPCC__) && MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 5
+#if defined(__HIPCC__) 
 template<typename DType>
 class CuDNNSpatialTransformerOp : public Operator {
  public:
@@ -21,18 +21,28 @@ class CuDNNSpatialTransformerOp : public Operator {
     init_cudnn_ = false;
     dtype_ = mshadow::DataType<DType>::kCudnnFlag;
     if (param_.sampler_type == st::kBilinear) {
-      //sampler_ = CUDNN_SAMPLER_BILINEAR; //TODO .Unsupported
+#if MXNET_USE_CUDNN == 1
+      sampler_ = CUDNN_SAMPLER_BILINEAR;
+#endif
     }
   }
-
+#if MXNET_USE_MIOPEN == 1
   ~CuDNNSpatialTransformerOp() {
     if (init_cudnn_) {
-      //CUDNN_CALL(cudnnDestroySpatialTransformerDescriptor(st_desc_)); //TODO .Unsupported
       CUDNN_CALL(miopenDestroyTensorDescriptor(in_desc_));
       CUDNN_CALL(miopenDestroyTensorDescriptor(out_desc_));
     }
   }
-
+#endif
+#if MXNET_USE_CUDNN == 1
+~CuDNNSpatialTransformerOp() {
+    if (init_cudnn_) {
+      CUDNN_CALL(cudnnDestroySpatialTransformerDescriptor(st_desc_));
+      CUDNN_CALL(cudnnDestroyTensorDescriptor(in_desc_));
+      CUDNN_CALL(cudnnDestroyTensorDescriptor(out_desc_));
+    }
+  }
+#endif
   virtual void Forward(const OpContext &ctx,
                        const std::vector<TBlob> &in_data,
                        const std::vector<OpReqType> &req,
@@ -56,13 +66,15 @@ class CuDNNSpatialTransformerOp : public Operator {
     CHECK_EQ(out.CheckContiguous(), true);
     typename DataType<DType>::ScaleType alpha = 1.0f;
     typename DataType<DType>::ScaleType beta = 0.0f;
-    if (param_.transform_type == st::kAffine) {
-      /*CUDNN_CALL(cudnnSpatialTfGridGeneratorForward(s->dnn_handle_,
+#if MXNET_USE_CUDNN == 1
+   if (param_.transform_type == st::kAffine) {
+    CUDNN_CALL(cudnnSpatialTfGridGeneratorForward(s->dnn_handle_,
                                                     st_desc_,
                                                     loc.dptr_,
-                                                    grid.dptr_));*/ //TODO .Unsupported
-    }
-    /*CUDNN_CALL(cudnnSpatialTfSamplerForward(s->dnn_handle_,
+                                                    grid.dptr_));
+ }
+
+   CUDNN_CALL(cudnnSpatialTfSamplerForward(s->dnn_handle_,
                                             st_desc_,
                                             &alpha,
                                             in_desc_,
@@ -70,7 +82,8 @@ class CuDNNSpatialTransformerOp : public Operator {
                                             grid.dptr_,
                                             &beta,
                                             out_desc_,
-                                            out.dptr_));*/  //TODO . Unsupported
+                                            out.dptr_));
+#endif
   }
 
   virtual void Backward(const OpContext &ctx,
@@ -99,7 +112,7 @@ class CuDNNSpatialTransformerOp : public Operator {
     typename DataType<DType>::ScaleType beta = 0.0f;
     typename DataType<DType>::ScaleType alpha_dgrid = 1.0f;
     typename DataType<DType>::ScaleType beta_dgrid = 0.0f;
-    #if 0
+#if MXNET_USE_CUDNN == 1
     CUDNN_CALL(cudnnSpatialTfSamplerBackward(s->dnn_handle_,
                                              st_desc_,
                                              &alpha,
@@ -114,13 +127,15 @@ class CuDNNSpatialTransformerOp : public Operator {
                                              grid.dptr_,
                                              &beta_dgrid,
                                              grid.dptr_));
-   #endif //TODO .Unsupported
+#endif
     if (param_.transform_type == st::kAffine) {
-     // CUDNN_CALL(cudnnSpatialTfGridGeneratorBackward(s->dnn_handle_,
-     //                                                st_desc_,
-     //                                                grid.dptr_,
-     //                                                dloc.dptr_/*out*/)); //TODO.Unsupported.
-    }
+#if MXNET_USE_CUDNN == 1
+      CUDNN_CALL(cudnnSpatialTfGridGeneratorBackward(s->dnn_handle_,
+                                                     st_desc_,
+                                                     grid.dptr_,
+                                                     dloc.dptr_/*out*/)); //TODO.Unsupported.
+#endif
+   }
   }
 
  private:
@@ -128,8 +143,8 @@ class CuDNNSpatialTransformerOp : public Operator {
                    const std::vector<TBlob> &in_data,
                    const std::vector<TBlob> &out_data) {
     using namespace mshadow;
-    #if CUDNN_MAJOR >= 5
-    //format_ = CUDNN_TENSOR_NCHW;
+    #if CUDNN_MAJOR >= 5 && MXNET_USE_CUDNN == 1
+    format_ = CUDNN_TENSOR_NCHW;
     #endif
     CHECK_EQ(in_data.size(), 2U);
     CHECK_EQ(out_data.size(), 3U);
@@ -137,7 +152,7 @@ class CuDNNSpatialTransformerOp : public Operator {
       init_cudnn_ = true;
       Tensor<gpu, 4, DType> data = in_data[st::kData].get<gpu, 4, DType>(s);
       Tensor<gpu, 4, DType> out = out_data[st::kOut].get<gpu, 4, DType>(s);
-      //CUDNN_CALL(cudnnCreateSpatialTransformerDescriptor(&st_desc_)); //TODO Unsupported
+    #if MXNET_USE_MIOPEN == 1   
       CUDNN_CALL(miopenCreateTensorDescriptor(&in_desc_));
       CUDNN_CALL(miopenCreateTensorDescriptor(&out_desc_));
       CUDNN_CALL(miopenSet4dTensorDescriptor(in_desc_,
@@ -152,28 +167,57 @@ class CuDNNSpatialTransformerOp : public Operator {
                                             out.size(1),
                                             out.size(2),
                                             out.size(3)));
+     #endif
+    #if MXNET_USE_CUDNN == 1   
+      CUDNN_CALL(cudnnCreateSpatialTransformerDescriptor(&st_desc_));
+      CUDNN_CALL(cudnnCreateTensorDescriptor(&in_desc_));
+      CUDNN_CALL(cudnnCreateTensorDescriptor(&out_desc_));
+      CUDNN_CALL(cudnnSetTensor4dDescriptor(in_desc_,
+                                            format_,
+                                            dtype_,
+                                            data.size(0),
+                                            data.size(1),
+                                            data.size(2),
+                                            data.size(3)));
+      CUDNN_CALL(cudnnSetTensor4dDescriptor(out_desc_,
+                                            format_,
+                                            dtype_,
+                                            out.size(0),
+                                            out.size(1),
+                                            out.size(2),
+                                            out.size(3)));
+    #endif
       if (param_.sampler_type == st::kBilinear) {
         int dim[] = {static_cast<int>(out.size(0)), static_cast<int>(out.size(1)),
                      static_cast<int>(out.size(2)), static_cast<int>(out.size(3))};
-        /*CUDNN_CALL(cudnnSetSpatialTransformerNdDescriptor(st_desc_,
+  #if MXNET_USE_CUDNN == 1    
+    CUDNN_CALL(cudnnSetSpatialTransformerNdDescriptor(st_desc_,
                                                           sampler_,
                                                           dtype_,
                                                           4,
-                                                          dim));*/ //TODO .Unsupported
+                                                          dim));
+  #endif
       }
     }
   }
 
   bool init_cudnn_;
+  SpatialTransformerParam param_;
+#if MXNET_USE_MIOPEN == 1    
   miopenDataType_t dtype_;
-  //cudnnSpatialTransformerDescriptor_t st_desc_; //TODO Unsupported
   miopenTensorDescriptor_t in_desc_;
   miopenTensorDescriptor_t out_desc_;
-  //cudnnSamplerType_t sampler_; //TODO Unsupported
-  #if CUDNN_MAJOR >= 5
-  //cudnnTensorFormat_t format_;
+#endif
+#if MXNET_USE_CUDNN == 1
+  cudnnDataType_t dtype_;
+  cudnnSpatialTransformerDescriptor_t st_desc_;
+  cudnnTensorDescriptor_t in_desc_;
+  cudnnTensorDescriptor_t out_desc_;
+  cudnnSamplerType_t sampler_;
+  #if CUDNN_MAJOR >= 5 && MXNET_USE_CUDNN == 1
+  cudnnTensorFormat_t format_;
   #endif
-  SpatialTransformerParam param_;
+#endif
 };
 #endif  // __HIPCC__ && CUDNN
 }  // namespace op

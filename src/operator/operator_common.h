@@ -184,7 +184,7 @@ inline bool type_assign(int *y, const int& x) {
   }
 
 // helper macro to implement bind dispatch
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
 #define DO_BIND_DISPATCH(Method, ...)                                \
   if (ctx.dev_mask() == cpu::kDevMask) {                             \
       return Method<cpu>(__VA_ARGS__);                               \

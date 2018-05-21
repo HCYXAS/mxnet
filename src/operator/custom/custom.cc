@@ -22,7 +22,7 @@ Operator *CreateOp<cpu>(MXCallbackList *op_info) {
   return new CustomOp<cpu>(op_info);
 }
 
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
 template<>
 Context CustomOp<gpu>::get_ctx() {
   int dev_id;
@@ -34,7 +34,7 @@ template<>
 Operator* CreateOp<gpu>(MXCallbackList *op_info) {
   return new CustomOp<gpu>(op_info);
 }
-#endif  // MXNET_USE_CUDA
+#endif  // MXNET_USE_GPU
 
 template<typename xpu>
 void CustomOp<xpu>::Forward(const OpContext &ctx,

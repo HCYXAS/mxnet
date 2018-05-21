@@ -481,7 +481,7 @@ void SimpleOpRegEntryImpl::RegisterSourceImperative() {
     Engine::Get()->PushSync([ret, fun, dev_mask, req, env](RunContext ctx) {
         TBlob tmp = ret.data();
         (*fun)(env, &tmp, req, ctx);
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
         if (dev_mask == gpu::kDevMask) {
           ctx.get_stream<gpu>()->Wait();
         }
@@ -665,7 +665,7 @@ void SimpleOpRegEntryImpl::RegisterUnaryImperative() {
     Engine::Get()->PushSync([src, ret, fun, dev_mask, req, env](RunContext ctx) {
         TBlob tmp = ret.data();
         (*fun)(src.data(), env, &tmp, req, ctx);
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
         if (dev_mask == gpu::kDevMask) {
           ctx.get_stream<gpu>()->Wait();
         }
@@ -939,7 +939,7 @@ void SimpleOpRegEntryImpl::RegisterBinaryImperative() {
     Engine::Get()->PushSync([lhs, rhs, ret, fun, dev_mask, req, env](RunContext ctx) {
         TBlob tmp = ret.data();
         (*fun)(lhs.data(), rhs.data(), env, &tmp, req, ctx);
-        #if MXNET_USE_CUDA
+        #if MXNET_USE_GPU
         if (dev_mask == gpu::kDevMask) {
           ctx.get_stream<gpu>()->Wait();
         }

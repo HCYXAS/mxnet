@@ -28,8 +28,8 @@
 /*!
  *\brief whether to use cuda support
  */
-#ifndef MXNET_USE_CUDA
-#define MXNET_USE_CUDA MSHADOW_USE_CUDA
+#ifndef MXNET_USE_GPU
+#define MXNET_USE_GPU MSHADOW_USE_GPU
 #endif
 
 /*!
@@ -38,8 +38,11 @@
 #ifndef MXNET_USE_CUDNN
 #define MXNET_USE_CUDNN MSHADOW_USE_CUDNN
 #endif
+#ifndef MXNET_USE_MIOPEN
+#define MXNET_USE_MIOPEN MSHADOW_USE_MIOPEN
+#endif
 
-/*! \brief Error message for using gpu when MXNET_USE_CUDA==0 */
+/*! \brief Error message for using gpu when MXNET_USE_GPU==0 */
 #define MXNET_GPU_NOT_ENABLED_ERROR  "GPU is not enabled"
 
 /*!
@@ -244,7 +247,7 @@ inline Context Context::Create(DeviceType dev_type, int32_t dev_id) {
   if (dev_id < 0) {
     ctx.dev_id = 0;
     if (dev_type != kCPU) {
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU_
       CHECK_EQ(hipGetDevice(&ctx.dev_id), hipSuccess);
 #else
       LOG(FATAL) << "Please compile with CUDA enabled for cuda features";

@@ -20,7 +20,7 @@ Operator *CreateOp<cpu>(NDArrayOpParam param) {
   return new NDArrayOp<cpu>(param);
 }
 
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
 template<>
 Context NDArrayOp<gpu>::get_ctx() {
   int dev_id;
@@ -32,7 +32,7 @@ template<>
 Operator* CreateOp<gpu>(NDArrayOpParam param) {
   return new NDArrayOp<gpu>(param);
 }
-#endif  // MXNET_USE_CUDA
+#endif  // MXNET_USE_GPU
 
 template<typename xpu>
 void NDArrayOp<xpu>::Forward(const OpContext &ctx,

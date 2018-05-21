@@ -10,7 +10,6 @@
 #include <algorithm>
 #include <vector>
 #include "./activation-inl.h"
-
 namespace mxnet {
 namespace op {
 template<typename DType>
@@ -20,6 +19,7 @@ class CuDNNActivationOp : public Operator {
     param_ = param;
     init_cudnn_ = false;
     dtype_ = mshadow::DataType<DType>::kCudnnFlag;
+#if MXNET_USE_MIOPEN == 1
     switch (param_.act_type) {
       case activation::kReLU:
         mode_ = miopenActivationRELU;
@@ -34,13 +34,12 @@ class CuDNNActivationOp : public Operator {
         LOG(FATAL) << "Not implmented";
         break;
     }
-    #if CUDNN_MAJOR >= 5
+
     //nan_prop_ = CUDNN_NOT_PROPAGATE_NAN; //TODO not supported
     CUDNN_CALL(miopenCreateActivationDescriptor(&desc_));
     double alpha = 1.0f; //TODO temporary fix for arguments
     double beta  = 0.0f; //TODO temporary fix for arguments
     CUDNN_CALL(miopenSetActivationDescriptor(desc_, mode_, alpha , beta ,relu_ceil_)); //TODO temporary fix
-    #endif
   }
 
   ~CuDNNActivationOp() {
@@ -51,7 +50,39 @@ class CuDNNActivationOp : public Operator {
       #endif
     }
   }
+#endif 
 
+#if MXNET_USE_CUDNN == 1
+    switch (param_.act_type) {
+      case activation::kReLU:
+        mode_ = CUDNN_ACTIVATION_RELU;
+        break;
+      case activation::kSigmoid:
+        mode_ = CUDNN_ACTIVATION_SIGMOID;
+        break;
+      case activation::kTanh:
+        mode_ = CUDNN_ACTIVATION_TANH;
+        break;
+      default:
+        LOG(FATAL) << "Not implmented";
+        break;
+    }
+    #if CUDNN_MAJOR >= 5
+    nan_prop_ = CUDNN_NOT_PROPAGATE_NAN;
+    CUDNN_CALL(cudnnCreateActivationDescriptor(&desc_));
+    CUDNN_CALL(cudnnSetActivationDescriptor(desc_, mode_, nan_prop_, relu_ceil_));
+    #endif
+  }
+
+  ~CuDNNActivationOp() {
+    if (init_cudnn_) {
+      CUDNN_CALL(cudnnDestroyTensorDescriptor(shape_desc_));
+      #if CUDNN_MAJOR >= 5
+      CUDNN_CALL(cudnnDestroyActivationDescriptor(desc_));
+      #endif
+    }
+  }
+#endif
   virtual void Forward(const OpContext &ctx,
                        const std::vector<TBlob> &in_data,
                        const std::vector<OpReqType> &req,
@@ -89,6 +120,7 @@ class CuDNNActivationOp : public Operator {
     CHECK_EQ(s->dnn_handle_ownership_, mshadow::Stream<gpu>::OwnHandle);
     if (!init_cudnn_) {
       init_cudnn_ = true;
+#if MXNET_USE_MIOPEN == 1 
       CUDNN_CALL(miopenCreateTensorDescriptor(&shape_desc_));
       CUDNN_CALL(miopenSet4dTensorDescriptor(shape_desc_,
                                             dtype_,
@@ -98,16 +130,6 @@ class CuDNNActivationOp : public Operator {
                                             data.shape_[3]));
     }
 //Miopen supports API as per cudnn_version 5, API porting has been done as per version 5 and removed cudnn_version 4 code
-/*    #if CUDNN_MAJOR <= 4
-    CUDNN_CALL(miopenActivationForward(s->dnn_handle_,
-                                      mode_,
-                                      &alpha,
-                                      shape_desc_,
-                                      data.dptr_,
-                                      &beta,
-                                      shape_desc_,
-                                      out.dptr_));
-    #elif CUDNN_MAJOR >= 5*/
     CUDNN_CALL(miopenActivationForward(s->dnn_handle_,
                                      desc_,
                                      &alpha,
@@ -116,8 +138,40 @@ class CuDNNActivationOp : public Operator {
                                      &beta,
                                      shape_desc_,
                                      out.dptr_));
-   // #endif
-  }
+ }
+#endif
+
+#if MXNET_USE_CUDNN == 1
+      CUDNN_CALL(cudnnCreateTensorDescriptor(&shape_desc_));
+      CUDNN_CALL(cudnnSetTensor4dDescriptor(shape_desc_,
+                                            CUDNN_TENSOR_NCHW,
+                                            dtype_,
+                                            data.shape_[0],
+                                            data.shape_[1],
+                                            data.shape_[2],
+                                            data.shape_[3]));
+    }
+    #if CUDNN_MAJOR <= 4
+    CUDNN_CALL(cudnnActivationForward(s->dnn_handle_,
+                                      mode_,
+                                      &alpha,
+                                      shape_desc_,
+                                      data.dptr_,
+                                      &beta,
+                                      shape_desc_,
+                                      out.dptr_));
+    #elif CUDNN_MAJOR >= 5
+    CUDNN_CALL(cudnnActivationForward(s->dnn_handle_,
+                                     desc_,
+                                     &alpha,
+                                     shape_desc_,
+                                     data.dptr_,
+                                     &beta,
+                                     shape_desc_,
+                                     out.dptr_));
+    #endif
+}
+#endif
 
   virtual void Backward(const OpContext &ctx,
                         const std::vector<TBlob> &out_grad,
@@ -165,22 +219,9 @@ class CuDNNActivationOp : public Operator {
       input_grad = in_grad[activation::kData].get_with_shape<gpu, 4, DType>(dshape, s);
     }
     CHECK_EQ(s->dnn_handle_ownership_, mshadow::Stream<gpu>::OwnHandle);
-    //Miopen supports API as per cudnn_version 5, API porting has been done as per version 5 and removed cudnn_version 4 code
-    /*#if CUDNN_MAJOR <= 4
-    CUDNN_CALL(miopenActivationBackward(s->dnn_handle_,
-                                       mode_,
-                                       &alpha,
-                                       shape_desc_,
-                                       output_data.dptr_,
-                                       shape_desc_,
-                                       grad.dptr_,
-                                       shape_desc_,
-                                       data.dptr_,
-                                       &beta,
-                                       shape_desc_,
-                                       input_grad.dptr_));
-    #elif CUDNN_MAJOR >= 5*/
-    CUDNN_CALL(miopenActivationBackward(s->dnn_handle_,
+#if MXNET_USE_MIOPEN == 1
+//Miopen supports API as per cudnn_version 5, API porting has been done as per version 5 and removed cudnn_version 4 code
+        CUDNN_CALL(miopenActivationBackward(s->dnn_handle_,
                                        desc_,
                                        &alpha,
                                        shape_desc_,
@@ -192,21 +233,59 @@ class CuDNNActivationOp : public Operator {
                                        &beta,
                                        shape_desc_,
                                        input_grad.dptr_));
-//    #endif
-  }
+
+}
+#endif
+#if MXNET_USE_CUDNN == 1
+    #if CUDNN_MAJOR <= 4
+    CUDNN_CALL(cudnnActivationBackward(s->dnn_handle_,
+                                       mode_,
+                                       &alpha,
+                                       shape_desc_,
+                                       output_data.dptr_,
+                                       shape_desc_,
+                                       grad.dptr_,
+                                       shape_desc_,
+                                       data.dptr_,
+                                       &beta,
+                                       shape_desc_,
+                                       input_grad.dptr_));
+    #elif CUDNN_MAJOR >= 5
+    CUDNN_CALL(cudnnActivationBackward(s->dnn_handle_,
+                                       desc_,
+                                       &alpha,
+                                       shape_desc_,
+                                       output_data.dptr_,
+                                       shape_desc_,
+                                       grad.dptr_,
+                                       shape_desc_,
+                                       data.dptr_,
+                                       &beta,
+                                       shape_desc_,
+                                       input_grad.dptr_));
+    #endif
+}
+#endif
 
  private:
   bool init_cudnn_;
+  double relu_ceil_;
+  ActivationParam param_;
+#if MXNET_USE_MIOPEN == 1
   miopenDataType_t dtype_;
   miopenActivationMode_t mode_;
   miopenTensorDescriptor_t shape_desc_;
-  ActivationParam param_;
-//#if CUDNN_MAJOR >= 5
-
   miopenActivationDescriptor_t desc_;
-  //cudnnNanPropagation_t nan_prop_; //TODO not supported
-  double relu_ceil_;
-//#endif
+#endif
+#if MXNET_USE_CUDNN == 1
+  cudnnDataType_t dtype_;
+  cudnnActivationMode_t mode_;
+  cudnnTensorDescriptor_t shape_desc_;
+#if CUDNN_MAJOR >= 5
+  cudnnActivationDescriptor_t desc_;
+  cudnnNanPropagation_t nan_prop_;
+#endif
+#endif
 };  // class CuDNNActivationOp
 }  // namespace op
 }  // namespace mxnet

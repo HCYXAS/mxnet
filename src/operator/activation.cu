@@ -6,7 +6,7 @@
 */
 #include "./activation-inl.h"
 #include "./mshadow_op.h"
-#if MXNET_USE_CUDNN == 1
+#if MXNET_USE_MIOPEN == 1 || MXNET_USE_CUDNN == 1
 #include "./cudnn_activation-inl.h"
 #endif
 
@@ -23,7 +23,7 @@ Operator *CreateOp<gpu>(ActivationParam param, int dtype) {
     return op;
   }
 
-#if MXNET_USE_CUDNN == 1
+#if MXNET_USE_MIOPEN == 1 || MXNET_USE_CUDNN == 1
   MSHADOW_REAL_TYPE_SWITCH(dtype, DType, {
     op = new CuDNNActivationOp<DType>(param);
   })

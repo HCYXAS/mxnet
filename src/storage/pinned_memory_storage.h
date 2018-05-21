@@ -5,7 +5,7 @@
  */
 #ifndef MXNET_STORAGE_PINNED_MEMORY_STORAGE_H_
 #define MXNET_STORAGE_PINNED_MEMORY_STORAGE_H_
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
 
 #include <dmlc/logging.h>
 #include "mxnet/base.h"
@@ -48,5 +48,5 @@ inline void PinnedMemoryStorage::Free(void* ptr) {
 }  // namespace storage
 }  // namespace mxnet
 
-#endif  // MXNET_USE_CUDA
+#endif  // MXNET_USE_GPU
 #endif  // MXNET_STORAGE_PINNED_MEMORY_STORAGE_H_

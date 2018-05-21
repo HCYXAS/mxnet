@@ -44,7 +44,7 @@ ADD_CFLAGS =
 #---------------------------------------------
 
 # whether use CUDA during compile
-USE_CUDA = 1
+USE_GPU = 1
 
 # add the path to CUDA library to link and compile flag
 # if you have already add them to environment variable, leave it as NONE
@@ -54,8 +54,31 @@ else
 	USE_CUDA_PATH = NONE
 endif
 
-# whether use CuDNN R3 library
-USE_CUDNN = 0
+
+#ENABLE USE_ACCMI for Deep learning Acceleraion
+
+USE_ACCMI = 1
+
+ifeq ($(HIP_PLATFORM),hcc) 
+  ifeq ($(USE_ACCMI), 1)
+	USE_MIOPEN=1
+  else 
+        USE_MIOPEN=0
+  endif
+else 
+     USE_MIOPEN=0
+endif
+
+ifeq ($(HIP_PLATFORM),nvcc)
+  ifeq ($(USE_ACCMI), 1)
+	 USE_CUDNN=1
+   else 
+      USE_CUDNN=0
+  endif 
+else 
+      USE_CUDNN=0
+endif
+
 
 
 ifeq ($(HIP_PLATFORM),hcc)

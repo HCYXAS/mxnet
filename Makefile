@@ -52,8 +52,7 @@ else
 	CFLAGS += -O3
 endif
 
-HIPINCLUDE += -I. -I./Thrust -I/opt/rocm/hipblas/include -I/opt/rocm/hiprand/include -I/opt/rocm/hipfft/include
-
+HIPINCLUDE += -I. -I./Thrust -I/opt/rocm/hipblas/include -I/opt/rocm/hiprand/include -I/opt/rocm/hipfft/include -I/opt/rocm/miopen/include
 CFLAGS     += $(HIPINCLUDE) -I$(ROOTDIR)/mshadow/ -I$(ROOTDIR)/dmlc-core/include -fPIC -I$(NNVM_PATH)/include -Iinclude $(MSHADOW_CFLAGS)
 LDFLAGS    =  -pthread $(MSHADOW_LDFLAGS) $(DMLC_LDFLAGS)
 HIPFLAGS   = $(shell hipconfig -C)
@@ -120,10 +119,13 @@ endif
 
 ifeq ($(USE_CUDNN), 1)
 	CFLAGS += -DMSHADOW_USE_CUDNN=1
-	LDFLAGS += -L/opt/rocm/miopen/lib -lMIOpen
+	LDFLAGS += -lcudnn
 endif
 
-
+ifeq ($(USE_MIOPEN), 1)
+	CFLAGS += -DMSHADOW_USE_MIOPEN=1
+	LDFLAGS += -L/opt/rocm/miopen/lib -lMIOpen
+endif
 
 ifeq ($(USE_THREADED_ENGINE), 1)
 	CFLAGS += -DMXNET_USE_THREADED_ENGINE
@@ -200,7 +202,7 @@ endif
 LIB_DEP += $(DMLC_CORE)/libdmlc.a $(NNVM_PATH)/lib/libnnvm.a
 ALL_DEP = $(OBJ) $(EXTRA_OBJ) $(PLUGIN_OBJ) $(LIB_DEP)
 
-ifeq ($(USE_CUDA), 1)
+ifeq ($(USE_GPU), 1)
 	CFLAGS += -I$(ROOTDIR)/cub-hip
 	ALL_DEP += $(CUOBJ) $(EXTRA_CUOBJ) $(PLUGIN_CUOBJ)
 	LDFLAGS += -L/opt/rocm/hip/lib -lhip_hcc
@@ -213,6 +215,7 @@ ifeq ($(USE_CUDA), 1)
 		HIPINCLUDE += -I/opt/rocm/rocblas/include -I/opt/rocm/rocrand/include
 		LDFLAGS += -L/opt/rocm/rocblas/lib  -lrocblas
 		LDFLAGS += -L/opt/rocm/rocrand/lib  -lrocrand
+		
 	endif
 
 	SCALA_PKG_PROFILE := $(SCALA_PKG_PROFILE)-gpu

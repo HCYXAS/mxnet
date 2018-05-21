@@ -33,11 +33,11 @@ class StorageImpl : public Storage {
       case Context::kCPU: break;
       case Context::kGPU:
       case Context::kCPUPinned:
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
         CUDA_CALL(hipSetDevice(ctx.dev_id));
-#else  // MXNET_USE_CUDA
+#else  // MXNET_USE_GPU
         LOG(FATAL) << "Please compile with CUDA enabled";
-#endif  // MXNET_USE_CUDA
+#endif  // MXNET_USE_GPU
         break;
       default:
         LOG(FATAL) << "Unimplemented device";
@@ -63,19 +63,19 @@ Storage::Handle StorageImpl::Alloc(size_t size, Context ctx) {
             break;
           }
           case Context::kCPUPinned: {
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
             ptr = new storage::NaiveStorageManager<storage::PinnedMemoryStorage>();
 #else
-            LOG(FATAL) << "Compile with USE_CUDA=1 to enable GPU usage";
-#endif  // MXNET_USE_CUDA
+            LOG(FATAL) << "Compile with USE_GPU=1 to enable GPU usage";
+#endif  // MXNET_USE_GPU
             break;
           }
           case Context::kGPU: {
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
             ptr = new storage::GPUPooledStorageManager();
 #else
-            LOG(FATAL) << "Compile with USE_CUDA=1 to enable GPU usage";
-#endif  // MXNET_USE_CUDA
+            LOG(FATAL) << "Compile with USE_GPU=1 to enable GPU usage";
+#endif  // MXNET_USE_GPU
             break;
           }
           default: LOG(FATAL) <<  "Unimplemented device " << ctx.dev_type;

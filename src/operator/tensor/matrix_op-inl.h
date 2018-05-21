@@ -15,7 +15,7 @@
 #include "../mxnet_op.h"
 #include "broadcast_reduce_op.h"
 
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
 #include <thrust/device_vector.h>
 #endif
 

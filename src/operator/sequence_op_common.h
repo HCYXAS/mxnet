@@ -18,7 +18,7 @@ template <typename DType>
 void IndexTensorToVector(mshadow::Tensor<gpu, 1, DType> data,
                          std::vector<index_t> *index_vec) {
   int max_seq_len = data.shape_.Size();
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
   DType *temp_index =
       reinterpret_cast<DType *>(malloc(sizeof(DType) * max_seq_len));
   hipError_t cuda_status =

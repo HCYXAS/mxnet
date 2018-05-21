@@ -6,7 +6,7 @@
 */
 
 #include "./deconvolution-inl.h"
-#if MXNET_USE_CUDNN == 1
+#if MXNET_USE_CUDNN == 1 || MXNET_USE_MIOPEN == 1
 #include "./cudnn_deconvolution-inl.h"
 #endif  // MXNET_USE_CUDNN
 
@@ -26,7 +26,7 @@ Operator* CreateOp<gpu>(DeconvolutionParam param, int dtype,
     })
     return op;
   }
-#if MXNET_USE_CUDNN == 1
+#if MXNET_USE_CUDNN == 1 || MXNET_USE_MIOPEN == 1
   // The NVIDIA Pascal architecture was the first to include 16-bit ALUs.
   // Thus, when the framework is compiled with MSHADOW_USE_PASCAL == 1, we
   // perform the deconvolution calculation in 16-bit when the tensor type is

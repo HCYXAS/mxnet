@@ -10,7 +10,7 @@
 
 namespace mxnet {
 namespace op {
-#if CUDNN_MAJOR == 4
+#if MXNET_USE_MIOPEN == 1 || CUDNN_MAJOR == 4 
 template<>
 Operator *CreateOp_CuDNNv4<gpu>(BatchNormParam param) {
   return new CuDNNBatchNormOp<float>(param);

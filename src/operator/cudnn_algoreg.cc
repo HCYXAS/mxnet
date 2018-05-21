@@ -13,7 +13,7 @@
 
 namespace mxnet {
 namespace op {
-#if MXNET_USE_CUDNN == 1
+#if MXNET_USE_MIOPEN == 1 || MXNET_USE_CUDNN == 1
 CuDNNAlgoReg *CuDNNAlgoReg::Get() {
   static CuDNNAlgoReg *ptr = new CuDNNAlgoReg();
   return ptr;

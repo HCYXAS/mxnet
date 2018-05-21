@@ -3,9 +3,11 @@ LDFLAGS += -lprotobuf -lboost_system -lboost_thread -lboost_filesystem -lgflags 
 
 ifeq ($(USE_CUDNN), 1)
 	CFLAGS += -DUSE_CUDNN=1
+elif ($(USE_MIOPEN),1)
+       CFLAGS += -DUSE_MIOPEN=1
 endif
 
-ifeq ($(USE_CUDA), 0)
+ifeq ($(USE_GPU), 0)
 	CFLAGS += -DCPU_ONLY=1
 endif
 

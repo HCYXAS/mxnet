@@ -33,12 +33,12 @@ class StreamManager {
   void Finalize();
  private:
   std::mutex m_;
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
   std::array<std::array<mshadow::Stream<gpu>*, kStreams>, kNumGpus>
       gpu_streams_;
   std::array<mshadow::Stream<gpu>*, kNumGpus> gpu_io_streams_;
   std::array<int, kNumGpus> gpu_cnt_;
-#endif  // MXNET_USE_CUDA
+#endif  // MXNET_USE_GPU
   DISALLOW_COPY_AND_ASSIGN(StreamManager);
 };  // class StreamManager
 
@@ -50,16 +50,23 @@ RunContext StreamManager<kNumGpus, kStreams>::GetRunContext(
   switch (ctx.dev_mask()) {
     case cpu::kDevMask: break;
     case gpu::kDevMask: {
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
       std::size_t use_counter;
       CUDA_CALL(hipSetDevice(ctx.dev_id));
       {
         std::lock_guard<std::mutex> lock{m_};
         auto&& counter = gpu_cnt_.at(ctx.dev_id);
         if (counter == -1) {
+#if defined (__HIP_PLATFORM_HCC__)
           for (auto&& i : gpu_streams_.at(ctx.dev_id)) {
-            i = mshadow::NewStream<gpu>(true, MXNET_USE_CUDNN != 0);
+            i = mshadow::NewStream<gpu>(true, MXNET_USE_MIOPEN != 0);
           }
+#endif
+#if defined (__HIP_PLATFORM_NVCC__)
+	  for (auto&& i : gpu_streams_.at(ctx.dev_id)) {
+            i = mshadow::NewStream<gpu>(true, MXNET_USE_MIOPEN != 0);
+          }
+#endif
           counter = 0;
         }
         use_counter = counter;
@@ -69,7 +76,7 @@ RunContext StreamManager<kNumGpus, kStreams>::GetRunContext(
       break;
 #else
       LOG(FATAL) << MXNET_GPU_NOT_ENABLED_ERROR;
-#endif  // MXNET_USE_CUDA
+#endif  // MXNET_USE_GPU
     }
   }
   return ret;
@@ -83,7 +90,7 @@ RunContext StreamManager<kNumGpus, kStreams>::GetIORunContext(
   switch (ctx.dev_mask()) {
     case cpu::kDevMask: break;
     case gpu::kDevMask: {
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
       CUDA_CALL(hipSetDevice(ctx.dev_id));
       {
         std::lock_guard<std::mutex> lock{m_};
@@ -95,7 +102,7 @@ RunContext StreamManager<kNumGpus, kStreams>::GetIORunContext(
       break;
 #else
       LOG(FATAL) << MXNET_GPU_NOT_ENABLED_ERROR;
-#endif  // MXNET_USE_CUDA
+#endif  // MXNET_USE_GPU
     }
   }
   return ret;
@@ -103,19 +110,19 @@ RunContext StreamManager<kNumGpus, kStreams>::GetIORunContext(
 
 template <std::size_t kNumGpus, std::size_t kStreams>
 StreamManager<kNumGpus, kStreams>::StreamManager() {
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
   for (std::size_t i = 0; i < kNumGpus; ++i) {
     gpu_cnt_.at(i) = -1;
   }
   for (auto&& i : gpu_io_streams_) {
     i = nullptr;
   }
-#endif  // MXNET_USE_CUDA
+#endif  // MXNET_USE_GPU
 }
 
 template <std::size_t kNumGpus, std::size_t kStreams>
 void StreamManager<kNumGpus, kStreams>::Finalize() {
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
   for (std::size_t i = 0; i < kNumGpus; ++i) {
     if (gpu_cnt_.at(i) != -1) {
       for (auto&& j : gpu_streams_.at(i)) {
@@ -125,7 +132,7 @@ void StreamManager<kNumGpus, kStreams>::Finalize() {
       gpu_cnt_.at(i) = -1;
     }
   }
-#endif  // MXNET_USE_CUDA
+#endif  // MXNET_USE_GPU
 }
 
 }  // namespace engine

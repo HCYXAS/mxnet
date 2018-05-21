@@ -18,7 +18,7 @@ namespace kvstore {
 class Comm {
  public:
   Comm() {
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
     int gpu_num;
     int ret = hipGetDeviceCount(&gpu_num);
     pinned_ctx_ = (ret == 0 && gpu_num > 0) ?
@@ -287,7 +287,7 @@ class CommDevice : public Comm {
 
  private:
   void EnableP2P(const std::vector<Context>& devs) {
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
     std::vector<int> gpus;
     for (const auto& d : devs) {
       if (d.dev_mask() == gpu::kDevMask) {

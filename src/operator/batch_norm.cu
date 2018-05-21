@@ -13,7 +13,7 @@ namespace op {
 template<>
 Operator *CreateOp<gpu>(BatchNormParam param, int dtype) {
   Operator *op = NULL;
-#if MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 5
+#if MXNET_USE_MIOPEN == 1  || (MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 5) 
   if (!param.use_global_stats) {
     MSHADOW_REAL_TYPE_SWITCH(dtype, DType, {
       op = new CuDNNBatchNormOp<DType>(param);

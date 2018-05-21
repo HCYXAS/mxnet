@@ -6,7 +6,7 @@
 */
 
 #include "./lrn-inl.h"
-#if MXNET_USE_CUDNN == 1
+#if MXNET_USE_CUDNN == 1 || MXNET_USE_MIOPEN == 1
 #include "./cudnn_lrn-inl.h"
 #endif
 
@@ -15,14 +15,16 @@ namespace op {
 template<>
 Operator* CreateOp<gpu>(LRNParam param, int dtype) {
   Operator *op = NULL;
-#if MXNET_USE_CUDNN == 1
+#if MXNET_USE_CUDNN == 1 || MXNET_USE_MIOPEN == 1
   MSHADOW_REAL_TYPE_SWITCH(dtype, DType, {
     op = new CuDNNLocalResponseNormOp<DType>(param);
   })
 #else
-#if CUDA_VERSION == 7000
+#ifdef __HIP_PLATFORM_NVCC__ 
+#if CUDA_VERSION == 7000 && MXNET_USE_CUDNN == 1
   LOG(FATAL) << "Due to old CUDA compiler bug, LRN is disabled."
              << "Please upgrade CUDA to 7.5+ or use CUDNN";
+#endif
 #else
   op = new LocalResponseNormOp<gpu>(param);
 #endif  // CUDA_VERSION

@@ -312,7 +312,7 @@ class PoolingV1Prop : public OperatorProperty {
     const std::vector<int> &in_data,
     const std::vector<int> &out_data,
     const std::vector<void*> &in_grad) const override {
-#if MXNET_USE_CUDNN == 1
+#if MXNET_USE_CUDNN == 1 || MXNET_USE_MIOPEN == 1
     return {};
 #else
     return {{in_data[pool_v1_enum::kData], in_grad[pool_v1_enum::kData]}};

@@ -69,7 +69,7 @@ void TernaryOp(const NDArray &lhs,
     FnProperty::kNormal, 0, PROFILER_MESSAGE_FUNCNAME);
     break;
   }
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
   case gpu::kDevMask: {
     Engine::Get()->PushSync([lhs, mhs, rhs, ret](RunContext ctx) {
       TBlob tmp = ret.data();
@@ -129,7 +129,7 @@ void BinaryOp(const NDArray &lhs,
         FnProperty::kNormal, 0, PROFILER_MESSAGE_FUNCNAME);
       break;
     }
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
     case gpu::kDevMask: {
       Engine::Get()->PushSync([lhs, rhs, ret](RunContext ctx) {
           TBlob tmp = ret.data();
@@ -158,7 +158,7 @@ void SetValueOp(const real_t &rhs, NDArray *out) {
         FnProperty::kNormal, 0, PROFILER_MESSAGE_FUNCNAME);
       break;
     }
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
     case gpu::kDevMask: {
       Engine::Get()->PushSync([rhs, ret](RunContext ctx) {
           TBlob tmp = ret.data();
@@ -207,7 +207,7 @@ void ScalarOp(const NDArray &lhs,
         FnProperty::kNormal, 0, PROFILER_MESSAGE_FUNCNAME);
       break;
     }
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
     case gpu::kDevMask: {
       Engine::Get()->PushSync([lhs, rhs, ret](RunContext ctx) {
           TBlob tmp = ret.data();
@@ -249,7 +249,7 @@ void CopyFromTo(const NDArray &from, NDArray *to, int priority) {
       }, from.ctx(), const_vars, {ret.var()},
       FnProperty::kNormal, priority, PROFILER_MESSAGE("CopyCPU2CPU"));
   } else {
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
     if (a == cpu::kDevMask && b == gpu::kDevMask) {
       Engine::Get()->PushSync([from, ret](RunContext ctx) {
           TBlob tmp = ret.data();
@@ -320,7 +320,7 @@ void ElementwiseSum(const std::vector<NDArray> &source, NDArray *out, int priori
         FnProperty::kNormal, priority, PROFILER_MESSAGE_FUNCNAME);
       break;
     }
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
     case gpu::kDevMask: {
       Engine::Get()->PushSync([source, ret](RunContext ctx) {
           std::vector<TBlob> source_tblob(source.size());
@@ -361,7 +361,7 @@ void ClipOp(const NDArray &src,
         FnProperty::kNormal, 0, PROFILER_MESSAGE_FUNCNAME);
       break;
     }
-    #if MXNET_USE_CUDA
+    #if MXNET_USE_GPU
     case gpu::kDevMask: {
       Engine::Get()->PushSync([src, a_min, a_max, ret](RunContext ctx) {
           TBlob tmp = ret.data();
@@ -398,7 +398,7 @@ void SampleOP(const real_t &a,
         FnProperty::kNormal, 0, PROFILER_MESSAGE_FUNCNAME);
       break;
     }
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
     case gpu::kDevMask: {
       Engine::Get()->PushSync([a, b, resource, ret](RunContext ctx) {
           TBlob tmp = ret.data();
@@ -583,7 +583,7 @@ void Broadcast(const NDArray& src, int dim, int size, NDArray *out) {
       FnProperty::kNormal, 0, PROFILER_MESSAGE_FUNCNAME);
       break;
     }
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
     case gpu::kDevMask: {
       Engine::Get()->PushSync([src, ret, before, size, after](RunContext ctx) {
           ret.CheckAndAlloc();
@@ -650,7 +650,7 @@ bool NDArray::Load(dmlc::Stream *strm) {
   if (ctx.dev_mask() == cpu::kDevMask) {
     *this = std::move(temp); return true;
   } else {
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
     *this = temp.Copy(ctx); return true;
 #else
     *this = std::move(temp); return true;
@@ -708,7 +708,7 @@ void NDArray::SyncCopyFromCPU(const void *data, size_t size) const {
     TBlob dst = this->data();
     ndarray::Copy<cpu, cpu>(src, &dst, Context::CPU(), Context::CPU(), rctx);
   } else {
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
     Engine::Get()->PushSync([&](RunContext rctx) {
         TBlob dst = this->data();
         ndarray::Copy<cpu, gpu>(src, &dst,
@@ -737,7 +737,7 @@ void NDArray::SyncCopyToCPU(void *data, size_t size) const {
     ndarray::Copy<cpu, cpu>(this->data(), &dst,
                             Context::CPU(), Context::CPU(), rctx);
   } else {
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
     Engine::Get()->PushSync([&](RunContext rctx) {
         ndarray::Copy<gpu, cpu>(this->data(), &dst,
                                 this->ctx(), Context::CPU(), rctx);

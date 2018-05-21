@@ -6,7 +6,7 @@
 */
 
 #include "./lrn-inl.h"
-#if MXNET_USE_CUDNN == 1
+#if MXNET_USE_CUDNN == 1 || MXNET_USE_MIOPEN == 1
 #include "./cudnn_lrn-inl.h"
 #endif
 #if MXNET_USE_MKL2017 == 1

@@ -56,7 +56,7 @@ class ThreadedEnginePerDevice : public ThreadedEngine {
     const Context& ctx = opr_block->ctx;
     if (opr_block->opr->prop == FnProperty::kAsync && pusher_thread) {
       if (ctx.dev_mask() == gpu::kDevMask) {
-        #if MXNET_USE_CUDA
+        #if MXNET_USE_GPU
         MSHADOW_CATCH_ERROR(mshadow::SetDevice<gpu>(ctx.dev_id));
         #endif
       }
@@ -144,7 +144,7 @@ class ThreadedEnginePerDevice : public ThreadedEngine {
   inline void GPUWorker(int dev_id,
                         bool is_copy_worker,
                         ThreadWorkerBlock<type> *block) {
-    #if MXNET_USE_CUDA
+    #if MXNET_USE_GPU
     // allocate stream
     mshadow::SetDevice<gpu>(dev_id);
     RunContext run_ctx;
@@ -152,7 +152,12 @@ class ThreadedEnginePerDevice : public ThreadedEngine {
     if (is_copy_worker) {
       stream = mshadow::NewStream<gpu>(false, false);
     } else {
+#if defined (__HIP_PLATFORM_HCC__)
+      stream = mshadow::NewStream<gpu>(true, MXNET_USE_MIOPEN != 0);
+#endif
+#if defined (__HIP_PLATFORM_NVCC__)
       stream = mshadow::NewStream<gpu>(true, MXNET_USE_CUDNN != 0);
+#endif
     }
     run_ctx.stream = stream;
     // execute task

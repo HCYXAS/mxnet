@@ -181,7 +181,7 @@ template<typename OP>
 struct Kernel<OP, cpu> {
   template<typename ...Args>
   inline static void Launch(mshadow::Stream<cpu> *s, int N, Args... args) {
-#if (MXNET_USE_CUDA == 0)
+#if (MXNET_USE_GPU == 0)
     #pragma omp parallel for
 #endif
     for (int i = 0; i < N; ++i) {

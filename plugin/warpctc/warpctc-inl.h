@@ -125,7 +125,7 @@ class WarpCTCOp : public Operator {
       info.loc = CTC_CPU;
       info.num_threads = 1;
     } else if (data.dev_mask_ == gpu::kDevMask) {
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
       info.loc = CTC_GPU;
       info.stream = ctx.get_stream<gpu>()->stream_;
     } else {
@@ -142,7 +142,7 @@ class WarpCTCOp : public Operator {
       input_lengths.push_back(T);
     }
 
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
     hipError_t cuda_status;
 #endif
     float* activations = static_cast<float*>(data.dptr_);
@@ -150,7 +150,7 @@ class WarpCTCOp : public Operator {
     int* cpu_raw_labels = flat_labels;
     float* grads = static_cast<float*>(in_grad[warpctc_enum::kData].dptr_);
     if (data.dev_mask_ == gpu::kDevMask) {
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
       cpu_raw_labels = reinterpret_cast<int*>(malloc(sizeof(int) * label.Size()));
       cuda_status = hipMemcpyAsync(cpu_raw_labels, flat_labels,
                                     label.Size()*sizeof(int),
@@ -196,7 +196,7 @@ class WarpCTCOp : public Operator {
     if (data.dev_mask_ == cpu::kDevMask) {
       free(cpu_labels);
     } else if (data.dev_mask_ == gpu::kDevMask) {
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
       free(cpu_raw_labels);
       free(cpu_labels);
 #endif

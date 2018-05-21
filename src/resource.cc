@@ -80,7 +80,7 @@ class ResourceManagerImpl : public ResourceManager {
     // need explicit delete, before engine get killed
     cpu_rand_.reset(nullptr);
     cpu_space_.reset(nullptr);
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
     gpu_rand_.Clear();
     gpu_space_.Clear();
 #endif
@@ -102,7 +102,7 @@ class ResourceManagerImpl : public ResourceManager {
       }
     } else {
       CHECK_EQ(ctx.dev_mask(), gpu::kDevMask);
-#if MSHADOW_USE_CUDA
+#if MSHADOW_USE_GPU
       switch (req.type) {
         case ResourceRequest::kRandom: {
           return gpu_rand_.Get(ctx.dev_id, [ctx, this]() {
@@ -127,7 +127,7 @@ class ResourceManagerImpl : public ResourceManager {
   void SeedRandom(uint32_t seed) override {
     global_seed_ = seed;
     cpu_rand_->Seed(global_seed_);
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
     gpu_rand_.ForEach([seed](size_t i, ResourceRandom<gpu> *p) {
         p->Seed(seed);
       });
@@ -234,7 +234,7 @@ class ResourceManagerImpl : public ResourceManager {
   std::unique_ptr<ResourceRandom<cpu> > cpu_rand_;
   /*! \brief CPU temp space resources */
   std::unique_ptr<ResourceTempSpace> cpu_space_;
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
   /*! \brief random number generator for GPU */
   common::LazyAllocArray<ResourceRandom<gpu> > gpu_rand_;
   /*! \brief temp space for GPU */

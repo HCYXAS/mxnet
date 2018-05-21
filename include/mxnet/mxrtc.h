@@ -7,7 +7,7 @@
 #ifndef MXNET_MXRTC_H_
 #define MXNET_MXRTC_H_
 #include "./base.h"
-#if ((MXNET_USE_CUDA) && (MXNET_USE_NVRTC))
+#if ((MXNET_USE_GPU) && (MXNET_USE_NVRTC))
 #include <nvrtc.h>
 #include <hip/hip_runtime.h>
 
@@ -85,5 +85,5 @@ class MXRtc {
 
 }  // namespace mxnet
 
-#endif  // MXNET_USE_CUDA && MXNET_USE_NVRTC
+#endif  // MXNET_USE_GPU && MXNET_USE_NVRTC
 #endif  // MXNET_MXRTC_H_

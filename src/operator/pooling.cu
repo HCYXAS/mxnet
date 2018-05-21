@@ -6,7 +6,7 @@
 */
 #include <vector>
 #include "./pooling-inl.h"
-#if MXNET_USE_CUDNN == 1
+#if MXNET_USE_CUDNN == 1 || MXNET_USE_MIOPEN == 1
 #include "./cudnn_pooling-inl.h"
 #endif  // MXNET_USE_CUDNN
 
@@ -15,7 +15,7 @@ namespace op {
 
 template<>
 Operator *CreateOp<gpu>(PoolingParam param, int dtype) {
-#if MXNET_USE_CUDNN == 1
+#if MXNET_USE_CUDNN == 1 || MXNET_USE_CUDNN == 1
   MSHADOW_REAL_TYPE_SWITCH(dtype, DType, {
     if (!param.cudnn_off) {
       switch (param.pool_type) {

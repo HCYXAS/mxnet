@@ -90,12 +90,12 @@ void call_sgd_mom_update_cpu(RunContext ctx, TBlob weight, const TBlob grad, TBl
                 float lr, float wd, const SGDParam& param);
 void call_sgd_update_cpu(RunContext ctx, TBlob weight, const TBlob grad,
                 float lr, float wd, const SGDParam& param);
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
 void call_sgd_mom_update_gpu(RunContext ctx, TBlob weight, const TBlob grad, TBlob mom,
                 float lr, float wd, const SGDParam& param);
 void call_sgd_update_gpu(RunContext ctx, TBlob weight, const TBlob grad,
                 float lr, float wd, const SGDParam& param);
-#endif  // MXNET_USE_CUDA
+#endif  // MXNET_USE_GPU
 
 #if DMLC_USE_CXX11
 
@@ -132,7 +132,7 @@ class SGDOpt : public Optimizer {
       }
       break;
      case Context::kGPU:
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
       if (param_.momentum > 0.0f) {
         Engine::Get()->PushSync([this, index, w, g, lr, wd](RunContext ctx) {
           call_sgd_mom_update_gpu(ctx, w.data(), g.data(), mom[index].data(), lr, wd, param_);
@@ -147,7 +147,7 @@ class SGDOpt : public Optimizer {
       break;
 #else
         LOG(FATAL) << "Please compile with CUDA enabled for cuda features";
-#endif  // MXNET_USE_CUDA
+#endif  // MXNET_USE_GPU
      default:
       LOG(FATAL) << "Unsupported device type for sgd optimizer: " << w.ctx().dev_type;
     }

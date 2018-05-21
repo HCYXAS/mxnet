@@ -10,7 +10,7 @@
 #include <dmlc/logging.h>
 #include <mshadow/base.h>
 
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
 #include <hip-wrappers.h> // dummy include file placed in /opt/rocm/include
 #include <hip/hip_runtime.h>
 #include <hipblas.h>
@@ -141,9 +141,9 @@ inline const char* HiprandGetErrorString(hiprandStatus_t status) {
         << "hipRNG: " << common::cuda::HiprandGetErrorString(e); \
   }
 
-#endif  // MXNET_USE_CUDA
+#endif  // MXNET_USE_GPU
 
-#if MXNET_USE_CUDNN
+#if MXNET_USE_MIOPEN 
 
 #include <miopen/miopen.h>
 
@@ -151,6 +151,17 @@ inline const char* HiprandGetErrorString(hiprandStatus_t status) {
   {                                                                           \
     miopenStatus_t  e = (func);                                                 \
     CHECK_EQ(e, miopenStatusSuccess) << "miopen error code: " << e; \
+  }
+
+#endif
+
+#if MXNET_USE_CUDNN 
+#include <cudnn.h>
+
+#define CUDNN_CALL(func)                                                      \
+  {                                                                           \
+    cudnnStatus_t  e = (func);                                                 \
+    CHECK_EQ(e, CUDNN_STATUS_SUCCESS) << "cuDNN:" << cudnnGetErrorString(e); \
   }
 
 #endif  // MXNET_USE_CUDNN
