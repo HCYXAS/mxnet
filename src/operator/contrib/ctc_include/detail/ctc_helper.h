@@ -55,7 +55,7 @@ template <typename Arg, typename Res = Arg> struct negate {
 };
 
 template <typename Arg, typename Res = Arg> struct exponential {
-    HOSTDEVICE Res operator()(const Arg& x) const {return std::exp(x);}
+    HOSTDEVICE Res operator()(const Arg& x) const {return exp(x);}
 };
 
 template<typename Arg1, typename Arg2 = Arg1, typename Res=Arg1>

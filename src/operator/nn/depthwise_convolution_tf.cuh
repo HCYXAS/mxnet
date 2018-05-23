@@ -628,7 +628,9 @@ __launch_bounds__(1024, 2) void DepthwiseConv2dBackwardFilterKernelSmall(
         DType val = accum_data[i];
         // Warp-accumulate pixels of the same depth from the accumulator.
         int lane_id;
+	#ifdef __HIP_PLATFORM_NVCC__
         asm volatile ("mov.u32 %0, %%laneid;" : "=r"(lane_id));
+	#endif
         int sub_warp = lane_id / kAccumPixels;
         int zeros = sub_warp * kAccumPixels;
         unsigned mask = (kAccumPixels == 32) ? FULL_WARP_MASK : (((1U << kAccumPixels) - 1) << zeros);
