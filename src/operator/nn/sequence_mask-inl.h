@@ -45,7 +45,7 @@ __global__ void SequenceMaskKernel(mshadow::Tensor<gpu, 3, DType> dst,
   const index_t smax = dst.size(0);
   const index_t bmax = lengths.size(1);
   const index_t nmax = dst.size(2);
-  unsigned int batch = hipThreadIdx_x + hipBlockIdx_x * hipBlockDim_x;
+  unsigned int batch = threadIdx.x + blockIdx.x * blockDim.x;
 
   // early return if out of bounds
   if (batch >= bmax)

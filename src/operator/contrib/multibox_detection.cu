@@ -62,8 +62,8 @@ void DetectionForwardKernel(DType *out, const DType *cls_prob,
                                        const float vy, const float vw,
                                        const float vh, const float nms_threshold,
                                        const bool force_suppress, const int nms_topk) {
-  const int nbatch = hipBlockIdx_x;  // each block for each batch
-  int index = hipThreadIdx_x;
+  const int nbatch = blockIdx.x;  // each block for each batch
+  int index = threadIdx.x;
   __shared__ int valid_count;
   out += nbatch * num_anchors * 6;
   cls_prob += nbatch * num_anchors * num_classes;
@@ -75,7 +75,7 @@ void DetectionForwardKernel(DType *out, const DType *cls_prob,
   __syncthreads();
 
   // apply prediction to anchors
-  for (int i = index; i < num_anchors; i += hipBlockDim_x) {
+  for (int i = index; i < num_anchors; i += blockDim.x) {
     DType score = -1;
     int id = 0;
     for (int j = 1; j < num_classes; ++j) {
@@ -134,7 +134,7 @@ void DetectionForwardKernel(DType *out, const DType *cls_prob,
   DType *src = out;
   DType *dst = temp_space;
   for (int width = 2; width < (size << 1); width <<= 1) {
-    int slices = (size - 1) / (hipBlockDim_x * width) + 1;
+    int slices = (size - 1) / (blockDim.x * width) + 1;
     int start = width * index * slices;
     for (int slice = 0; slice < slices; ++slice) {
       if (start >= size) break;
@@ -169,7 +169,7 @@ void DetectionForwardKernel(DType *out, const DType *cls_prob,
 
   if (src == temp_space) {
     // copy from temp to out
-    for (int i = index; i < size * 6; i += hipBlockDim_x) {
+    for (int i = index; i < size * 6; i += blockDim.x) {
       out[i] = temp_space[i];
     }
     __syncthreads();
@@ -179,7 +179,7 @@ void DetectionForwardKernel(DType *out, const DType *cls_prob,
   int ntop = size;
   if (nms_topk > 0 && nms_topk < ntop) {
     ntop = nms_topk;
-    for (int i = ntop + index; i < size; i += hipBlockDim_x) {
+    for (int i = ntop + index; i < size; i += blockDim.x) {
       out[i * 6] = -1;
     }
     __syncthreads();
@@ -190,7 +190,7 @@ void DetectionForwardKernel(DType *out, const DType *cls_prob,
     DType compare_id = out[compare_pos * 6];
     if (compare_id < 0) continue;  // not a valid positive detection, skip
     DType *compare_loc_ptr = out + compare_pos * 6 + 2;
-    for (int i = compare_pos + index + 1; i < ntop; i += hipBlockDim_x) {
+    for (int i = compare_pos + index + 1; i < ntop; i += blockDim.x) {
       DType class_id = out[i * 6];
       if (class_id < 0) continue;
       if (force_suppress || (class_id == compare_id)) {

@@ -40,9 +40,9 @@ __global__ void ROIPoolForwardKernel(const int count, const Dtype* bottom_data,
                                      const int pooled_height, const int pooled_width,
                                      const Dtype* bottom_rois, Dtype* top_data,
                                      Dtype* argmax_data) {
-  for (int index = (hipBlockIdx_x + hipBlockIdx_y * hipGridDim_x) * hipBlockDim_x + hipThreadIdx_x;
+  for (int index = (blockIdx.x + blockIdx.y * gridDim.x) * blockDim.x + threadIdx.x;
        index < count;
-       index += hipBlockDim_x * hipGridDim_x * hipGridDim_y) {
+       index += blockDim.x * gridDim.x * gridDim.y) {
     // (n, c, ph, pw) is an element in the pooled output
     int pw = index % pooled_width;
     int ph = (index / pooled_width) % pooled_height;
@@ -140,9 +140,9 @@ __global__ void ROIPoolBackwardAccKernel(const int count, const Dtype* top_diff,
                                          const int height, const int width,
                                          const int pooled_height, const int pooled_width,
                                          Dtype* bottom_diff, const Dtype* bottom_rois) {
-  for (int index = (hipBlockIdx_x + hipBlockIdx_y * hipGridDim_x) * hipBlockDim_x + hipThreadIdx_x;
+  for (int index = (blockIdx.x + blockIdx.y * gridDim.x) * blockDim.x + threadIdx.x;
        index < count;
-       index += hipBlockDim_x * hipGridDim_x * hipGridDim_y) {
+       index += blockDim.x * gridDim.x * gridDim.y) {
     // (n, c, h, w) coords in bottom data
     int w = index % width;
     int h = (index / width) % height;

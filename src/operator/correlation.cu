@@ -57,10 +57,10 @@ __global__ void CorrelateData(const int nthreads, int num, int topwidth,
   Dtype *patch_data = reinterpret_cast<Dtype *>(patch_data_char);
   //  First (upper left) position of kernel upper-left corner
   //  in current center position of neighborhood in image 1
-  int x1 = hipBlockIdx_x * stride1 + max_displacement;
-  int y1 = hipBlockIdx_y * stride1 + max_displacement;
-  int item = hipBlockIdx_z;
-  int ch_off = hipThreadIdx_x;
+  int x1 = blockIdx.x * stride1 + max_displacement;
+  int y1 = blockIdx.y * stride1 + max_displacement;
+  int item = blockIdx.z;
+  int ch_off = threadIdx.x;
   //  Load 3D patch into shared shared memory
   for (int j = 0; j < kernel_size; j++) {  //  HEIGHT
     for (int i = 0; i < kernel_size; i++) {  //  WIDTH
@@ -100,7 +100,7 @@ __global__ void CorrelateData(const int nthreads, int num, int topwidth,
             total_sum += sum[idx];
         }
         const int sumelems = kernel_size * kernel_size * bottomchannels;
-        const int index = ((top_channel * topheight + hipBlockIdx_y) * topwidth) + hipBlockIdx_x;
+        const int index = ((top_channel * topheight + blockIdx.y) * topwidth) + blockIdx.x;
         top[index + item*topcount] = total_sum / static_cast<float>(sumelems);
     }  //  Aggregate result of  different threads
   }
@@ -418,11 +418,11 @@ template <typename Dtype>
 __global__ void blob_rearrange_kernel2(const Dtype* in, Dtype* out, int num,
 int channels, int width, int height, int widthheight, int padding, int pwidthheight) {
     //  change shape from [batchsize,channel,y,x] to [batchsize,y,x,channel]
-    int xy = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
+    int xy = blockIdx.x * blockDim.x + threadIdx.x;
     if (xy >= widthheight )
         return;
-    int ch = hipBlockIdx_y;
-    int n  = hipBlockIdx_z;
+    int ch = blockIdx.y;
+    int n  = blockIdx.z;
     Dtype value = in[(n * channels + ch) * widthheight + xy];
     __syncthreads();
     int xpad  = (xy % width + padding);

@@ -44,7 +44,7 @@ __global__ void AssignPriors(DType *out, const float size,
                              const float step_y, const float center_offy,
                              const float center_offx, const int stride,
                              const int offset) {
-  int index = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
+  int index = blockIdx.x * blockDim.x + threadIdx.x;
   if (index >= in_width * in_height) return;
   int r = index / in_width;
   int c = index % in_width;

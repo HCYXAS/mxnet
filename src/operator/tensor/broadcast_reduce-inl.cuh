@@ -36,20 +36,20 @@ __global__ void binary_broadcast_kernel(const int N, const bool addto,
                                         const DType* __restrict rhs, DType *out,
                                         const Shape<ndim> lstride, const Shape<ndim> rstride,
                                         const Shape<ndim> oshape) {
-  for (int idx = hipBlockIdx_x * hipBlockDim_x * unroll + hipThreadIdx_x; idx < N;
-    idx += hipBlockDim_x * hipGridDim_x * unroll)
+  for (int idx = blockIdx.x * blockDim.x * unroll + threadIdx.x; idx < N;
+    idx += blockDim.x * gridDim.x * unroll)
   {
     int j[unroll];
     int k[unroll];
     DType val[unroll];
     #pragma unroll
     for (int i=0;i < unroll;i++) {
-      unravel_dot(idx + i*hipBlockDim_x, oshape, lstride, rstride, &j[i], &k[i]);
+      unravel_dot(idx + i*blockDim.x, oshape, lstride, rstride, &j[i], &k[i]);
       val[i] = OP::Map(lhs[j[i]], rhs[k[i]]);
     }
     #pragma unroll
     for (int i=0;i < unroll;i++) {
-      if (idx + i*hipBlockDim_x < N) assign(&out[idx + i*hipBlockDim_x], addto, val[i]);
+      if (idx + i*blockDim.x < N) assign(&out[idx + i*blockDim.x], addto, val[i]);
     }
 
   }
@@ -82,16 +82,16 @@ __global__ void reduce_kernel(const int N, const int M, const bool addto,
                               const int Mnext, const bool do_transpose) {
   HIP_DYNAMIC_SHARED( char, shTileChar)
   DType* shTile = (DType*)(shTileChar);
-  const int tid = hipThreadIdx_x + hipThreadIdx_y*hipBlockDim_x;
-  const int bx = (do_transpose) ? hipBlockDim_y : hipBlockDim_x;
-  const int by = (do_transpose) ? hipBlockDim_x : hipBlockDim_y;
-  const int tidx = (do_transpose) ? tid / by : hipThreadIdx_x;
-  const int tidy = (do_transpose) ? tid % by : hipThreadIdx_y;
-  for (int m0 = hipBlockIdx_y; m0 < Mnext; m0 += hipGridDim_y) {
+  const int tid = threadIdx.x + threadIdx.y*blockDim.x;
+  const int bx = (do_transpose) ? blockDim.y : blockDim.x;
+  const int by = (do_transpose) ? blockDim.x : blockDim.y;
+  const int tidx = (do_transpose) ? tid / by : threadIdx.x;
+  const int tidy = (do_transpose) ? tid % by : threadIdx.y;
+  for (int m0 = blockIdx.y; m0 < Mnext; m0 += gridDim.y) {
     // This TB handles M range [Mstart, ...., Mend - 1]
     const int Mstart = (int)((uint64_t)M*(uint64_t)m0/(uint64_t)Mnext);
     const int Mend   = (int)((uint64_t)M*(uint64_t)(m0 + 1)/(uint64_t)Mnext);
-    for (int idx0 = hipBlockIdx_x*bx; idx0 < N; idx0 += bx*hipGridDim_x) {
+    for (int idx0 = blockIdx.x*bx; idx0 < N; idx0 += bx*gridDim.x) {
       int idx = idx0 + tidx;
       Shape<ndim> coord = unravel(idx, small_shape);
       int idx_big0 = ravel(coord, big_shape0);
@@ -160,16 +160,16 @@ __global__ void reduce_kernel(const int N, const int M, const bool addto,
                               const int Mnext, const bool do_transpose) {
   HIP_DYNAMIC_SHARED( char, shTileChar)
   DType* shTile = (DType*)(shTileChar);
-  const int tid = hipThreadIdx_x + hipThreadIdx_y*hipBlockDim_x;
-  const int bx = (do_transpose) ? hipBlockDim_y : hipBlockDim_x;
-  const int by = (do_transpose) ? hipBlockDim_x : hipBlockDim_y;
-  const int tidx = (do_transpose) ? tid / by : hipThreadIdx_x;
-  const int tidy = (do_transpose) ? tid % by : hipThreadIdx_y;
-  for (int m0 = hipBlockIdx_y; m0 < Mnext; m0 += hipGridDim_y) {
+  const int tid = threadIdx.x + threadIdx.y*blockDim.x;
+  const int bx = (do_transpose) ? blockDim.y : blockDim.x;
+  const int by = (do_transpose) ? blockDim.x : blockDim.y;
+  const int tidx = (do_transpose) ? tid / by : threadIdx.x;
+  const int tidy = (do_transpose) ? tid % by : threadIdx.y;
+  for (int m0 = blockIdx.y; m0 < Mnext; m0 += gridDim.y) {
     // This TB handles M range [Mstart, ...., Mend - 1]
     const int Mstart = (int)((uint64_t)M*(uint64_t)m0/(uint64_t)Mnext);
     const int Mend   = (int)((uint64_t)M*(uint64_t)(m0 + 1)/(uint64_t)Mnext);
-    for (int idx0 = hipBlockIdx_x*bx; idx0 < N; idx0 += bx*hipGridDim_x) {
+    for (int idx0 = blockIdx.x*bx; idx0 < N; idx0 += bx*gridDim.x) {
       int idx = idx0 + tidx;
       Shape<ndim> coord = unravel(idx, small_shape);
       int idx_big0 = ravel(coord, big_shape0);
@@ -236,7 +236,7 @@ template<typename Reducer, typename DType>
 __launch_bounds__(kMaxThreadsPerBlock)
 __global__ void reduce_lines_kernel(const int N, const int M, const bool addto,
   const int small_in_stride, const DType* __restrict small_in, DType *small_out) {
-  for (int idx = hipThreadIdx_x + hipBlockIdx_x*hipBlockDim_x; idx < N; idx += hipBlockDim_x*hipGridDim_x) {
+  for (int idx = threadIdx.x + blockIdx.x*blockDim.x; idx < N; idx += blockDim.x*gridDim.x) {
 
     DType val, residual;
     Reducer::SetInitValue(val, residual);
@@ -255,7 +255,7 @@ template<typename Reducer, int ndim, typename DType, typename OP>
 __global__ void reduce_kernel_M1(const int N, const bool addto,
                                 const DType* __restrict big, DType *small, const Shape<ndim> bshape,
                                 const Shape<ndim> sshape) {
-  for (int idx = hipThreadIdx_x + hipBlockIdx_x*hipBlockDim_x; idx < N; idx += hipBlockDim_x*hipGridDim_x) {
+  for (int idx = threadIdx.x + blockIdx.x*blockDim.x; idx < N; idx += blockDim.x*gridDim.x) {
     Shape<ndim> coord = unravel(idx, sshape);
     int j = ravel(coord, bshape);
     assign(&small[idx], addto, OP::Map(big[j]));
@@ -272,7 +272,7 @@ __global__ void reduce_kernel_M1(const int N, const bool addto,
                                  const Shape<ndim> lhs_shape,
                                  const Shape<ndim> rhs_shape,
                                  const Shape<ndim> small_shape) {
-  for (int idx = hipThreadIdx_x + hipBlockIdx_x*hipBlockDim_x; idx < N; idx += hipBlockDim_x*hipGridDim_x) {
+  for (int idx = threadIdx.x + blockIdx.x*blockDim.x; idx < N; idx += blockDim.x*gridDim.x) {
     Shape<ndim> coord = unravel(idx, small_shape);
     int idx_big = ravel(coord, big_shape);
     int idx_lhs = ravel(coord, lhs_shape);

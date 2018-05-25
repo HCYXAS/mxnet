@@ -68,9 +68,9 @@ __global__ void ProposalGridKernel(const int count,
                                    const int feature_stride,
                                    const Dtype* scores,
                                    Dtype* workspace_proposals) {
-  for (int index = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
+  for (int index = blockIdx.x * blockDim.x + threadIdx.x;
        index < count;
-       index += hipBlockDim_x * hipGridDim_x) {
+       index += blockDim.x * gridDim.x) {
     int a = index % num_anchors;
     int w = (index / num_anchors) % width;
     int h = index / num_anchors / width;
@@ -100,9 +100,9 @@ __global__ void BBoxPredKernel(const int count,
                                const Dtype* boxes,
                                const Dtype* deltas,
                                Dtype* out_pred_boxes) {
-  for (int index = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
+  for (int index = blockIdx.x * blockDim.x + threadIdx.x;
        index < count;
-       index += hipBlockDim_x * hipGridDim_x) {
+       index += blockDim.x * gridDim.x) {
     int a = index % num_anchors;
     int w = (index / num_anchors) % feat_width;
     int h = index / num_anchors / feat_width;
@@ -160,9 +160,9 @@ __global__ void IoUPredKernel(const int count,
                               const Dtype* boxes,
                               const Dtype* deltas,
                               Dtype* out_pred_boxes) {
-  for (int index = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
+  for (int index = blockIdx.x * blockDim.x + threadIdx.x;
        index < count;
-       index += hipBlockDim_x * hipGridDim_x) {
+       index += blockDim.x * gridDim.x) {
     int a = index % num_anchors;
     int w = (index / num_anchors) % feat_width;
     int h = index / num_anchors / feat_width;
@@ -200,9 +200,9 @@ template<typename Dtype>
 __global__ void FilterBoxKernel(const int count,
                                 const float min_size,
                                 Dtype* dets) {
-  for (int index = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
+  for (int index = blockIdx.x * blockDim.x + threadIdx.x;
        index < count;
-       index += hipBlockDim_x * hipGridDim_x) {
+       index += blockDim.x * gridDim.x) {
     float iw = dets[index * 5 + 2] - dets[index * 5 + 0] + 1.0f;
     float ih = dets[index * 5 + 3] - dets[index * 5 + 1] + 1.0f;
     if (iw < min_size || ih < min_size) {
@@ -223,9 +223,9 @@ __global__ void CopyScoreKernel(const int count,
                                 const Dtype* dets,
                                 Dtype* score,
                                 int* order) {
-  for (int index = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
+  for (int index = blockIdx.x * blockDim.x + threadIdx.x;
        index < count;
-       index += hipBlockDim_x * hipGridDim_x) {
+       index += blockDim.x * gridDim.x) {
     score[index] = dets[index * 5 + 4];
     order[index] = index;
   }
@@ -239,9 +239,9 @@ __global__ void ReorderProposalsKernel(const int count,
                                        const Dtype* prev_dets,
                                        const int* order,
                                        Dtype* dets) {
-  for (int index = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
+  for (int index = blockIdx.x * blockDim.x + threadIdx.x;
        index < count;
-       index += hipBlockDim_x * hipGridDim_x) {
+       index += blockDim.x * gridDim.x) {
     const int order_i = order[index];
     for (int j = 0; j < 5; j ++) {
       dets[index * 5 + j] = prev_dets[order_i * 5 + j];
@@ -262,8 +262,8 @@ __device__ inline float devIoU(float const * const a, float const * const b) {
 __global__ void nms_kernel(const int n_boxes, const float nms_overlap_thresh,
                            const float *dev_boxes, uint64_t *dev_mask) {
   const int threadsPerBlock = sizeof(uint64_t) * 8;
-  const int row_start = hipBlockIdx_y;
-  const int col_start = hipBlockIdx_x;
+  const int row_start = blockIdx.y;
+  const int col_start = blockIdx.x;
 
   // if (row_start > col_start) return;
 
@@ -273,28 +273,28 @@ __global__ void nms_kernel(const int n_boxes, const float nms_overlap_thresh,
         min(n_boxes - col_start * threadsPerBlock, threadsPerBlock);
 
   __shared__ float block_boxes[threadsPerBlock * 5];
-  if (hipThreadIdx_x < col_size) {
-    block_boxes[hipThreadIdx_x * 5 + 0] =
-        dev_boxes[(threadsPerBlock * col_start + hipThreadIdx_x) * 5 + 0];
-    block_boxes[hipThreadIdx_x * 5 + 1] =
-        dev_boxes[(threadsPerBlock * col_start + hipThreadIdx_x) * 5 + 1];
-    block_boxes[hipThreadIdx_x * 5 + 2] =
-        dev_boxes[(threadsPerBlock * col_start + hipThreadIdx_x) * 5 + 2];
-    block_boxes[hipThreadIdx_x * 5 + 3] =
-        dev_boxes[(threadsPerBlock * col_start + hipThreadIdx_x) * 5 + 3];
-    block_boxes[hipThreadIdx_x * 5 + 4] =
-        dev_boxes[(threadsPerBlock * col_start + hipThreadIdx_x) * 5 + 4];
+  if (threadIdx.x < col_size) {
+    block_boxes[threadIdx.x * 5 + 0] =
+        dev_boxes[(threadsPerBlock * col_start + threadIdx.x) * 5 + 0];
+    block_boxes[threadIdx.x * 5 + 1] =
+        dev_boxes[(threadsPerBlock * col_start + threadIdx.x) * 5 + 1];
+    block_boxes[threadIdx.x * 5 + 2] =
+        dev_boxes[(threadsPerBlock * col_start + threadIdx.x) * 5 + 2];
+    block_boxes[threadIdx.x * 5 + 3] =
+        dev_boxes[(threadsPerBlock * col_start + threadIdx.x) * 5 + 3];
+    block_boxes[threadIdx.x * 5 + 4] =
+        dev_boxes[(threadsPerBlock * col_start + threadIdx.x) * 5 + 4];
   }
   __syncthreads();
 
-  if (hipThreadIdx_x < row_size) {
-    const int cur_box_idx = threadsPerBlock * row_start + hipThreadIdx_x;
+  if (threadIdx.x < row_size) {
+    const int cur_box_idx = threadsPerBlock * row_start + threadIdx.x;
     const float *cur_box = dev_boxes + cur_box_idx * 5;
     int i = 0;
     uint64_t t = 0;
     int start = 0;
     if (row_start == col_start) {
-      start = hipThreadIdx_x + 1;
+      start = threadIdx.x + 1;
     }
     for (i = start; i < col_size; i++) {
       if (devIoU(cur_box, block_boxes + i * 5) > nms_overlap_thresh) {
@@ -368,9 +368,9 @@ __global__ void PrepareOutput(const int count,
                               const int out_size,
                               Dtype* out,
                               Dtype* score) {
-  for (int index = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
+  for (int index = blockIdx.x * blockDim.x + threadIdx.x;
        index < count;
-       index += hipBlockDim_x * hipGridDim_x) {
+       index += blockDim.x * gridDim.x) {
     out[index * 5] = 0;
     if (index < out_size) {
       int keep_i = keep[index];

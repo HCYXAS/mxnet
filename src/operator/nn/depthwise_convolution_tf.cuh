@@ -232,7 +232,7 @@ __global__ __launch_bounds__(1024, 2) void DepthwiseConv2dKernelSmall(
   const int in_slices = in_channel * args.batch;
   const int in_blocks = (in_slices + kBlockSlices - 1) / kBlockSlices;
 
-  const int thread_width = hipThreadIdx_x;
+  const int thread_width = threadIdx.x;
   const int thread_height = threadIdx.y;
   const int thread_channel = threadIdx.z;
 
@@ -267,7 +267,7 @@ __global__ __launch_bounds__(1024, 2) void DepthwiseConv2dKernelSmall(
      filter_pixels * filter_channel : filter_pixels * (filter_channel + 1));
   const bool skip_second = !kEvenHeight && thread_height + (in_height & 1) == block_height;
 
-  for (int b = hipBlockIdx_x; b < in_blocks; b += hipGridDim_x) {
+  for (int b = blockIdx.x; b < in_blocks; b += gridDim.x) {
     const int slice = b * kBlockSlices;
 
     const int inout_offset = slice * in_pixels + tensor_idx;
@@ -503,7 +503,7 @@ __launch_bounds__(1024, 2) void DepthwiseConv2dBackwardFilterKernelSmall(
   DType* const shared_data = reinterpret_cast<DType*>(shared_memory);
 
   const int in_height = args.in_height;
-  const int in_width = hipBlockDim_x;  // slower (see b/62280718): args.in_width;
+  const int in_width = blockDim.x;  // slower (see b/62280718): args.in_width;
   const int in_channel = args.in_channel;
   const int filter_height = kFilterHeight > 0 ? kFilterHeight : args.filter_height;
   const int filter_width = kFilterWidth > 0 ? kFilterWidth : args.filter_width;
@@ -534,7 +534,7 @@ __launch_bounds__(1024, 2) void DepthwiseConv2dBackwardFilterKernelSmall(
   const int accum_increment = kAccumPixels * kBlockSlices;
   const int accum_size = filter_pixels * accum_increment;
 
-  const int thread_width = hipThreadIdx_x;
+  const int thread_width = threadIdx.x;
   const int thread_height = threadIdx.y;
   const int thread_channel = threadIdx.z;
 
@@ -566,7 +566,7 @@ __launch_bounds__(1024, 2) void DepthwiseConv2dBackwardFilterKernelSmall(
   const int accum_offset = tile_size + accum_idx;
   const bool skip_second = block_height + thread_height >= in_height;
 
-  for (int b = hipBlockIdx_x; b < in_blocks; b += hipGridDim_x) {
+  for (int b = blockIdx.x; b < in_blocks; b += gridDim.x) {
     const int slice = b * kBlockSlices;
 
     const int inout_offset = slice * in_pixels + tensor_idx;

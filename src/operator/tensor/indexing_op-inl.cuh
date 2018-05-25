@@ -49,13 +49,13 @@ __global__ void AddTakeGradLargeBatchKernel(DType* dst,
                                            const IdxType *sorted, const IdxType *index,
                                            const DType *src,
                                            int ymax, int xmax) {
-  // Size of the shared memory is [hipBlockDim_x*SZ*hipBlockDim_y]*sizeof(DType)
+  // Size of the shared memory is [blockDim.x*SZ*blockDim.y]*sizeof(DType)
   HIP_DYNAMIC_SHARED( char, sh_grad_weight_char)
   DType* sh_grad_weight = (DType*)sh_grad_weight_char;
 
   int iidx_end = (idx_start == NULL) ? ymax : *idx_start_size_ptr;
 
-  for (int iidx = hipBlockIdx_y ;iidx < iidx_end;iidx += hipGridDim_y) {
+  for (int iidx = blockIdx.y ;iidx < iidx_end;iidx += gridDim.y) {
 
     // Thread block sums up elements in the range [idx_begin, idx_end-1]
     int idx_begin, idx_end;
@@ -65,16 +65,16 @@ __global__ void AddTakeGradLargeBatchKernel(DType* dst,
       sorted_value = static_cast<int>(sorted[idx_begin]);
       if (idx_begin > 0 && sorted_value == static_cast<int>(sorted[idx_begin - 1])) continue;
       // Algorithm is explained using an example:
-      //   hipBlockDim_x = 32
-      //   hipBlockDim_y = 4
+      //   blockDim.x = 32
+      //   blockDim.y = 4
       //   sorted[idx_begin:] = [4 4 4 9]
-      //   (3,4) denotes hipThreadIdx_x=3, hipThreadIdx_y=4, ":" is used for ranges
+      //   (3,4) denotes threadIdx.x=3, threadIdx.y=4, ":" is used for ranges
       //   (0:31,0:3) sorted_value = 4
       idx_end = idx_begin + 1;
       unsigned int* sh_ballot = (unsigned int*)sh_grad_weight_char;
       int no_edge = 0;
       do {
-        int idx = idx_end + hipThreadIdx_x + hipThreadIdx_y*hipBlockDim_x;
+        int idx = idx_end + threadIdx.x + threadIdx.y*blockDim.x;
         // Example:
         //   (0:1,0) sorted_idx = 4
         //   (rest)  sorted_idx = -1
@@ -83,24 +83,24 @@ __global__ void AddTakeGradLargeBatchKernel(DType* dst,
         //   (0:31,0) sh_ballot[0]     = 0b100
         //   (rest)   sh_ballot[1...3] = 0
         // sh_ballot[] tells us which thread within the warp found the edge
-        sh_ballot[hipThreadIdx_y] = __ballot(sorted_value != sorted_idx);
+        sh_ballot[threadIdx.y] = __ballot(sorted_value != sorted_idx);
         __syncthreads();
-        // No edge if sh_ballot[hipThreadIdx_x] == 0
+        // No edge if sh_ballot[threadIdx.x] == 0
         // NOTE: All warps have the same value for no_edge
         // Example:
         //   (0,:)  no_edge = 0
         //   (rest) no_edge = 1
-        no_edge = (hipThreadIdx_x < hipBlockDim_y) ? (sh_ballot[hipThreadIdx_x] == 0) : 1;
-        idx_end += hipBlockDim_x*hipBlockDim_y;
+        no_edge = (threadIdx.x < blockDim.y) ? (sh_ballot[threadIdx.x] == 0) : 1;
+        idx_end += blockDim.x*blockDim.y;
         // Example:
-        //   __all(no_edge) = 0 since no_edge = 0 for hipThreadIdx_x = 0, hence we leave the loop
+        //   __all(no_edge) = 0 since no_edge = 0 for threadIdx.x = 0, hence we leave the loop
       } while (__all(no_edge));
-      idx_end -= hipBlockDim_x*hipBlockDim_y;
+      idx_end -= blockDim.x*blockDim.y;
       // Find the first edge
       // Example:
       //   (0,:)  val = 1
       //   (rest) val = 0
-      unsigned int val = (hipThreadIdx_x < hipBlockDim_y && sh_ballot[hipThreadIdx_x] != 0) ?
+      unsigned int val = (threadIdx.x < blockDim.y && sh_ballot[threadIdx.x] != 0) ?
         1 : 0;
       // NOTE: Set nth bit if thread n in the warp has val = 1
       // Example:
@@ -115,9 +115,9 @@ __global__ void AddTakeGradLargeBatchKernel(DType* dst,
       // __ffs(sh_ballot[j]) - 1 = warp lane where the edge was found
       // idx_end points to the one over the last value.
       // Example:
-      //  idx_end += 0*hipBlockDim_x + _ffs(0b100) - 1 = 0 + 3 - 1 = 2
+      //  idx_end += 0*blockDim.x + _ffs(0b100) - 1 = 0 + 3 - 1 = 2
       //  sorted[idx_end] = 9
-      idx_end += j*hipBlockDim_x + __ffs(sh_ballot[j]) - 1;
+      idx_end += j*blockDim.x + __ffs(sh_ballot[j]) - 1;
       __syncthreads();
     } else {
       idx_begin = idx_start[iidx];
@@ -125,12 +125,12 @@ __global__ void AddTakeGradLargeBatchKernel(DType* dst,
       sorted_value = static_cast<int>(sorted[idx_begin]);
     }
 
-    const int start_feature = hipThreadIdx_x + hipBlockIdx_x * hipBlockDim_x * SZ;
+    const int start_feature = threadIdx.x + blockIdx.x * blockDim.x * SZ;
     const int dst_row = sorted_value * xmax;
 
     int num_idx = idx_end - idx_begin;
-    int idx0 = idx_begin + hipThreadIdx_y*num_idx/hipBlockDim_y;
-    int idx1 = idx_begin + (hipThreadIdx_y + 1)*num_idx/hipBlockDim_y;
+    int idx0 = idx_begin + threadIdx.y*num_idx/blockDim.y;
+    int idx1 = idx_begin + (threadIdx.y + 1)*num_idx/blockDim.y;
 
     // Read and sum data into grad_weight[]
     DType grad_weight[SZ];
@@ -143,7 +143,7 @@ __global__ void AddTakeGradLargeBatchKernel(DType* dst,
       #pragma unroll
       for (int ii = 0; ii < SZ; ii++)
       {
-        int feature_dim = start_feature + ii * hipBlockDim_x;
+        int feature_dim = start_feature + ii * blockDim.x;
         if (feature_dim < xmax)
         {
           grad_weight[ii] += src[src_row + feature_dim];
@@ -152,31 +152,31 @@ __global__ void AddTakeGradLargeBatchKernel(DType* dst,
     }
     #pragma unroll
     for (int ii = 0; ii < SZ; ii++) {
-      sh_grad_weight[hipThreadIdx_x + ii*hipBlockDim_x + hipThreadIdx_y*hipBlockDim_x*SZ] = grad_weight[ii];
+      sh_grad_weight[threadIdx.x + ii*blockDim.x + threadIdx.y*blockDim.x*SZ] = grad_weight[ii];
     }
     __syncthreads();
     // We now have grad_weight[] values, reduce within thread block
-    for (int t=1;t < hipBlockDim_y;t <<= 1) {
+    for (int t=1;t < blockDim.y;t <<= 1) {
       DType tmp[SZ];
       #pragma unroll
       for (int ii = 0; ii < SZ; ii++) {
-        tmp[ii] = (hipThreadIdx_y + t < hipBlockDim_y) ?
-          sh_grad_weight[hipThreadIdx_x + ii*hipBlockDim_x + (hipThreadIdx_y + t)*hipBlockDim_x*SZ] : (DType)0;
+        tmp[ii] = (threadIdx.y + t < blockDim.y) ?
+          sh_grad_weight[threadIdx.x + ii*blockDim.x + (threadIdx.y + t)*blockDim.x*SZ] : (DType)0;
       }
       __syncthreads();
       #pragma unroll
       for (int ii = 0; ii < SZ; ii++) {
-        sh_grad_weight[hipThreadIdx_x + ii*hipBlockDim_x + hipThreadIdx_y*hipBlockDim_x*SZ] += tmp[ii];
+        sh_grad_weight[threadIdx.x + ii*blockDim.x + threadIdx.y*blockDim.x*SZ] += tmp[ii];
       }
       __syncthreads();
     }
-    // Result is in sh_grad_weight[hipThreadIdx_x + ii*hipBlockDim_x]
-    if (hipThreadIdx_y == 0) {
+    // Result is in sh_grad_weight[threadIdx.x + ii*blockDim.x]
+    if (threadIdx.y == 0) {
       #pragma unroll
       for (int ii = 0; ii < SZ; ii++) {
-        int feature_dim = start_feature + ii * hipBlockDim_x;
+        int feature_dim = start_feature + ii * blockDim.x;
         if (feature_dim < xmax) {
-          dst[dst_row + feature_dim] += sh_grad_weight[hipThreadIdx_x + ii*hipBlockDim_x];
+          dst[dst_row + feature_dim] += sh_grad_weight[threadIdx.x + ii*blockDim.x];
         }
       }
     }

@@ -315,9 +315,7 @@ ifeq ($(HIP_PLATFORM), nvcc)
 	CUDA_ARCH += $(shell $(NVCC) -cuda $(COMPRESS) --x cu /dev/null -o /dev/null >/dev/null 2>&1 && \
 						 echo $(COMPRESS))
 else ifeq ($(HIP_PLATFORM),hcc)
-         CUDA_ARCH :=	--amdgpu-target=gfx700 \
-			--amdgpu-target=gfx701 \
-			--amdgpu-target=gfx801 \
+         CUDA_ARCH :=	--amdgpu-target=gfx801 \
 			--amdgpu-target=gfx802 \
 			--amdgpu-target=gfx803 \
 			--amdgpu-target=gfx900
@@ -392,8 +390,8 @@ ifeq ($(USE_CUDA), 1)
 	LDFLAGS += -L/opt/rocm/hip/lib -lhip_hcc
         LDFLAGS += -L/opt/rocm/hipblas/lib  -lhipblas
 	LDFLAGS += -L/opt/rocm/hiprand/lib  -lhiprand
-	LDFLAGS += -L/opt/rocm/hcfft/lib -lhipfft
 	ifneq (, $(findstring nvcc, $(HIP_PLATFORM)))
+		LDFLAGS += -L/opt/rocm/hcfft/lib -lhipfft
 		LDFLAGS += -L/opt/rocm/hcfft/lib -lhipfft
 		LDFLAGS += -lcudart -lcuda -lcufft -lcublas
 	else

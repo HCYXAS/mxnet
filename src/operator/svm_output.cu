@@ -42,8 +42,8 @@ __global__  void L1_SVMKernel(const DType margin,
                               const Tensor<gpu, 2, DType> src) {
   const index_t nmax = dst.size(1);
   const unsigned n_size = 1 << n_bits;
-  const int y = hipBlockIdx_x;
-  const int n = hipThreadIdx_x;
+  const int y = blockIdx.x;
+  const int n = threadIdx.x;
   const index_t k = static_cast<int>(label[y]);
   for (index_t n_index = n; n_index < nmax; n_index += n_size) {
     if (n_index == k) {
@@ -76,8 +76,8 @@ __global__  void L2_SVMKernel(const DType margin,
                               const Tensor<gpu, 2, DType> src) {
   const index_t nmax = dst.size(1);
   const unsigned n_size = 1 << n_bits;
-  const int y = hipBlockIdx_x;
-  const int n = hipThreadIdx_x;
+  const int y = blockIdx.x;
+  const int n = threadIdx.x;
   const index_t k = static_cast<int>(label[y]);
   for (index_t n_index = n; n_index < nmax; n_index += n_size) {
     if (n_index == k) {

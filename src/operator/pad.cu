@@ -42,9 +42,9 @@ template <int n_bits, typename DType>
 __global__ void image_2d_pad_edge_kernel(Tensor<gpu, 4, DType> dst,
                                          const Tensor<gpu, 4, DType> src,
                                          const int padT, const int padL) {
-  int outputPointId = hipThreadIdx_x + hipBlockIdx_x * hipBlockDim_x;
-  int plane = hipBlockIdx_y;
-  int batch = hipBlockIdx_z;
+  int outputPointId = threadIdx.x + blockIdx.x * blockDim.x;
+  int plane = blockIdx.y;
+  int batch = blockIdx.z;
   if (outputPointId >= dst.size(2) * dst.size(3)) {
     return;
   }
@@ -87,9 +87,9 @@ template <int n_bits, typename DType>
 __global__ void image_2d_pad_edge_grad_kernel(
     Tensor<gpu, 4, DType> grad_in, const Tensor<gpu, 4, DType> grad_out,
     const int padT, const int padL) {
-  int outputPointId = hipThreadIdx_x  + hipBlockIdx_x * hipBlockDim_x;
-  int plane = hipBlockIdx_y;
-  int batch = hipBlockIdx_z;
+  int outputPointId = threadIdx.x  + blockIdx.x * blockDim.x;
+  int plane = blockIdx.y;
+  int batch = blockIdx.z;
   if (outputPointId >= grad_out.size(2) * grad_out.size(3)) {
     return;
   }
@@ -132,7 +132,7 @@ __global__ void image_2d_pad_constant_kernel(Tensor<gpu, 4, DType> dst,
                                              const Tensor<gpu, 4, DType> src,
                                              const int padT, const int padL,
                                              const DType constant) {
-  int outputPointId = hipThreadIdx_x  + hipBlockIdx_x * hipBlockDim_x;
+  int outputPointId = threadIdx.x  + blockIdx.x * blockDim.x;
   if (outputPointId >= dst.size(2) * dst.size(3)) {
     return;
   }
@@ -140,8 +140,8 @@ __global__ void image_2d_pad_constant_kernel(Tensor<gpu, 4, DType> dst,
   int Ny = src.size(2);
   int Nx = src.size(3);
 
-  int plane = hipBlockIdx_y;
-  int batch = hipBlockIdx_z;
+  int plane = blockIdx.y;
+  int batch = blockIdx.z;
   int outputPointX = outputPointId % dst.size(3);
   int outputPointY = outputPointId / dst.size(3);
   int checkT = max(0, outputPointY - padT + 1);
@@ -179,9 +179,9 @@ template <int n_bits, typename DType>
 __global__ void image_2d_pad_constant_grad_kernel(
     Tensor<gpu, 4, DType> grad_in, const Tensor<gpu, 4, DType> grad_out,
     const int padT, const int padL) {
-  int inPointId = hipThreadIdx_x  + hipBlockIdx_x * hipBlockDim_x;
-  int plane = hipBlockIdx_y;
-  int batch = hipBlockIdx_z;
+  int inPointId = threadIdx.x  + blockIdx.x * blockDim.x;
+  int plane = blockIdx.y;
+  int batch = blockIdx.z;
   int pixel_num = grad_in.size(2) * grad_in.size(3);
   if (inPointId >= pixel_num) {
     return;
@@ -222,7 +222,7 @@ template <int n_bits, typename DType>
 __global__ void image_2d_pad_reflect_kernel(Tensor<gpu, 4, DType> dst,
                                          const Tensor<gpu, 4, DType> src,
                                          const int padT, const int padL) {
-  int outputPointId = hipThreadIdx_x + hipBlockIdx_x * hipBlockDim_x;
+  int outputPointId = threadIdx.x + blockIdx.x * blockDim.x;
   int plane = blockIdx.y;
   int batch = blockIdx.z;
   if (outputPointId >= dst.size(2) * dst.size(3)) {
@@ -272,7 +272,7 @@ template <int n_bits, typename DType>
 __global__ void image_2d_pad_reflect_grad_kernel(
     Tensor<gpu, 4, DType> grad_in, const Tensor<gpu, 4, DType> grad_out,
     const int padT, const int padL) {
-  int outputPointId = hipThreadIdx_x + hipBlockIdx_x * hipBlockDim_x;
+  int outputPointId = threadIdx.x + blockIdx.x * blockDim.x;
   int plane = blockIdx.y;
   int batch = blockIdx.z;
   if (outputPointId >= grad_out.size(2) * grad_out.size(3)) {
@@ -332,9 +332,9 @@ __global__ void image_3d_pad_edge_kernel(Tensor<gpu, 5, DType> dst,
                                          const Tensor<gpu, 5, DType> src,
                                          const int padF, const int padT,
                                          const int padL) {
-  int outputPointId = hipThreadIdx_x  + hipBlockIdx_x* hipBlockDim_x;
-  int plane = hipBlockIdx_y;
-  int batch = hipBlockIdx_z;
+  int outputPointId = threadIdx.x  + blockIdx.x* blockDim.x;
+  int plane = blockIdx.y;
+  int batch = blockIdx.z;
   if (outputPointId >= dst.size(2) * dst.size(3) * dst.size(4)) {
     return;
   }
@@ -383,9 +383,9 @@ template <int n_bits, typename DType>
 __global__ void image_3d_pad_edge_grad_kernel(
     Tensor<gpu, 5, DType> grad_in, const Tensor<gpu, 5, DType> grad_out,
     const int padF, const int padT, const int padL) {
-  int outputPointId = hipThreadIdx_x  + hipBlockIdx_x * hipBlockDim_x;
-  int plane = hipBlockIdx_y;
-  int batch = hipBlockIdx_z;
+  int outputPointId = threadIdx.x  + blockIdx.x * blockDim.x;
+  int plane = blockIdx.y;
+  int batch = blockIdx.z;
   if (outputPointId >= grad_out.size(2) * grad_out.size(3) * grad_out.size(4)) {
     return;
   }
@@ -439,7 +439,7 @@ __global__ void image_3d_pad_constant_kernel(Tensor<gpu, 5, DType> dst,
                                              const int padF, const int padT,
                                              const int padL,
                                              const DType constant) {
-  int outputPointId = hipThreadIdx_x + hipBlockIdx_x * hipBlockDim_x;
+  int outputPointId = threadIdx.x + blockIdx.x * blockDim.x;
   if (outputPointId >= dst.size(2) * dst.size(3) * dst.size(4)) {
     return;
   }
@@ -448,8 +448,8 @@ __global__ void image_3d_pad_constant_kernel(Tensor<gpu, 5, DType> dst,
   int Ny = src.size(3);
   int Nx = src.size(4);
 
-  int plane = hipBlockIdx_y;
-  int batch = hipBlockIdx_z;
+  int plane = blockIdx.y;
+  int batch = blockIdx.z;
   int outputPointX = outputPointId % dst.size(4);
   int outputPointY = (outputPointId / dst.size(4)) % dst.size(3);
   int outputPointZ = outputPointId / (dst.size(3) * dst.size(4));
@@ -495,9 +495,9 @@ template <int n_bits, typename DType>
 __global__ void image_3d_pad_constant_grad_kernel(
     Tensor<gpu, 5, DType> grad_in, const Tensor<gpu, 5, DType> grad_out,
     const int padF, const int padT, const int padL) {
-  int inPointId = hipThreadIdx_x  + hipBlockIdx_x * hipBlockDim_x;
-  int plane = hipBlockIdx_y;
-  int batch = hipBlockIdx_z;
+  int inPointId = threadIdx.x  + blockIdx.x * blockDim.x;
+  int plane = blockIdx.y;
+  int batch = blockIdx.z;
   int pixel_num = grad_in.size(2) * grad_in.size(3) * grad_in.size(4);
   if (inPointId >= pixel_num) {
     return;
@@ -542,9 +542,9 @@ __global__ void image_3d_pad_reflect_kernel(Tensor<gpu, 5, DType> dst,
                                          const Tensor<gpu, 5, DType> src,
                                          const int padF, const int padT,
                                          const int padL) {
-  int outputPointId = hipThreadIdx_x + hipBlockIdx_x * hipBlockDim_x;
-  int plane = hipBlockIdx_y;
-  int batch = hipBlockIdx_z;
+  int outputPointId = threadIdx.x + blockIdx.x * blockDim.x;
+  int plane = blockIdx.y;
+  int batch = blockIdx.z;
   if (outputPointId >= dst.size(2) * dst.size(3) * dst.size(4)) {
     return;
   }
@@ -603,9 +603,9 @@ template <int n_bits, typename DType>
 __global__ void image_3d_pad_reflect_grad_kernel(
     Tensor<gpu, 5, DType> grad_in, const Tensor<gpu, 5, DType> grad_out,
     const int padF, const int padT, const int padL) {
-  int outputPointId = hipThreadIdx_x + hipBlockIdx_x * hipBlockDim_x;
-  int plane = hipBlockIdx_y;
-  int batch = hipBlockIdx_z;
+  int outputPointId = threadIdx.x + blockIdx.x * blockDim.x;
+  int plane = blockIdx.y;
+  int batch = blockIdx.z;
   if (outputPointId >= grad_out.size(2) * grad_out.size(3) * grad_out.size(4)) {
     return;
   }
@@ -644,7 +644,7 @@ __global__ void image_3d_pad_reflect_grad_kernel(
             valueToCopy);
 }
 
-/*  int outputPointId = hipThreadIdx_x + hipBlockIdx_x * hipBlockDim_x;
+/*  int outputPointId = threadIdx.x + blockIdx.x * blockDim.x;
   int plane = blockIdx.y;
   int batch = blockIdx.z;
   if (outputPointId >= grad_out.size(2) * grad_out.size(3)) {

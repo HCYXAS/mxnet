@@ -200,15 +200,15 @@ __global__ void im2col_nd_gpu_kernel(const int n, const DType* data_im,
   __shared__ int shared_col_shape[num_axes + 1];
   __shared__ int shared_im_shape[num_axes + 1];
 
-  if (hipThreadIdx_x < num_axes) {
-    shared_dilation[hipThreadIdx_x] = dilation[hipThreadIdx_x];
-    shared_kernel_shape[hipThreadIdx_x] = kernel_shape[hipThreadIdx_x];
-    shared_pad[hipThreadIdx_x] = pad[hipThreadIdx_x];
-    shared_stride[hipThreadIdx_x] = stride[hipThreadIdx_x];
+  if (threadIdx.x < num_axes) {
+    shared_dilation[threadIdx.x] = dilation[threadIdx.x];
+    shared_kernel_shape[threadIdx.x] = kernel_shape[threadIdx.x];
+    shared_pad[threadIdx.x] = pad[threadIdx.x];
+    shared_stride[threadIdx.x] = stride[threadIdx.x];
   }
-  if (hipThreadIdx_x < num_axes + 1) {
-    shared_col_shape[hipThreadIdx_x] = col_shape[hipThreadIdx_x];
-    shared_im_shape[hipThreadIdx_x] = im_shape[hipThreadIdx_x+1];  // skip batch dim
+  if (threadIdx.x < num_axes + 1) {
+    shared_col_shape[threadIdx.x] = col_shape[threadIdx.x];
+    shared_im_shape[threadIdx.x] = im_shape[threadIdx.x+1];  // skip batch dim
   }
   __syncthreads();
 
@@ -360,15 +360,15 @@ __global__ void col2im_nd_gpu_kernel(const int n, const DType* data_col,
   __shared__ int shared_col_shape[num_axes + 1];
   __shared__ int shared_im_shape[num_axes + 1];
 
-  if (hipThreadIdx_x < num_axes) {
-    shared_dilation[hipThreadIdx_x] = dilation[hipThreadIdx_x];
-    shared_kernel_shape[hipThreadIdx_x] = kernel_shape[hipThreadIdx_x];
-    shared_pad[hipThreadIdx_x] = pad[hipThreadIdx_x];
-    shared_stride[hipThreadIdx_x] = stride[hipThreadIdx_x];
+  if (threadIdx.x < num_axes) {
+    shared_dilation[threadIdx.x] = dilation[threadIdx.x];
+    shared_kernel_shape[threadIdx.x] = kernel_shape[threadIdx.x];
+    shared_pad[threadIdx.x] = pad[threadIdx.x];
+    shared_stride[threadIdx.x] = stride[threadIdx.x];
   }
-  if (hipThreadIdx_x < num_axes + 1) {
-    shared_col_shape[hipThreadIdx_x] = col_shape[hipThreadIdx_x];
-    shared_im_shape[hipThreadIdx_x] = im_shape[hipThreadIdx_x+1];  // skip batch dim
+  if (threadIdx.x < num_axes + 1) {
+    shared_col_shape[threadIdx.x] = col_shape[threadIdx.x];
+    shared_im_shape[threadIdx.x] = im_shape[threadIdx.x+1];  // skip batch dim
   }
   __syncthreads();
 

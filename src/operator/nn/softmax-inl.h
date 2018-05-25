@@ -132,8 +132,8 @@ __global__ void softmax_compute_kernel(DType *in, DType *out, index_t M, int axi
   const unsigned x_size = 1 << x_bits;
   __shared__ DType smem[x_size];
   index_t sa = stride[axis];
-  index_t base = unravel_dot(hipBlockIdx_x, sshape, stride);
-  index_t x = hipThreadIdx_x;
+  index_t base = unravel_dot(blockIdx.x, sshape, stride);
+  index_t x = threadIdx.x;
 
   red::maximum::SetInitValue(smem[x]);
   for (index_t i = x; i < M; i += x_size) {
@@ -184,8 +184,8 @@ __global__ void softmax_gradient_kernel(DType *out, DType *ograd, DType *igrad,
   const unsigned x_size = 1 << x_bits;
   __shared__ DType smem[x_size];
   index_t sa = stride[axis];
-  index_t base = unravel_dot(hipBlockIdx_x, sshape, stride);
-  index_t x = hipThreadIdx_x;
+  index_t base = unravel_dot(blockIdx.x, sshape, stride);
+  index_t x = threadIdx.x;
 
   red::sum::SetInitValue(smem[x]);
   for (index_t i = x; i < M; i += x_size) {

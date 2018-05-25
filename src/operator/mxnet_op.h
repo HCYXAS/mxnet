@@ -552,14 +552,14 @@ struct Kernel<OP, cpu> {
 #ifdef __HIPCC__
 template<typename OP, typename ...Args>
 __global__ void mxnet_generic_kernel(int N, Args... args) {
-  for (int i = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x; i < N; i += hipBlockDim_x * hipGridDim_x) {
+  for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < N; i += blockDim.x * gridDim.x) {
     OP::Map(i, args...);
   }
 }
 
 template<typename OP, typename ...Args>
 __global__ void mxnet_generic_kernel_ex(int N, Args... args) {
-  for (int i = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x; i < N; i += blockDim.x * hipGridDim_x) {
+  for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < N; i += blockDim.x * gridDim.x) {
     OP::Map(i, 1, args...);
   }
 }
