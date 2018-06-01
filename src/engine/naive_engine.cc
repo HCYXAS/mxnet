@@ -51,7 +51,7 @@ class NaiveEngine final : public Engine {
   }
   // virtual destructor
   virtual ~NaiveEngine() {
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
     LOG(INFO) << "Engine shutdown";
     for (size_t i = 0; i < streams_.size(); ++i) {
       if (streams_[i] != nullptr) {
@@ -147,7 +147,7 @@ class NaiveEngine final : public Engine {
     }
 #endif
     if (exec_ctx.dev_mask() == gpu::kDevMask) {
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
       size_t dev_id = static_cast<size_t>(exec_ctx.dev_id);
       MSHADOW_CATCH_ERROR(mshadow::SetDevice<gpu>(exec_ctx.dev_id));
       if (streams_.size() <= dev_id) {

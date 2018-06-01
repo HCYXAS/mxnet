@@ -159,7 +159,7 @@ inline void CastNonDefaultStorage(const std::vector<NDArray>& src,
   CHECK_EQ(dst.size(), src.size());
   for (size_t i = 0; i < src.size(); i++) {
     if (is_gpu) {
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
       CastStorageDispatch<gpu>(ctx, src[i], dst[i]);
 #else
       LOG(FATAL) << MXNET_GPU_NOT_ENABLED_ERROR;

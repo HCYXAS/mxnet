@@ -25,9 +25,9 @@
 #ifndef MXNET_STORAGE_POOLED_STORAGE_MANAGER_H_
 #define MXNET_STORAGE_POOLED_STORAGE_MANAGER_H_
 
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
   #include <hip/hip_runtime.h>
-#endif  // MXNET_USE_CUDA
+#endif  // MXNET_USE_GPU
 #include <mxnet/base.h>
 #include <mxnet/storage.h>
 #include <unordered_map>
@@ -41,7 +41,7 @@
 namespace mxnet {
 namespace storage {
 
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
 /*!
  * \brief Storage manager with a memory pool on gpu.
  */
@@ -136,7 +136,7 @@ void GPUPooledStorageManager::ReleaseAll() {
   memory_pool_.clear();
 }
 
-#endif  // MXNET_USE_CUDA
+#endif  // MXNET_USE_GPU
 
 }  // namespace storage
 }  // namespace mxnet

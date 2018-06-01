@@ -30,7 +30,7 @@
 #include "./convolution-inl.h"
 #include "../../common/cuda_utils.h"
 
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
 #include <cub/cub.cuh>
 #include "./depthwise_convolution_tf.cuh"
 

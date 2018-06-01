@@ -37,7 +37,7 @@ template <typename DType, typename RType>
 typename std::enable_if<std::is_integral<RType>::value>::type
 inline IndexTensorToVector(mshadow::Tensor<gpu, 1, DType> data,
                            std::vector<RType> *index_vec) {
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
   size_t const max_seq_len = data.shape_.Size();
   DType *temp_index =
       reinterpret_cast<DType *>(malloc(sizeof(DType) * max_seq_len));

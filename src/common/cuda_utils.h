@@ -47,7 +47,7 @@ extern __cuda_fake_struct threadIdx;
 extern __cuda_fake_struct blockIdx;
 #endif
 
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
 #include <hip-wrappers.h> // dummy include file placed in /opt/rocm/include
 #include <hip/hip_runtime.h>
 #include <hipblas.h>
@@ -369,7 +369,7 @@ inline cublasMath_t SetCublasMathMode(hipblasHandle_t blas_handle, cublasMath_t 
 }
 #endif*/ //hip porting for the cublas apis not supported
 
-#endif  // MXNET_USE_CUDA
+#endif  // MXNET_USE_GPU
 
 #if MXNET_USE_CUDNN
 

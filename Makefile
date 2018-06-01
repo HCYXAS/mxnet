@@ -298,7 +298,7 @@ endif
 # of the cuda toolkit, plus the assembly (PTX) for the most recent such architecture.
 # If these kernels are then run on a newer-architecture GPU, the binary will
 # be JIT-compiled by the updated driver from the included PTX.
-ifeq ($(USE_CUDA), 1)
+ifeq ($(USE_GPU), 1)
 ifeq ($(HIP_PLATFORM), nvcc)
 	KNOWN_CUDA_ARCHS := 30 35 50 52 60 61 70
 	# Run nvcc on a zero-length file to check architecture-level support.
@@ -384,7 +384,7 @@ endif
 LIB_DEP += $(DMLC_CORE)/libdmlc.a $(NNVM_PATH)/lib/libnnvm.a
 ALL_DEP = $(OBJ) $(EXTRA_OBJ) $(PLUGIN_OBJ) $(LIB_DEP)
 
-ifeq ($(USE_CUDA), 1)
+ifeq ($(USE_GPU), 1)
 	CFLAGS += -I$(ROOTDIR)/3rdparty/cub-hip
 	ALL_DEP += $(CUOBJ) $(EXTRA_CUOBJ) $(PLUGIN_CUOBJ)
 	LDFLAGS += -L/opt/rocm/hip/lib -lhip_hcc

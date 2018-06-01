@@ -137,7 +137,7 @@ struct GradOp {
   const DeviceTensor gradOutput;
 };
 
-#if CUDA_VERSION >= 9000
+#if defined(__HIP_PLATFORM_HCC__) || CUDA_VERSION >= 9000
 #define FULLMASK 0xFFFFFFFF
 #define __shfl_xor(...) __shfl_xor_sync(FULLMASK, __VA_ARGS__)
 #endif

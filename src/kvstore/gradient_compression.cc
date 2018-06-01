@@ -131,7 +131,7 @@ void GradientCompression::Quantize(const mxnet::NDArray &from, mxnet::NDArray *t
       }, from.ctx(), {from.var()}, {to->var(), residual->var()},
       mxnet::FnProperty::kNormal, priority, PROFILER_MESSAGE("QuantizeCPU"));
     } else {
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
       if (a == mshadow::gpu::kDevMask && b == mshadow::gpu::kDevMask) {
         mxnet::Engine::Get()->PushSync([from, to, residual, threshold](mxnet::RunContext ctx) {
           std::vector<mxnet::TBlob> inputs = {from.data(), residual->data(), to->data()};
@@ -167,7 +167,7 @@ void GradientCompression::Dequantize(const mxnet::NDArray &from, mxnet::NDArray 
       }, from.ctx(), {from.var()}, {to->var()},
       mxnet::FnProperty::kNormal, priority, PROFILER_MESSAGE("DequantizeCPU"));
     } else {
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
       if (a == mshadow::gpu::kDevMask && b == mshadow::gpu::kDevMask) {
         mxnet::Engine::Get()->PushSync([from, to, threshold](mxnet::RunContext ctx) {
           std::vector<mxnet::TBlob> inputs = {from.data(), to->data()};

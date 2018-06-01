@@ -154,9 +154,9 @@ void linalg_gemm<gpu, mshadow::half::half_t>(const Tensor<gpu, 2, mshadow::half:
   CHECK_NOTNULL(s);
   check_gemm(A, B, C, alpha, beta, tA, tB);
 
-#if CUDA_VERSION >= 7050
+#if defined(__HIP_PLATFORM_HCC__) || CUDA_VERSION >= 7050
   auto blas_handle = Stream<gpu>::GetBlasHandle(s);
-#if CUDA_VERSION >= 9000
+#if defined(__HIP_PLATFORM_HCC__) || CUDA_VERSION >= 9000
   /*auto cublas_math_mode = GetEnvAllowTensorCore() ? CUBLAS_TENSOR_OP_MATH
                                                   : CUBLAS_DEFAULT_MATH;
   auto previous_math_mode = SetCublasMathMode(blas_handle, cublas_math_mode);*/ // hip porting for the cubls apis not supported
@@ -167,7 +167,7 @@ void linalg_gemm<gpu, mshadow::half::half_t>(const Tensor<gpu, 2, mshadow::half:
   float beta_f = float(beta);  // NOLINT(*)
 
   // As of cuda8, cublas adopted the cuda datatype, rather than maintaining its own datatype.
-#if CUDA_VERSION >= 8000
+#if defined(__HIP_PLATFORM_HCC__) || CUDA_VERSION >= 8000
   hipDataType_t half_datatype = HIP_R_16F;
 #else
   hipblasDataType_t half_datatype = HIPBLAS_DATA_HALF;
@@ -190,7 +190,7 @@ void linalg_gemm<gpu, mshadow::half::half_t>(const Tensor<gpu, 2, mshadow::half:
 }
 
 // As of cuda8, hipblas has implemented a strided version of batch gemm.
-#if CUDA_VERSION < 8000
+#if defined(__HIP_PLATFORM_HCC__) || CUDA_VERSION < 8000
   LINALG_XPU_BATCH_GEMM(gpu, float)
   LINALG_XPU_BATCH_GEMM(gpu, double)
 #else

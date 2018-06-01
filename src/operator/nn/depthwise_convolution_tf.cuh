@@ -34,7 +34,7 @@ namespace tf {
 namespace depthwise_conv {
 
 #define FULL_WARP_MASK 0xFFFFFFFF
-#if CUDA_VERSION < 9000
+#if defined (__HIP_PLATFORM_HCC__) || CUDA_VERSION < 9000
 template<typename DType>
 __forceinline__ __device__ DType  __shfl_xor_sync(unsigned, DType val, int delta) {
   return hc::__shfl_xor(val, delta);

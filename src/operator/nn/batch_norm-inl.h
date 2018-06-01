@@ -140,7 +140,7 @@ void BatchNormBackwardImpl(mshadow::Stream<cpu> *stream,
                            const std::vector<TBlob> &in_grad,
                            const std::vector<TBlob> &aux_states);
 
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
 template <typename xpu, typename DType, typename AccReal>
 void BatchNormForwardImpl(mshadow::Stream<gpu> *stream,
                           const OpContext &ctx, const BatchNormParam& param,
@@ -157,7 +157,7 @@ void BatchNormBackwardImpl(mshadow::Stream<gpu> *stream,
                            const std::vector<OpReqType> &req,
                            const std::vector<TBlob> &in_grad,
                            const std::vector<TBlob> &aux_states);
-#endif  // MXNET_USE_CUDA
+#endif  // MXNET_USE_GPU
 
 /*!
  * \brief perform a forward operation of Operator, save the output to TBlob.

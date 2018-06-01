@@ -579,7 +579,7 @@ class CommDevice : public Comm {
                   src, indices, kWriteTo, &temp);
               break;
             }
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
             case gpu::kDevMask: {
               SparseRetainOpForwardRspWrapper<gpu>(rctx.get_stream<gpu>(),
                   src, indices, kWriteTo, &temp);
@@ -599,7 +599,7 @@ class CommDevice : public Comm {
 
  private:
   void EnableP2P(const std::vector<Context>& devs) {
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
     std::vector<int> gpus;
     for (const auto& d : devs) {
       if (d.dev_mask() == gpu::kDevMask) {

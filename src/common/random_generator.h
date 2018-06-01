@@ -29,10 +29,10 @@
 #include <random>
 #include <new>
 
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
 #include <hiprand_kernel.h>
 #include "../common/cuda_utils.h"
-#endif  // MXNET_USE_CUDA
+#endif  // MXNET_USE_GPU
 
 namespace mxnet {
 namespace common {
@@ -102,7 +102,7 @@ const int RandGenerator<cpu, DType>::kMinNumRandomPerThread = 64;
 template<typename DType>
 const int RandGenerator<cpu, DType>::kNumRandomStates = 1024;
 
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
 
 template<typename DType>
 class RandGenerator<gpu, DType> {
@@ -210,7 +210,7 @@ class RandGenerator<gpu, double> {
   hiprandStatePhilox4_32_10_t *states_;
 };  // class RandGenerator<gpu, double>
 
-#endif  // MXNET_USE_CUDA
+#endif  // MXNET_USE_GPU
 
 }  // namespace random
 }  // namespace common

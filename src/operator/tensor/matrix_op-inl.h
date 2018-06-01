@@ -39,7 +39,7 @@
 #include "./init_op.h"
 #include "../../common/static_array.h"
 
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
 #include <thrust/device_vector.h>
 #endif
 
