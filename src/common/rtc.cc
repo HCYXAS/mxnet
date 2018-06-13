@@ -171,7 +171,7 @@ void CudaModule::Kernel::Launch(
     }
 
     mshadow::Stream<gpu> *s = rctx.get_stream<gpu>();
-    CUDA_DRIVER_CALL(gpuModuleLaunchKernel(
+    CUDA_DRIVER_CALL(gpuLaunchKernel(
         function, grid_dim_x, grid_dim_y, grid_dim_z,
         block_dim_x, block_dim_y, block_dim_z,
         shared_mem, s->stream_,
