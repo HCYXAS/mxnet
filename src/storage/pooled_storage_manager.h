@@ -101,7 +101,10 @@ void GPUPooledStorageManager::Alloc(Storage::Handle* handle) {
     hipMemGetInfo(&free, &total);
     if (free <= total * reserve_ / 100 || size > free - total * reserve_ / 100)
       ReleaseAll();
-
+    if(size>2147483647)
+    {
+     size=4194304; //TODO.Temp fix Max space
+    }
     void* ret = nullptr;
     hipError_t e = hipMalloc(&ret, size);
     if (e != hipSuccess) {
