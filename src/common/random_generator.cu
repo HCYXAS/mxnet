@@ -51,7 +51,7 @@ void RandGenerator<gpu, float>::Seed(mshadow::Stream<gpu> *s, uint32_t seed) {
   int ngrid = std::min(kMaxGridNum,
                        (RandGenerator<gpu, float>::kNumRandomStates + kBaseThreadNum - 1) /
                          kBaseThreadNum);
-  hipLaunchKernelGGL((rand_generator_seed_kernel), dim3(ngrid), dim3(kBaseThreadNum), 0, mshadow::Stream<gpu>::GetStream(s),
+  hipLaunchKernelGGL(HIP_KERNEL_NAME(rand_generator_seed_kernel), dim3(ngrid), dim3(kBaseThreadNum), 0, mshadow::Stream<gpu>::GetStream(s),
           states_,
           RandGenerator<gpu, float>::kNumRandomStates,
           seed);

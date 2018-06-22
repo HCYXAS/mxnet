@@ -154,9 +154,9 @@ void linalg_gemm<gpu, mshadow::half::half_t>(const Tensor<gpu, 2, mshadow::half:
   CHECK_NOTNULL(s);
   check_gemm(A, B, C, alpha, beta, tA, tB);
 
-#if defined(__HIP_PLATFORM_HCC__) || CUDA_VERSION >= 7050
+#if defined(__HIP_PLATFORM_HCC__) || (defined(__HIP_PLATFORM_NVCC__) && CUDA_VERSION >= 7050)
   auto blas_handle = Stream<gpu>::GetBlasHandle(s);
-#if defined(__HIP_PLATFORM_HCC__) || CUDA_VERSION >= 9000
+#if defined(__HIP_PLATFORM_HCC__) || (defined(__HIP_PLATFORM_NVCC__) && CUDA_VERSION >= 9000)
   /*auto cublas_math_mode = GetEnvAllowTensorCore() ? CUBLAS_TENSOR_OP_MATH
                                                   : CUBLAS_DEFAULT_MATH;
   auto previous_math_mode = SetCublasMathMode(blas_handle, cublas_math_mode);*/ // hip porting for the cubls apis not supported
@@ -167,7 +167,7 @@ void linalg_gemm<gpu, mshadow::half::half_t>(const Tensor<gpu, 2, mshadow::half:
   float beta_f = float(beta);  // NOLINT(*)
 
   // As of cuda8, cublas adopted the cuda datatype, rather than maintaining its own datatype.
-#if defined(__HIP_PLATFORM_HCC__) || CUDA_VERSION >= 8000
+#if defined(__HIP_PLATFORM_HCC__) || (defined(__HIP_PLATFORM_NVCC__) && CUDA_VERSION >= 8000)
   hipDataType_t half_datatype = HIP_R_16F;
 #else
   hipblasDataType_t half_datatype = HIPBLAS_DATA_HALF;
@@ -190,7 +190,7 @@ void linalg_gemm<gpu, mshadow::half::half_t>(const Tensor<gpu, 2, mshadow::half:
 }
 
 // As of cuda8, hipblas has implemented a strided version of batch gemm.
-#if defined(__HIP_PLATFORM_HCC__) || CUDA_VERSION < 8000
+#if defined(__HIP_PLATFORM_HCC__) || (defined(__HIP_PLATFORM_NVCC__) && CUDA_VERSION < 8000)
   LINALG_XPU_BATCH_GEMM(gpu, float)
   LINALG_XPU_BATCH_GEMM(gpu, double)
 #else
@@ -850,7 +850,7 @@ void linalg_gelqf<gpu, DType>(const Tensor<gpu, 2, DType>& A, \
 //LINALG_GPU_GELQF(DnDgeqrf, double) // not ported
 
 // ORGLQ only available with cuda8 or higher.
-#if CUDA_VERSION >= 8000
+#if defined(__HIP_PLATFORM_NVCC__) && CUDA_VERSION >= 8000
 
 #define LINALG_GPU_ORGLQ(fname, DType) \
 template<> inline \
@@ -886,7 +886,7 @@ void linalg_orglq<gpu, DType>(const Tensor<gpu, 2, DType>& A, \
 //LINALG_GPU_ORGLQ(DnDorgqr, double) // not ported
 
 // ORGLQ only available with cuda8 or higher.
-#if CUDA_VERSION >= 8000
+#if defined(__HIP_PLATFORM_NVCC__) && CUDA_VERSION >= 8000
 
 #define LINALG_GPU_GELQF_WORKSPACE_QUERY(prefix, DType) \
 template<> inline \
@@ -983,7 +983,7 @@ LINALG_CPU_SYEVD_WORKSPACE_QUERY(dsyevd, double)
 #ifdef __HIPCC__
 
 // SYEVD only available with cuda8 or higher.
-#if CUDA_VERSION >= 8000
+#if defined(__HIP_PLATFORM_NVCC__) && CUDA_VERSION >= 8000
 
 // Row-major vs. col-major handled by using upper triangular
 // in cusolver-call.

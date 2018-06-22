@@ -137,7 +137,7 @@ struct GradOp {
   const DeviceTensor gradOutput;
 };
 
-#if defined(__HIP_PLATFORM_HCC__) || CUDA_VERSION >= 9000
+#if defined(__HIP_PLATFORM_HCC__) || (defined(__HIP_PLATFORM_NVCC__) && CUDA_VERSION >= 9000)
 #define FULLMASK 0xFFFFFFFF
 #define __shfl_xor(...) __shfl_xor_sync(FULLMASK, __VA_ARGS__)
 #endif
@@ -146,6 +146,7 @@ struct GradOp {
 template<typename T>
 static __device__ __forceinline__ T warpSum(T val) {
 #if __CUDA_ARCH__ >= 300
+//if __HIP_ARCH_HAS_WARP_SHUFFLE__
 for (int i = 0; i < getMSB(WARP_SIZE); ++i) {
     val += __shfl_xor(val, 1 << i, WARP_SIZE);
   }

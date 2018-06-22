@@ -34,7 +34,7 @@
 #include <cub/device/device_radix_sort.cuh>
 #undef SORT_WITH_THRUST
 #endif
-#if defined(__HIP_PLATFORM_HCC__) || CUDA_VERSION >= 7000
+#if defined(__HIP_PLATFORM_HCC__) || (defined(__HIP_PLATFORM_NVCC__) && CUDA_VERSION >= 7000)
 #include <thrust/system/cuda/execution_policy.h>
 #endif
 
@@ -62,7 +62,7 @@ inline void SortByKey(mshadow::Tensor<gpu, 1, KDType> keys, mshadow::Tensor<gpu,
                       const int begin_bit, const int end_bit) {
   CHECK_EQ(keys.CheckContiguous(), true);
   CHECK_EQ(values.CheckContiguous(), true);
-#if defined(__HIP_PLATFORM_HCC__) || CUDA_VERSION >= 7000
+#if defined(__HIP_PLATFORM_HCC__) || (defined(__HIP_PLATFORM_NVCC__) && CUDA_VERSION >= 7000)
   hipStream_t stream = mshadow::Stream<gpu>::GetStream(keys.stream_);
 #ifndef SORT_WITH_THRUST
   if (workspace != NULL) {
