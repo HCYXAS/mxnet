@@ -42,6 +42,10 @@ class CuDNNPoolingOp {
     CUDNN_CALL(miopenCreatePoolingDescriptor(&pooling_desc_));
     CUDNN_CALL(miopenCreateTensorDescriptor(&in_desc_));
     CUDNN_CALL(miopenCreateTensorDescriptor(&out_desc_));
+    //added for testing
+    workspaceSize =0 ;
+    workspace = nullptr;
+
   }
 
   void Init(const PoolingParam &p) {
@@ -63,6 +67,9 @@ class CuDNNPoolingOp {
     CUDNN_CALL(miopenDestroyTensorDescriptor(in_desc_));
     CUDNN_CALL(miopenDestroyTensorDescriptor(out_desc_));
     CUDNN_CALL(miopenDestroyPoolingDescriptor(pooling_desc_));
+    if(workspace !=nullptr)
+        hipFree(workspace);
+
   }
 
   void Forward(const OpContext &ctx, const TBlob &in_data,
@@ -83,7 +90,7 @@ class CuDNNPoolingOp {
 
       size_t temp_workspaceSize = 0;
       CUDNN_CALL(miopenPoolingGetWorkSpaceSize(out_desc_, &temp_workspaceSize));
-      if (temp_workspaceSize > 0 && temp_workspaceSize > workspaceSize ) {
+      if (temp_workspaceSize > 0 && (temp_workspaceSize > workspaceSize || workspace == nullptr)) {
             workspaceSize = temp_workspaceSize;
             hipFree(workspace);
             hipMalloc(&workspace, workspaceSize);
@@ -117,7 +124,7 @@ class CuDNNPoolingOp {
       CHECK_EQ(out.CheckContiguous(), true);
       size_t temp_workspaceSize = 0;
           CUDNN_CALL(miopenPoolingGetWorkSpaceSize(out_desc_, &temp_workspaceSize));
-          if (temp_workspaceSize > 0 && temp_workspaceSize > workspaceSize ) {
+          if (temp_workspaceSize > 0 && (temp_workspaceSize > workspaceSize  || workspace == nullptr)) {
                workspaceSize = temp_workspaceSize;
                hipFree(workspace);
                hipMalloc(&workspace, workspaceSize);
@@ -160,7 +167,7 @@ class CuDNNPoolingOp {
     this->Init(s, in_data, out_data);
     size_t temp_workspaceSize = 0;
       CUDNN_CALL(miopenPoolingGetWorkSpaceSize(out_desc_, &temp_workspaceSize));
-      if (temp_workspaceSize > 0 && temp_workspaceSize > workspaceSize ) {
+      if (temp_workspaceSize > 0 && (temp_workspaceSize > workspaceSize || workspace == nullptr)) {
             workspaceSize = temp_workspaceSize;
             hipFree(workspace);
             hipMalloc(&workspace, workspaceSize);
@@ -358,6 +365,8 @@ class CuDNNPoolingOp {
      workspaceSize = 0;
    CUDNN_CALL(miopenPoolingGetWorkSpaceSize(out_desc_, &workspaceSize));
   if(workspaceSize > 0)
+     if(workspace !=nullptr)
+        hipFree(workspace);
    hipMalloc(&workspace, workspaceSize);
   }
 

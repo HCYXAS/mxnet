@@ -44,7 +44,8 @@ class CuDNNLocalResponseNormOp : public Operator {
     if (init_cudnn_) {
       CUDNN_CALL(miopenDestroyLRNDescriptor(lrn_desc_));
       CUDNN_CALL(miopenDestroyTensorDescriptor(shape_desc_));
-      hipFree(workspace);
+      if(workspace !=nullptr)
+         hipFree(workspace);
     }
   }
 
@@ -192,8 +193,10 @@ class CuDNNLocalResponseNormOp : public Operator {
                                             data.shape_[2],
                                             data.shape_[3]));
     workspaceSize = 0;
-   miopenLRNGetWorkSpaceSize(shape_desc_,&workspaceSize);
-   hipMalloc(&workspace, workspaceSize);
+    miopenLRNGetWorkSpaceSize(shape_desc_,&workspaceSize);
+    if (workspace != nullptr)
+         hipFree(workspace);
+    hipMalloc(&workspace, workspaceSize);
     }
   }
   bool init_cudnn_;
