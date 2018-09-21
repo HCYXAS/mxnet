@@ -11,12 +11,6 @@
 #include "hip/hip_fp16.h"
 
 
-#if defined(__HIP_PLATFORM_HCC__) && !defined (__HCC__)
-typedef struct {
-   unsigned short x;
-}__half;
-#endif
-
 typedef enum hipDataType_t
 {
     HIP_R_16F= 2,  /* real as a half */

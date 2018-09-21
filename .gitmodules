@@ -7,6 +7,7 @@
 [submodule "3rdparty/nnvm"]
 	path = 3rdparty/nnvm
 	url = https://github.com/dmlc/nnvm
+	branch = mx_1.2.0
 [submodule "3rdparty/dlpack"]
 	path = 3rdparty/dlpack
 	url = https://github.com/dmlc/dlpack

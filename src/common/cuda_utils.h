@@ -439,9 +439,7 @@ inline int MaxBackwardDataAlgos(miopenHandle_t cudnn_handle) {
 #endif  // MXNET_USE_CUDNN
 
 // Overload atomicAdd to work for floats on all architectures
-//#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ < 600
-//#if (__HIP_DEVICE_COMPILE__) && (__HIP_ARCH_HAS_GLOBAL_INT64_ATOMICS__)
-#if (__HIP_DEVICE_COMPILE__ && (__CUDA_ARCH__ < 600)) || defined(__HCC__)
+#if (__HIP_DEVICE_COMPILE__ && (__CUDA_ARCH__ < 600) && defined(__HIP_PLATFORM_NVCC__))
 static inline __device__  void atomicAdd(double *address, double val) {
   unsigned long long* address_as_ull =                  // NOLINT(*)
     reinterpret_cast<unsigned long long*>(address);     // NOLINT(*)

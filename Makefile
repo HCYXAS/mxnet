@@ -393,6 +393,7 @@ ifeq ($(USE_GPU), 1)
 	ifneq (, $(findstring nvcc, $(HIP_PLATFORM)))
 		LDFLAGS += -L/opt/rocm/hcfft/lib -lhipfft
 		LDFLAGS += -lcudart -lcuda -lcufft -lcublas
+		LDFLAGS += -L/usr/local/cuda/lib64/stubs
 	else
 		HIPINCLUDE += -I/opt/rocm/rocblas/include -I/opt/rocm/rocrand/include
 		LDFLAGS += -L/opt/rocm/hcfft/lib    -lhipfft
@@ -401,7 +402,6 @@ ifeq ($(USE_GPU), 1)
 	endif
 	# Make sure to add stubs as fallback in order to be able to build
 	# without full CUDA install (especially if run without nvidia-docker)
-	LDFLAGS += -L/usr/local/cuda/lib64/stubs
 	SCALA_PKG_PROFILE := $(SCALA_PKG_PROFILE)-gpu
 	ifeq ($(USE_NCCL), 1)
 		ifneq ($(USE_NCCL_PATH), NONE)
