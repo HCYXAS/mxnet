@@ -179,7 +179,7 @@ class FFTOp : public Operator {
       hipfftComplex* in_tmp = const_cast<hipfftComplex*>(
         reinterpret_cast<const hipfftComplex*>(grad.dptr_ + 2*idx*stride_));
       hipfftComplex* out_tmp = reinterpret_cast<hipfftComplex*>(complex_data.dptr_);
-      CHECK_EQ(hipfftExecC2C(plan, in_tmp, out_tmp, HIPFFT_INVERSE), HIPFFT_SUCCESS);
+      CHECK_EQ(hipfftExecC2C(plan, in_tmp, out_tmp, HIPFFT_BACKWARD), HIPFFT_SUCCESS);
 
       Assign(gdata.Slice(idx*param_.compute_size, (idx+1)*param_.compute_size),
              req[fft::kData], complex_toreal(complex_data));
@@ -198,7 +198,7 @@ class FFTOp : public Operator {
       hipfftComplex* in_tmp = const_cast<hipfftComplex*>(
         reinterpret_cast<const hipfftComplex*>(grad.dptr_ + 2*num_compute*stride_));
       hipfftComplex* out_tmp = reinterpret_cast<hipfftComplex*>(complex_data.dptr_);
-      CHECK_EQ(hipfftExecC2C(plan_remain, in_tmp, out_tmp, HIPFFT_INVERSE), HIPFFT_SUCCESS);
+      CHECK_EQ(hipfftExecC2C(plan_remain, in_tmp, out_tmp, HIPFFT_BACKWARD), HIPFFT_SUCCESS);
 
       Assign(gdata.Slice(param_.compute_size*num_compute,
                          param_.compute_size*num_compute+remain_num),

@@ -95,7 +95,7 @@ else
 	CFLAGS += -O3 -DNDEBUG=1
 endif
 
-HIPINCLUDE += -I. -I./3rdparty/Thrust -I/opt/rocm/hipblas/include -I/opt/rocm/hiprand/include -I/opt/rocm/hcfft/include
+HIPINCLUDE += -I. -I./3rdparty/Thrust -I/opt/rocm/hipblas/include -I/opt/rocm/hiprand/include -I/opt/rocm/rocfft/include
 CFLAGS += $(HIPINCLUDE) -I$(TPARTYDIR)/mshadow/ -I$(TPARTYDIR)/dmlc-core/include -fPIC -I$(NNVM_PATH)/include -I$(DLPACK_PATH)/include -I$(NNVM_PATH)/tvm/include -Iinclude $(MSHADOW_CFLAGS)
 LDFLAGS = -pthread $(MSHADOW_LDFLAGS) $(DMLC_LDFLAGS)
 
@@ -391,12 +391,12 @@ ifeq ($(USE_GPU), 1)
         LDFLAGS += -L/opt/rocm/hipblas/lib  -lhipblas
 	LDFLAGS += -L/opt/rocm/hiprand/lib  -lhiprand
 	ifneq (, $(findstring nvcc, $(HIP_PLATFORM)))
-		LDFLAGS += -L/opt/rocm/hcfft/lib -lhipfft
+		LDFLAGS += -L/opt/rocm/rocfft/lib -lrocfft
 		LDFLAGS += -lcudart -lcuda -lcufft -lcublas
 		LDFLAGS += -L/usr/local/cuda/lib64/stubs
 	else
 		HIPINCLUDE += -I/opt/rocm/rocblas/include -I/opt/rocm/rocrand/include
-		LDFLAGS += -L/opt/rocm/hcfft/lib    -lhipfft
+		LDFLAGS += -L/opt/rocm/rocfft/lib    -lrocfft
 		LDFLAGS += -L/opt/rocm/rocblas/lib  -lrocblas
 		LDFLAGS += -L/opt/rocm/rocrand/lib  -lrocrand
 	endif
