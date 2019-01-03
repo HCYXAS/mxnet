@@ -50,20 +50,20 @@ class CuDNNBatchNormOp {
     dtype_ = DataType<DType>::kCudnnFlag;
     // For float16 input type beta, gamma, mean, and average are stored in float32.
     // For other input types, these parameters have the same type as input
-    dtype_param_ = (dtype_ == miopenHalf) ? kFloat32 : DataType<DType>::kFlag;
-    CUDNN_CALL(miopenCreateTensorDescriptor(&io_desc_));
-    CUDNN_CALL(miopenCreateTensorDescriptor(&mean_desc_));
+    dtype_param_ = (dtype_ == HIPDNN_DATA_HALF) ? kFloat32 : DataType<DType>::kFlag;
+    CUDNN_CALL(hipdnnCreateTensorDescriptor(&io_desc_));
+    CUDNN_CALL(hipdnnCreateTensorDescriptor(&mean_desc_));
   }
 
   void Init(const BatchNormParam &param) {
-    /*CHECK_GE(param.eps, CUDNN_BN_MIN_EPSILON)
-     << "CuDNN requires eps to be no less than " << CUDNN_BN_MIN_EPSILON;*/ //TODO commented as unable to find MIOpen equivalent
+    CHECK_GE(param.eps, HIPDNN_BN_MIN_EPSILON)
+     << "CuDNN requires eps to be no less than " << HIPDNN_BN_MIN_EPSILON;
     this->param_ = param;
   }
 
   ~CuDNNBatchNormOp() {
-    CUDNN_CALL(miopenDestroyTensorDescriptor(io_desc_));
-    CUDNN_CALL(miopenDestroyTensorDescriptor(mean_desc_));
+    CUDNN_CALL(hipdnnDestroyTensorDescriptor(io_desc_));
+    CUDNN_CALL(hipdnnDestroyTensorDescriptor(mean_desc_));
   }
 
   void Forward(const OpContext &ctx,
@@ -93,12 +93,11 @@ class CuDNNBatchNormOp {
 
     Tensor<gpu, 4, DType> y =
       out_data[cudnnbatchnorm::kOut].get_with_shape<gpu, 4, DType>(shape_, s);
-/*#if CUDNN_VERSION >= 7002
-    auto mode = CUDNN_BATCHNORM_SPATIAL_PERSISTENT;
-#else*/ //TODO Commented as not supported in MIOpen
-    //auto mode = CUDNN_BATCHNORM_SPATIAL;
-    auto mode = miopenBNSpatial;
-//#endif
+#if CUDNN_VERSION >= 7002
+    auto mode = HIPDNN_BATCHNORM_SPATIAL_PERSISTENT;
+#else
+    auto mode = HIPDNN_BATCHNORM_SPATIAL;
+#endif
 
     MSHADOW_REAL_TYPE_SWITCH(dtype_param_, DTypeParam, {
       Tensor<gpu, 1, DTypeParam> gamma =
@@ -122,8 +121,7 @@ class CuDNNBatchNormOp {
         Tensor<gpu, 1, DTypeParam> save_inv_var =
           out_data[cudnnbatchnorm::kInvVar]
           .get_with_shape<gpu, 1, DTypeParam>(Shape1(shape_[1]), s);
-
-        CUDNN_CALL(miopenBatchNormalizationForwardTraining(s->dnn_handle_,
+        CUDNN_CALL(hipdnnBatchNormalizationForwardTraining(s->dnn_handle_,
                                                           mode,
                                                           &a,
                                                           &b,
@@ -140,29 +138,9 @@ class CuDNNBatchNormOp {
                                                           param_.eps,
                                                           save_mean.dptr_,
                                                           save_inv_var.dptr_));
-
-/*        CUDNN_CALL(cudnnBatchNormalizationForwardTraining(s->dnn_handle_,
-                                                          mode,
-                                                          &a,
-                                                          &b,
-                                                          io_desc_,
-                                                          x.dptr_,
-                                                          io_desc_,
-                                                          y.dptr_,
-                                                          mean_desc_,
-                                                          gamma.dptr_,
-                                                          beta.dptr_,
-                                                          1 - param_.momentum,
-                                                          moving_mean.dptr_,
-                                                          moving_inv_var.dptr_,
-                                                          param_.eps,
-                                                          save_mean.dptr_,
-                                                          save_inv_var.dptr_));*/
       } else {
-
-
-        CUDNN_CALL(miopenBatchNormalizationForwardInference(s->dnn_handle_,
-                                                           miopenBNSpatial,
+        CUDNN_CALL(hipdnnBatchNormalizationForwardInference(s->dnn_handle_,
+                                                           HIPDNN_BATCHNORM_SPATIAL,
                                                            &a,
                                                            &b,
                                                            io_desc_,
@@ -175,22 +153,6 @@ class CuDNNBatchNormOp {
                                                            moving_mean.dptr_,
                                                            moving_inv_var.dptr_,
                                                            param_.eps));
-
-
-        /*CUDNN_CALL(cudnnBatchNormalizationForwardInference(s->dnn_handle_,
-                                                           CUDNN_BATCHNORM_SPATIAL,
-                                                           &a,
-                                                           &b,
-                                                           io_desc_,
-                                                           x.dptr_,
-                                                           io_desc_,
-                                                           y.dptr_,
-                                                           mean_desc_,
-                                                           gamma.dptr_,
-                                                           beta.dptr_,
-                                                           moving_mean.dptr_,
-                                                           moving_inv_var.dptr_,
-                                                           param_.eps));*/
       }
     })
   }
@@ -222,12 +184,11 @@ class CuDNNBatchNormOp {
     Tensor<gpu, 4, DType> dy = out_grad.get_with_shape<gpu, 4, DType>(shape_, s);
 
 #if CUDNN_VERSION >= 4007
-/*#if CUDNN_VERSION >= 7002
-    auto mode = CUDNN_BATCHNORM_SPATIAL_PERSISTENT;
-#else*/
-    //auto mode = CUDNN_BATCHNORM_SPATIAL;
-    auto mode = miopenBNSpatial;
-//#endif
+#if CUDNN_VERSION >= 7002
+    auto mode = HIPDNN_BATCHNORM_SPATIAL_PERSISTENT;
+#else
+    auto mode = HIPDNN_BATCHNORM_SPATIAL;
+#endif
     MSHADOW_REAL_TYPE_SWITCH(dtype_param_, DTypeParam, {
       Tensor<gpu, 1, DTypeParam> gamma =
         in_gamma.get_with_shape<gpu, 1, DTypeParam>(Shape1(shape_[1]), s);
@@ -247,28 +208,7 @@ class CuDNNBatchNormOp {
 
       if (param_.fix_gamma) gamma = 1.f;
 
-      /*CUDNN_CALL(cudnnBatchNormalizationBackward(
-        s->dnn_handle_,
-        mode,
-        &a,
-        &b,
-        &a,
-        req[cudnnbatchnorm::kGamma] == kWriteTo ? &b: &b_add,
-        io_desc_,
-        x.dptr_,
-        io_desc_,
-        dy.dptr_,
-        io_desc_,
-        dx.dptr_,
-        mean_desc_,
-        gamma.dptr_,
-        dgamma.dptr_,
-        dbeta.dptr_,
-        param_.eps,
-        save_mean.dptr_,
-        save_inv_var.dptr_));*/
-
-        CUDNN_CALL(miopenBatchNormalizationBackward(
+      CUDNN_CALL(hipdnnBatchNormalizationBackward(
         s->dnn_handle_,
         mode,
         &a,
@@ -288,7 +228,6 @@ class CuDNNBatchNormOp {
         param_.eps,
         save_mean.dptr_,
         save_inv_var.dptr_));
-
       if (param_.fix_gamma) dgamma = 0.f;
     })
 #else  // CUDNN_VERSION < 4007
@@ -310,7 +249,7 @@ class CuDNNBatchNormOp {
       CHECK_EQ(s->dnn_handle_ownership_, mshadow::Stream<gpu>::OwnHandle);
 
       if (param_.fix_gamma) gamma = 1.f;
-      /*CUDNN_CALL(cudnnBatchNormalizationBackward(s->dnn_handle_,
+      CUDNN_CALL(hipdnnBatchNormalizationBackward(s->dnn_handle_,
                                                  CUDNN_BATCHNORM_SPATIAL,
                                                  &a,
                                                  &b,
@@ -326,26 +265,7 @@ class CuDNNBatchNormOp {
                                                  dbeta.dptr_,
                                                  param_.eps,
                                                  save_mean.dptr_,
-                                                 save_inv_var.dptr_));*/ //TODO Commented due to argument missmatch
-
-      /*CUDNN_CALL(miopenBatchNormalizationBackward(s->dnn_handle_,
-                                                 miopenBNSpatial,
-                                                 &a,
-                                                 &b,
-                                                 io_desc_,
-                                                 x.dptr_,
-                                                 io_desc_,
-                                                 dy.dptr_,
-                                                 io_desc_,
-                                                 dx.dptr_,
-                                                 mean_desc_,
-                                                 gamma.dptr_,
-                                                 dgamma.dptr_,
-                                                 dbeta.dptr_,
-                                                 param_.eps,
-                                                 save_mean.dptr_,
-                                                 save_inv_var.dptr_));*/
-
+                                                 save_inv_var.dptr_));
       if (param_.fix_gamma) dgamma = 0.f;
     })
 #endif
@@ -361,21 +281,21 @@ class CuDNNBatchNormOp {
       }
     }
 
-    CUDNN_CALL(miopenSet4dTensorDescriptor(io_desc_,
-                                          //CUDNN_TENSOR_NCHW,
+    CUDNN_CALL(hipdnnSetTensor4dDescriptor(io_desc_,
+                                          HIPDNN_TENSOR_NCHW,
                                           dtype_,
                                           shape_[0],
                                           shape_[1],
                                           shape_[2],
                                           shape_[3]));
-    CUDNN_CALL(miopenDeriveBNTensorDescriptor(mean_desc_,
+    CUDNN_CALL(hipdnnDeriveBNTensorDescriptor(mean_desc_,
                                              io_desc_,
-                                             miopenBNSpatial));
+                                             HIPDNN_BATCHNORM_SPATIAL));
   }
 
-  miopenDataType_t dtype_;
+  hipdnnDataType_t dtype_;
   int dtype_param_;
-  miopenTensorDescriptor_t io_desc_, mean_desc_;
+  hipdnnTensorDescriptor_t io_desc_, mean_desc_;
   mshadow::Shape<4> shape_;
   BatchNormParam param_;
 };

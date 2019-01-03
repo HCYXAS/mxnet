@@ -213,8 +213,14 @@ ifeq ($(USE_LAPACK), 1)
 endif
 
 ifeq ($(USE_CUDNN), 1)
-	CFLAGS += -DMSHADOW_USE_CUDNN=1
-	LDFLAGS += -L/opt/rocm/miopen/lib -lMIOpen #-lcudnn
+	CFLAGS     += -DMSHADOW_USE_CUDNN=1
+	HIPINCLUDE += -I/opt/rocm/hipdnn/include
+	LDFLAGS    += -L/opt/rocm/hipdnn/lib -lhipdnn
+	ifeq ($(HIP_PLATFORM), hcc)
+		LDFLAGS += -L/opt/rocm/miopen/lib -lMIOpen
+	else
+		LDFLAGS += -lcudnn
+	endif
 endif
 
 # gperftools malloc library (tcmalloc)

@@ -103,8 +103,8 @@ namespace cuda {
       DType roi_end_h = static_cast<DType>(round(offset_bottom_rois[4]) + 1.) * spatial_scale - 0.5;
 
       // Force too small ROIs to be 1x1
-      DType roi_width = max(roi_end_w - roi_start_w, 0.1);  // avoid 0
-      DType roi_height = max(roi_end_h - roi_start_h, 0.1);
+      DType roi_width = max(roi_end_w - roi_start_w,(DType)0.1);  // avoid 0
+      DType roi_height = max(roi_end_h - roi_start_h,(DType)0.1);
 
       // Compute w and h at bottom
       DType bin_size_h = roi_height / static_cast<DType>(pooled_height);
@@ -148,8 +148,8 @@ namespace cuda {
           if (w<-0.5 || w>width - 0.5 || h<-0.5 || h>height - 0.5) {
             continue;
           }
-          w = min(max(w, 0.), width - 1.);
-          h = min(max(h, 0.), height - 1.);
+          w = min(max(w,(DType)0.), width - 1.);
+          h = min(max(h,(DType)0.), height - 1.);
           int c = (ctop*group_size + gh)*group_size + gw;
           DType val = bilinear_interp(offset_bottom_data + c*height*width, w, h, width, height);
           sum += val;
@@ -238,8 +238,8 @@ namespace cuda {
       DType roi_end_h = static_cast<DType>(round(offset_bottom_rois[4]) + 1.) * spatial_scale - 0.5;
 
       // Force too small ROIs to be 1x1
-      DType roi_width = max(roi_end_w - roi_start_w, 0.1);  // avoid 0
-      DType roi_height = max(roi_end_h - roi_start_h, 0.1);
+      DType roi_width = max(roi_end_w - roi_start_w,(DType)0.1);  // avoid 0
+      DType roi_height = max(roi_end_h - roi_start_h,(DType)0.1);
 
       // Compute w and h at bottom
       DType bin_size_h = roi_height / static_cast<DType>(pooled_height);
@@ -286,8 +286,8 @@ namespace cuda {
           if (w<-0.5 || w>width - 0.5 || h<-0.5 || h>height - 0.5) {
             continue;
           }
-          w = min(max(w, 0.), width - 1.);
-          h = min(max(h, 0.), height - 1.);
+          w = min(max(w,(DType)0.), width - 1.);
+          h = min(max(h,(DType)0.), height - 1.);
           int c = (ctop*group_size + gh)*group_size + gw;
           // backward on feature
           int x0 = floor(w);

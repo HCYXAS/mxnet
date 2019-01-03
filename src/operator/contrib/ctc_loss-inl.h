@@ -230,18 +230,18 @@ class CTCLossOp : public Operator {
     this->param_ = p;
     exceed_cudnn_limit = false;
 #if defined(__HIPCC__) && MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 7
-    /*CUDNN_CALL(cudnnCreateCTCLossDescriptor(&ctc_desc_));
-    CUDNN_CALL(cudnnSetCTCLossDescriptor(ctc_desc_, CUDNN_DATA_FLOAT));*/ //TODO: Not supported in MIOpen
-    CUDNN_CALL(miopenCreateTensorDescriptor(&prob_desc_));
-    CUDNN_CALL(miopenCreateTensorDescriptor(&grad_desc_));
+    CUDNN_CALL(hipdnnCreateCTCLossDescriptor(&ctc_desc_));
+    CUDNN_CALL(hipdnnSetCTCLossDescriptor(ctc_desc_, HIPDNN_DATA_FLOAT));
+    CUDNN_CALL(hipdnnCreateTensorDescriptor(&prob_desc_));
+    CUDNN_CALL(hipdnnCreateTensorDescriptor(&grad_desc_));
 #endif
   }
 
   ~CTCLossOp() {
 #if defined(__HIPCC__) && MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 7
-    //CUDNN_CALL(cudnnDestroyCTCLossDescriptor(ctc_desc_)); //TODO: Not supported in MIOpen
-    CUDNN_CALL(miopenDestroyTensorDescriptor(prob_desc_));
-    CUDNN_CALL(miopenDestroyTensorDescriptor(grad_desc_));
+    CUDNN_CALL(hipdnnDestroyCTCLossDescriptor(ctc_desc_));
+    CUDNN_CALL(hipdnnDestroyTensorDescriptor(prob_desc_));
+    CUDNN_CALL(hipdnnDestroyTensorDescriptor(grad_desc_));
 #endif
   }
 
@@ -347,9 +347,9 @@ class CTCLossOp : public Operator {
   bool exceed_cudnn_limit;
 
 #if defined(__HIPCC__) && MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 7
-  miopenDataType_t dtype_;
-  //cudnnCTCLossDescriptor_t ctc_desc_;  //TODO Not supported in MIOpen
-  miopenTensorDescriptor_t prob_desc_, grad_desc_;
+  hipdnnDataType_t dtype_;
+  hipdnnCTCLossDescriptor_t ctc_desc_;
+  hipdnnTensorDescriptor_t prob_desc_, grad_desc_;
 
   inline virtual void cudnn_forward(const OpContext &ctx,
                                     mshadow::Stream<xpu>* s,
@@ -366,7 +366,7 @@ class CTCLossOp : public Operator {
     using namespace mshadow;
 
     // call cudnn to calculate ctc loss
-    dtype_ = miopenFloat;
+    dtype_ = HIPDNN_DATA_FLOAT;
     int dims[3], strides[3];
     size_t workspace_bytes;
     int workspace_size;
@@ -376,18 +376,18 @@ class CTCLossOp : public Operator {
     strides[0] = batch_size*alphabet_size;
     strides[1] = alphabet_size;
     strides[2] = 1;
-    //cudnnCTCLossAlgo_t ctc_algo = CUDNN_CTC_LOSS_ALGO_DETERMINISTIC;//TODO Not supported in MIOpen
-    CUDNN_CALL(miopenSetTensorDescriptor(prob_desc_,
-                                         dtype_, //TODO Currently only miopenFloat is implemented
-                                         3,
-                                         dims,
-                                         strides));
-    CUDNN_CALL(miopenSetTensorDescriptor(grad_desc_,
-                                         dtype_,
-                                         3,
-                                         dims,
-                                         strides));
-    /*CUDNN_CALL(cudnnGetCTCLossWorkspaceSize(s->dnn_handle_,
+    hipdnnCTCLossAlgo_t ctc_algo = HIPDNN_CTC_LOSS_ALGO_DETERMINISTIC;
+    CUDNN_CALL(hipdnnSetTensorNdDescriptor(prob_desc_,
+                                          dtype_,
+                                          3,
+                                          dims,
+                                          strides));
+    CUDNN_CALL(hipdnnSetTensorNdDescriptor(grad_desc_,
+                                          dtype_,
+                                          3,
+                                          dims,
+                                          strides));
+    CUDNN_CALL(hipdnnGetCTCLossWorkspaceSize(s->dnn_handle_,
                                             prob_desc_,
                                             req_grad?grad_desc_:NULL,
                                             packed_labels->data(),
@@ -395,7 +395,7 @@ class CTCLossOp : public Operator {
                                             data_lengths->data(),
                                             ctc_algo,
                                             ctc_desc_,
-                                            &workspace_bytes));*/
+                                            &workspace_bytes));
     workspace_size = (workspace_bytes + sizeof(real_t) - 1)/sizeof(real_t);
 
     Tensor<xpu, 1, real_t> temp_space =
@@ -410,7 +410,8 @@ class CTCLossOp : public Operator {
     // since the input is activation before softmax and cudnn ctc takes softmax
     // apply softmax to inputs first.
     mxnet_op::Softmax<mxnet_op::softmax_fwd>(s, data.dptr_, prob.dptr_, data.shape_, 2);
-    /*CUDNN_CALL(cudnnCTCLoss(s->dnn_handle_,
+
+    CUDNN_CALL(hipdnnCTCLoss(s->dnn_handle_,
                             prob_desc_,
                             prob.dptr_,
                             packed_labels->data(),
@@ -422,7 +423,8 @@ class CTCLossOp : public Operator {
                             ctc_algo,
                             ctc_desc_,
                             work_space.dptr_,
-                            workspace_bytes));*/ //TODO Not supported in MIOpen
+                            workspace_bytes));
+
     if (req_grad) {
       mxnet_op::SoftmaxGrad<mshadow_op::mul, mxnet_op::softmax_bwd>(s,
           prob.dptr_, grad.dptr_, grad.dptr_, data.shape_, 2);

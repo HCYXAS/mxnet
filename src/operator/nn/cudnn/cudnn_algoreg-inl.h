@@ -52,11 +52,11 @@ class CuDNNAlgo {
   }
   CuDNNAlgoType AlgoNumber() const { return algo_number_; }
   bool IsTensorCoreAlgo() const { return is_tensor_core_algo_; }
-/*  #if CUDNN_MAJOR >= 7
-  cudnnMathType_t MathType() {
+  #if CUDNN_MAJOR >= 7
+  hipdnnMathType_t MathType() {
     return IsTensorCoreAlgo() ? CUDNN_TENSOR_OP_MATH : CUDNN_DEFAULT_MATH;
   }
-  #endif*/ //TODO Commented as cudnnMathType_t is unsupported in MIOpen
+  #endif
  private:
   CuDNNAlgoType algo_number_;
   bool is_tensor_core_algo_;
@@ -68,16 +68,13 @@ class CuDNNAlgoReg {
   bool Find(const ParamType &param,
             const std::vector<TShape> &in_shape,
             const std::vector<TShape> &out_shape,
-            miopenDataType_t cudnn_data_type,
-            miopenDataType_t cudnn_forward_compute_type,
-            miopenDataType_t cudnn_backward_compute_type,
+            hipdnnDataType_t cudnn_data_type,
+            hipdnnDataType_t cudnn_forward_compute_type,
+            hipdnnDataType_t cudnn_backward_compute_type,
             int sm_arch,
-            CuDNNAlgo<miopenConvFwdAlgorithm_t> *fwd,
-            CuDNNAlgo<miopenConvBwdDataAlgorithm_t> *bwd,
-            CuDNNAlgo<miopenConvBwdWeightsAlgorithm_t> *flt) {
-            /*CuDNNAlgo<cudnnConvolutionFwdAlgo_t> *fwd,
-            CuDNNAlgo<cudnnConvolutionBwdDataAlgo_t> *bwd,
-            CuDNNAlgo<cudnnConvolutionBwdFilterAlgo_t> *flt) {*/
+            CuDNNAlgo<hipdnnConvolutionFwdAlgo_t> *fwd,
+            CuDNNAlgo<hipdnnConvolutionBwdDataAlgo_t> *bwd,
+            CuDNNAlgo<hipdnnConvolutionBwdFilterAlgo_t> *flt) {
     CHECK(in_shape.size() == 2 || in_shape.size() == 3);
     ParamKey key{param, in_shape[0], in_shape[1], out_shape[0], cudnn_data_type,
                  cudnn_forward_compute_type, cudnn_backward_compute_type, sm_arch};
@@ -95,16 +92,13 @@ class CuDNNAlgoReg {
   void Register(const ParamType &param,
                 const std::vector<TShape> &in_shape,
                 const std::vector<TShape> &out_shape,
-                miopenDataType_t cudnn_data_type,
-                miopenDataType_t cudnn_forward_compute_type,
-                miopenDataType_t cudnn_backward_compute_type,
+                hipdnnDataType_t cudnn_data_type,
+                hipdnnDataType_t cudnn_forward_compute_type,
+                hipdnnDataType_t cudnn_backward_compute_type,
                 int sm_arch,
-                const CuDNNAlgo<miopenConvFwdAlgorithm_t> &fwd,
-                const CuDNNAlgo<miopenConvBwdDataAlgorithm_t> &bwd,
-                const CuDNNAlgo<miopenConvBwdWeightsAlgorithm_t> &flt) {
-                /*const CuDNNAlgo<cudnnConvolutionFwdAlgo_t> &fwd,
-                const CuDNNAlgo<cudnnConvolutionBwdDataAlgo_t> &bwd,
-                const CuDNNAlgo<cudnnConvolutionBwdFilterAlgo_t> &flt) {*/
+                const CuDNNAlgo<hipdnnConvolutionFwdAlgo_t> &fwd,
+                const CuDNNAlgo<hipdnnConvolutionBwdDataAlgo_t> &bwd,
+                const CuDNNAlgo<hipdnnConvolutionBwdFilterAlgo_t> &flt) {
     CHECK(in_shape.size() == 2 || in_shape.size() == 3);
     ParamKey key{param, in_shape[0], in_shape[1], out_shape[0], cudnn_data_type,
                  cudnn_forward_compute_type, cudnn_backward_compute_type, sm_arch};
@@ -134,21 +128,17 @@ class CuDNNAlgoReg {
 
  private:
   struct CudnnAlgorithms {
-    /*CuDNNAlgo<cudnnConvolutionFwdAlgo_t> fwd;
-    CuDNNAlgo<cudnnConvolutionBwdDataAlgo_t> bwd;
-    CuDNNAlgo<cudnnConvolutionBwdFilterAlgo_t> flt;*/
-
-    CuDNNAlgo<miopenConvFwdAlgorithm_t> fwd;
-    CuDNNAlgo<miopenConvBwdDataAlgorithm_t> bwd;
-    CuDNNAlgo<miopenConvBwdWeightsAlgorithm_t> flt;
+    CuDNNAlgo<hipdnnConvolutionFwdAlgo_t> fwd;
+    CuDNNAlgo<hipdnnConvolutionBwdDataAlgo_t> bwd;
+    CuDNNAlgo<hipdnnConvolutionBwdFilterAlgo_t> flt;
   };
 
   struct ParamKey {
     ParamType param;
     TShape data_shape, weight_shape, out_shape;
-    miopenDataType_t cudnn_data_type;
-    miopenDataType_t cudnn_forward_compute_type;
-    miopenDataType_t cudnn_backward_compute_type;
+    hipdnnDataType_t cudnn_data_type;
+    hipdnnDataType_t cudnn_forward_compute_type;
+    hipdnnDataType_t cudnn_backward_compute_type;
     int sm_arch;
 
     bool operator==(const ParamKey& other) const {

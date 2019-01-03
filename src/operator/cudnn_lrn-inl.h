@@ -42,10 +42,8 @@ class CuDNNLocalResponseNormOp : public Operator {
 
   ~CuDNNLocalResponseNormOp() {
     if (init_cudnn_) {
-      CUDNN_CALL(miopenDestroyLRNDescriptor(lrn_desc_));
-      CUDNN_CALL(miopenDestroyTensorDescriptor(shape_desc_));
-      if(workspace !=nullptr)
-         hipFree(workspace);
+      CUDNN_CALL(hipdnnDestroyLRNDescriptor(lrn_desc_));
+      CUDNN_CALL(hipdnnDestroyTensorDescriptor(shape_desc_));
     }
   }
 
@@ -67,39 +65,15 @@ class CuDNNLocalResponseNormOp : public Operator {
       this->Init(s, in_data, out_data);
     }
     CHECK_EQ(s->dnn_handle_ownership_, mshadow::Stream<gpu>::OwnHandle);
-
-    size_t temp_workspaceSize = 0;
-   miopenLRNGetWorkSpaceSize(shape_desc_, &temp_workspaceSize);
-   if (temp_workspaceSize > workspaceSize) {
-
-    workspaceSize = temp_workspaceSize;
-
-    hipFree(workspace);
-
-    hipMalloc(&workspace, workspaceSize);
-
-}
-
-    /*CUDNN_CALL(cudnnLRNCrossChannelForward(s->dnn_handle_,
+    CUDNN_CALL(hipdnnLRNCrossChannelForward(s->dnn_handle_,
                                            lrn_desc_,
-                                           CUDNN_LRN_CROSS_CHANNEL_DIM1,
+                                           HIPDNN_LRN_CROSS_CHANNEL_DIM1,
                                            &alpha,
                                            shape_desc_,
                                            data.dptr_,
                                            &beta,
                                            shape_desc_,
-                                           out.dptr_));*/
-
-    CUDNN_CALL(miopenLRNForward(s->dnn_handle_,
-                                           lrn_desc_,
-                                           &alpha,
-                                           shape_desc_,
-                                           data.dptr_,
-                                           &beta,
-                                           shape_desc_,
-                                           out.dptr_,
-                                           true,
-                                           workspace));
+                                           out.dptr_));
   }
 
   virtual void Backward(const OpContext &ctx,
@@ -124,9 +98,9 @@ class CuDNNLocalResponseNormOp : public Operator {
     Tensor<gpu, 4, DType> output_data = out_data[lrn_enum::kOut].get<gpu, 4, DType>(s);
     Tensor<gpu, 4, DType> input_grad = in_grad[lrn_enum::kData].get<gpu, 4, DType>(s);
     CHECK_EQ(s->dnn_handle_ownership_, mshadow::Stream<gpu>::OwnHandle);
-    /*CUDNN_CALL(cudnnLRNCrossChannelBackward(s->dnn_handle_,
+    CUDNN_CALL(hipdnnLRNCrossChannelBackward(s->dnn_handle_,
                                             lrn_desc_,
-                                            CUDNN_LRN_CROSS_CHANNEL_DIM1,
+                                            HIPDNN_LRN_CROSS_CHANNEL_DIM1,
                                             &alpha,
                                             shape_desc_,
                                             output_data.dptr_,
@@ -136,22 +110,7 @@ class CuDNNLocalResponseNormOp : public Operator {
                                             data.dptr_,
                                             &beta,
                                             shape_desc_,
-                                            input_grad.dptr_));*/
-
-   CUDNN_CALL(miopenLRNBackward(s->dnn_handle_,
-                                            lrn_desc_,
-                                            &alpha,
-                                            shape_desc_,
-                                            output_data.dptr_,
-                                            shape_desc_,
-                                            grad.dptr_,
-                                            shape_desc_,
-                                            data.dptr_,
-                                            &beta,
-                                            shape_desc_,
-                                            input_grad.dptr_,
-                                            workspace));
-
+                                            input_grad.dptr_));
   }
 
  private:
@@ -170,42 +129,27 @@ class CuDNNLocalResponseNormOp : public Operator {
       double beta = param_.beta;
       double lrn_k = param_.knorm;
       CHECK_EQ(data.shape_, out.shape_);
-      CUDNN_CALL(miopenCreateLRNDescriptor(&lrn_desc_));
-      miopenLRNMode_t mode;
-      mode = miopenLRNWithinChannel;
-      CUDNN_CALL(miopenSetLRNDescriptor(lrn_desc_,
-                                       mode,
+      CUDNN_CALL(hipdnnCreateLRNDescriptor(&lrn_desc_));
+      CUDNN_CALL(hipdnnSetLRNDescriptor(lrn_desc_,
                                        lrn_n,
                                        alpha,
                                        beta,
                                        lrn_k));
-      /*CUDNN_CALL(cudnnSetLRNDescriptor(lrn_desc_,
-                                       lrn_n,
-                                       alpha,
-                                       beta,
-                                       lrn_k));*/
-      CUDNN_CALL(miopenCreateTensorDescriptor(&shape_desc_));
-      CUDNN_CALL(miopenSet4dTensorDescriptor(shape_desc_,
-                                            //CUDNN_TENSOR_NCHW,
+      CUDNN_CALL(hipdnnCreateTensorDescriptor(&shape_desc_));
+      CUDNN_CALL(hipdnnSetTensor4dDescriptor(shape_desc_,
+                                            HIPDNN_TENSOR_NCHW,
                                             dtype_,
                                             data.shape_[0],
                                             data.shape_[1],
                                             data.shape_[2],
                                             data.shape_[3]));
-    workspaceSize = 0;
-    miopenLRNGetWorkSpaceSize(shape_desc_,&workspaceSize);
-    if (workspace != nullptr)
-         hipFree(workspace);
-    hipMalloc(&workspace, workspaceSize);
     }
   }
   bool init_cudnn_;
   LRNParam param_;
-  miopenDataType_t dtype_;
-  miopenLRNDescriptor_t lrn_desc_;
-  miopenTensorDescriptor_t shape_desc_;
-  size_t workspaceSize;
-  void* workspace;
+  hipdnnDataType_t dtype_;
+  hipdnnLRNDescriptor_t lrn_desc_;
+  hipdnnTensorDescriptor_t shape_desc_;
 };  // class CuDNNLocalResponseNormOp
 }  // namespace op
 }  // namespace mxnet
