@@ -31,7 +31,8 @@
 #include "../../common/cuda_utils.h"
 
 #if MXNET_USE_GPU
-#include <cub/cub.cuh>
+//#include <cub/cub.cuh>
+#include <hipcub/hipcub.hpp>
 #include "./depthwise_convolution_tf.cuh"
 
 #define ROUND_TO_MULTIPLE(x, m) ((((x) + (m) - 1) / (m)) * (m))

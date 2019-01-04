@@ -31,7 +31,7 @@
 #pragma warning("Potential crash on CUDA compiler detected. Switching sorting from CUB to Thrust")
 #define SORT_WITH_THRUST
 #else
-#include <cub/device/device_radix_sort.cuh>
+#include <hipcub/hipcub.hpp>
 #undef SORT_WITH_THRUST
 #endif
 #if defined(__HIP_PLATFORM_HCC__) || (defined(__HIP_PLATFORM_NVCC__) && CUDA_VERSION >= 7000)
@@ -48,7 +48,7 @@ SortByKeyWorkspaceSize(const size_t num_keys) {
   return 0;
 #else
   size_t sortpairs_bytes = 0;
-  cub::DeviceRadixSort::SortPairs<KDType, VDType>(NULL, sortpairs_bytes,
+ hipcub::DeviceRadixSort::SortPairs<KDType, VDType>(NULL, sortpairs_bytes,
       NULL, NULL, NULL, NULL, num_keys);
   size_t keys_bytes = num_keys*sizeof(KDType);
   size_t values_bytes = num_keys*sizeof(VDType);
@@ -74,11 +74,11 @@ inline void SortByKey(mshadow::Tensor<gpu, 1, KDType> keys, mshadow::Tensor<gpu,
     // Get the size of internal storage (for checking purposes only)
     size_t sortpairs_bytes = 0;
     if (is_ascend) {
-      cub::DeviceRadixSort::SortPairs<KDType, VDType>(NULL, sortpairs_bytes,
+      hipcub::DeviceRadixSort::SortPairs<KDType, VDType>(NULL, sortpairs_bytes,
           NULL, NULL, NULL, NULL,
           keys.size(0), begin_bit, end_bit, stream);
     } else {
-      cub::DeviceRadixSort::SortPairsDescending<KDType, VDType>(NULL, sortpairs_bytes,
+      hipcub::DeviceRadixSort::SortPairsDescending<KDType, VDType>(NULL, sortpairs_bytes,
           NULL, NULL, NULL, NULL,
           keys.size(0), begin_bit, end_bit, stream);
     }
@@ -90,11 +90,11 @@ inline void SortByKey(mshadow::Tensor<gpu, 1, KDType> keys, mshadow::Tensor<gpu,
     void* temp_storage = reinterpret_cast<void *>(workspace->dptr_ + keys_bytes + values_bytes);
     // Sort
     if (is_ascend) {
-      cub::DeviceRadixSort::SortPairs(temp_storage, sortpairs_bytes,
+      hipcub::DeviceRadixSort::SortPairs(temp_storage, sortpairs_bytes,
         keys.dptr_, keys_out_ptr, values.dptr_, values_out_ptr,
         keys.size(0), begin_bit, end_bit, stream);
     } else {
-      cub::DeviceRadixSort::SortPairsDescending(temp_storage, sortpairs_bytes,
+      hipcub::DeviceRadixSort::SortPairsDescending(temp_storage, sortpairs_bytes,
         keys.dptr_, keys_out_ptr, values.dptr_, values_out_ptr,
         keys.size(0), begin_bit, end_bit, stream);
     }

@@ -629,7 +629,7 @@ inline void DotCsrDnsRspImpl(const OpContext& ctx,
           dim_t* row_flg_out = NULL;
           void* d_temp_storage = NULL;
           size_t temp_storage_bytes = 0;
-          cub::DeviceScan::InclusiveSum(d_temp_storage,
+          hipcub::DeviceScan::InclusiveSum(d_temp_storage,
                                         temp_storage_bytes,
                                         row_flg_out,
                                         row_flg_out,
@@ -646,7 +646,7 @@ inline void DotCsrDnsRspImpl(const OpContext& ctx,
           Kernel<MarkCsrColWarpKernel, gpu>::Launch(s, num_threads,
               row_flg_out, col_idx_l.dptr<CType>(), indptr_l.dptr<IType>(),
               num_rows_l, num_cols_l);
-          cub::DeviceScan::InclusiveSum(d_temp_storage,
+          hipcub::DeviceScan::InclusiveSum(d_temp_storage,
                                         temp_storage_bytes,
                                         row_flg_out,
                                         row_flg_out,
@@ -755,7 +755,7 @@ inline void DotCsrRspRspImpl(const OpContext& ctx,
             dim_t* row_flg_out = NULL;
             void* d_temp_storage = NULL;
             size_t temp_storage_bytes = 0;
-            cub::DeviceScan::InclusiveSum(d_temp_storage,
+            hipcub::DeviceScan::InclusiveSum(d_temp_storage,
                                           temp_storage_bytes,
                                           row_flg_out,
                                           row_flg_out,
@@ -772,7 +772,7 @@ inline void DotCsrRspRspImpl(const OpContext& ctx,
             Kernel<MarkCsrColWarpKernel, gpu>::Launch(s, num_threads,
                 row_flg_out, col_idx_l.dptr<CType>(), indptr_l.dptr<IType>(),
                 num_rows_l, num_cols_l);
-            cub::DeviceScan::InclusiveSum(d_temp_storage,
+            hipcub::DeviceScan::InclusiveSum(d_temp_storage,
                                           temp_storage_bytes,
                                           row_flg_out,
                                           row_flg_out,
