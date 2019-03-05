@@ -33,7 +33,7 @@
 #undef SORT_WITH_THRUST
 #endif
 #include "./kvstore_utils.h"
-#include <cub/cub.cuh>
+#include <hipcub/hipcub.hpp>
 #include <mxnet/resource.h>
 #include "../common/utils.h"
 
@@ -50,7 +50,7 @@ size_t UniqueImplGPU(const Resource& rsc, mshadow::Stream<gpu> *s,
   size_t *null_ptr = nullptr;
   size_t *null_dptr = nullptr;
   hipStream_t stream = mshadow::Stream<gpu>::GetStream(s);
-  cub::DeviceSelect::Unique(NULL, unique_temp_bytes, null_dptr, null_dptr,
+  hipcub::DeviceSelect::Unique(NULL, unique_temp_bytes, null_dptr, null_dptr,
                             null_ptr, size, stream);
   // estimate sort temp space
   const size_t sort_output_bytes = size * sizeof(IType);
@@ -60,7 +60,7 @@ size_t UniqueImplGPU(const Resource& rsc, mshadow::Stream<gpu> *s,
   const int begin_bit = 0;
   // The most-significant bit index (exclusive) needed for key comparison
   const int end_bit = sizeof(IType) * 8;
-  cub::DeviceRadixSort::SortKeys(NULL, sort_temp_bytes, null_dptr, null_dptr,
+  hipcub::DeviceRadixSort::SortKeys(NULL, sort_temp_bytes, null_dptr, null_dptr,
                                  size, begin_bit, end_bit, stream);
 #else
   // sort_temp_bytes remains 0 because thrust request memory by itself
@@ -77,7 +77,7 @@ size_t UniqueImplGPU(const Resource& rsc, mshadow::Stream<gpu> *s,
                                           num_selected_bytes + sort_output_bytes);
   // execute the sort kernel
 #ifndef SORT_WITH_THRUST
-  cub::DeviceRadixSort::SortKeys(temp_storage, sort_temp_bytes, dptr, sort_output_ptr,
+  hipcub::DeviceRadixSort::SortKeys(temp_storage, sort_temp_bytes, dptr, sort_output_ptr,
                                  size, begin_bit, end_bit, stream);
 #else
   thrust::sort(thrust::cuda::par.on(stream),
@@ -86,7 +86,7 @@ size_t UniqueImplGPU(const Resource& rsc, mshadow::Stream<gpu> *s,
                        hipMemcpyDeviceToDevice));
 #endif
   // execute unique kernel
-  cub::DeviceSelect::Unique(temp_storage, unique_temp_bytes, sort_output_ptr, dptr,
+  hipcub::DeviceSelect::Unique(temp_storage, unique_temp_bytes, sort_output_ptr, dptr,
                             num_selected_ptr, size, stream);
   // retrieve num selected unique values
   size_t num_selected_out = 0;

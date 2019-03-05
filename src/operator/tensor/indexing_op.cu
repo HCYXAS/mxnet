@@ -201,7 +201,7 @@ void SparseEmbeddingDeterministicKernelLaunch(const OpContext& ctx,
   // estimate unique temp space
   IType* data_ptr = data.dptr<IType>();
   size_t *null_ptr = nullptr;
-  cub::DeviceSelect::Unique(NULL, unique_workspace_bytes, data_ptr, data_ptr,
+  hipcub::DeviceSelect::Unique(NULL, unique_workspace_bytes, data_ptr, data_ptr,
     null_ptr, data_size, Stream<gpu>::GetStream(s));
   // One more space reserved for unique count
   size_t temp_workspace_bytes = std::max(unique_workspace_bytes,
@@ -241,7 +241,7 @@ void SparseEmbeddingDeterministicKernelLaunch(const OpContext& ctx,
 
   // fill row_idx array of output matrix, using the row_flg values
   RType* grad_row_idx = output.aux_data(kIdx).dptr<RType>();
-  cub::DeviceSelect::Unique(temp_storage_ptr, unique_workspace_bytes, sorted_data,
+  hipcub::DeviceSelect::Unique(temp_storage_ptr, unique_workspace_bytes, sorted_data,
       grad_row_idx, grad_row_idx + data_size, data_size, Stream<gpu>::GetStream(s));
 
   dim_t nnr = 0;
@@ -326,7 +326,7 @@ inline void SparseEmbeddingOpBackwardRspImpl<gpu>(const SparseEmbeddingParam& pa
         dim_t* prefix_sum = NULL;
         void* d_temp_storage = NULL;
         size_t temp_storage_bytes = 0;
-        cub::DeviceScan::InclusiveSum(d_temp_storage,
+        hipcub::DeviceScan::InclusiveSum(d_temp_storage,
                                       temp_storage_bytes,
                                       prefix_sum,
                                       prefix_sum,
@@ -341,7 +341,7 @@ inline void SparseEmbeddingOpBackwardRspImpl<gpu>(const SparseEmbeddingParam& pa
         Fill<false>(s, TBlob(prefix_sum, Shape1(num_threads), gpu::kDevMask), kWriteTo, 0);
         Kernel<MarkRowFlgKernel, gpu>::Launch(s, data_size, prefix_sum, data.dptr<IType>());
 
-        cub::DeviceScan::InclusiveSum(d_temp_storage,
+        hipcub::DeviceScan::InclusiveSum(d_temp_storage,
                                       temp_storage_bytes,
                                       prefix_sum,
                                       prefix_sum,
