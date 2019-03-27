@@ -24,7 +24,7 @@
  * \author Junyuan Xie
  */
 #include "./optimizer_op-inl.h"
-#include <cub/cub.cuh>
+#include <hipcub/hipcub.hpp>
 
 namespace mxnet {
 namespace op {
@@ -89,7 +89,7 @@ void SGDMomStdUpdateDnsRspDnsImpl<gpu>(const SGDMomParam& param,
         nnvm::dim_t* prefix_sum = NULL;
         void* d_temp_storage = NULL;
         size_t temp_storage_bytes = 0;
-        cub::DeviceScan::InclusiveSum(d_temp_storage,
+        hipcub::DeviceScan::InclusiveSum(d_temp_storage,
                                       temp_storage_bytes,
                                       prefix_sum,
                                       prefix_sum,
@@ -106,7 +106,7 @@ void SGDMomStdUpdateDnsRspDnsImpl<gpu>(const SGDMomParam& param,
           Kernel<MarkRowFlgKernel, gpu>::Launch(s, grad.aux_shape(kIdx)[0],
             prefix_sum, grad_idx);
           // calculate inclusive prefix sum
-          cub::DeviceScan::InclusiveSum(d_temp_storage,
+          hipcub::DeviceScan::InclusiveSum(d_temp_storage,
                                         temp_storage_bytes,
                                         prefix_sum,
                                         prefix_sum,
@@ -186,7 +186,7 @@ void AdamStdUpdateDnsRspDnsImpl<gpu>(const AdamParam& param,
         nnvm::dim_t* prefix_sum = NULL;
         void* d_temp_storage = NULL;
         size_t temp_storage_bytes = 0;
-        cub::DeviceScan::InclusiveSum(d_temp_storage,
+        hipcub::DeviceScan::InclusiveSum(d_temp_storage,
                                       temp_storage_bytes,
                                       prefix_sum,
                                       prefix_sum,
@@ -203,7 +203,7 @@ void AdamStdUpdateDnsRspDnsImpl<gpu>(const AdamParam& param,
           Kernel<MarkRowFlgKernel, gpu>::Launch(s, grad.aux_shape(kIdx)[0],
             prefix_sum, grad_idx);
           // calculate inclusive prefix sum
-          cub::DeviceScan::InclusiveSum(d_temp_storage,
+          hipcub::DeviceScan::InclusiveSum(d_temp_storage,
                                         temp_storage_bytes,
                                         prefix_sum,
                                         prefix_sum,

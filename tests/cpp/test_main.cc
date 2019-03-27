@@ -50,7 +50,7 @@ bool csv = false;
 }  // namespace test
 }  // namespace mxnet
 
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
 
 static bool checkForWorkingCuda() {
   int count = 0;

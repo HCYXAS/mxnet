@@ -31,9 +31,9 @@
 #include "../mxnet_op.h"
 #include "../operator_common.h"
 #include "../../src/operator/tensor/init_op.h"
-#ifdef __CUDACC__
+#ifdef __HIPCC__
 #include "./cast_storage-inl.cuh"
-#endif  // __CUDACC__
+#endif  // __HIPCC__
 #if MXNET_USE_MKLDNN == 1
 #include "../nn/mkldnn/mkldnn_base-inl.h"
 #endif

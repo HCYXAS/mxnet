@@ -585,7 +585,7 @@ class CommDevice : public Comm {
                   src, indices, kWriteTo, &temp);
               break;
             }
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
             case gpu::kDevMask: {
               SparseRetainOpForwardRspWrapper<gpu>(rctx.get_stream<gpu>(),
                   src, indices, kWriteTo, &temp);
@@ -605,7 +605,7 @@ class CommDevice : public Comm {
 
  private:
   void EnableP2P(const std::vector<Context>& devs) {
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
     std::vector<int> gpus;
     for (const auto& d : devs) {
       if (d.dev_mask() == gpu::kDevMask) {
@@ -616,13 +616,13 @@ class CommDevice : public Comm {
     int enabled = 0;
     std::vector<int> p2p(n*n);
     for (int i = 0; i < n; ++i) {
-      cudaSetDevice(gpus[i]);
+      hipSetDevice(gpus[i]);
       for (int j = 0; j < n; j++) {
         int access;
-        cudaDeviceCanAccessPeer(&access, gpus[i], gpus[j]);
+        hipDeviceCanAccessPeer(&access, gpus[i], gpus[j]);
         if (access) {
-          cudaError_t e = cudaDeviceEnablePeerAccess(gpus[j], 0);
-          if (e == cudaSuccess || e == cudaErrorPeerAccessAlreadyEnabled) {
+          hipError_t e = hipDeviceEnablePeerAccess(gpus[j], 0);
+          if (e == hipSuccess || e == hipErrorPeerAccessAlreadyEnabled) {
             ++enabled;
             p2p[i*n+j] = 1;
           }

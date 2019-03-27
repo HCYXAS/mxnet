@@ -1227,7 +1227,7 @@ void ScatterSetNDForward(const nnvm::NodeAttrs& attrs,
 
 }  // namespace op
 }  // namespace mxnet
-#ifdef __CUDACC__
+#ifdef __HIPCC__
 #include "./indexing_op-inl.cuh"
 #endif
 #endif  // MXNET_OPERATOR_TENSOR_INDEXING_OP_H_

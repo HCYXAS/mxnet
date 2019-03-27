@@ -23,7 +23,7 @@
 #include "../common/cuda_utils.h"
 #include "../operator/operator_common.h"
 
-#if MXNET_USE_CUDA && MXNET_ENABLE_CUDA_RTC
+#if MXNET_USE_GPU && MXNET_ENABLE_CUDA_RTC
 
 namespace mxnet {
 namespace rtc {
@@ -34,7 +34,7 @@ CudaModule::Chunk::Chunk(
     const std::vector<std::string>& exports) {
   NVRTC_CALL(nvrtcCreateProgram(&prog_, source, "source.cu", 0, NULL, NULL));
   for (const auto& i : exports) exports_.insert(i);
-#if CUDA_VERSION >= 8000
+#if defined(__HIP_PLATFORM_HCC__) || (defined(__HIP_PLATFORM_NVCC__) && CUDA_VERSION >= 8000)
   for (const auto& func : exports) {
     NVRTC_CALL(nvrtcAddNameExpression(prog_, func.c_str()));
   }
@@ -81,7 +81,7 @@ CUfunction CudaModule::Chunk::GetFunction(
   if (iter != mod_.end()) {
     module = iter->second;
   } else {
-    CUDA_CALL(cudaSetDevice(ctx.dev_id));
+    CUDA_CALL(hipSetDevice(ctx.dev_id));
     CUDA_DRIVER_CALL(cuModuleLoadDataEx(&module, ptx_, 0, 0, 0));
     mod_[ctx.dev_id] = module;
   }
@@ -101,7 +101,7 @@ CUfunction CudaModule::Chunk::GetFunction(
 std::shared_ptr<CudaModule::Kernel> CudaModule::GetKernel(
     const std::string& name, const std::vector<ArgType>& signature) {
   std::string mangled_name = name;
-#if CUDA_VERSION >= 8000
+#if defined(__HIP_PLATFORM_HCC__) || (defined(__HIP_PLATFORM_NVCC__) && CUDA_VERSION >= 8000)
   if (ptr_->exports_.count(name)) {
     const char * c_mangled_name;
     NVRTC_CALL(nvrtcGetLoweredName(ptr_->prog_, name.c_str(), &c_mangled_name));
@@ -176,7 +176,7 @@ void CudaModule::Kernel::Launch(
         block_dim_x, block_dim_y, block_dim_z,
         shared_mem, s->stream_,
         p_args.data(), 0));
-    CUDA_CALL(cudaStreamSynchronize(s->stream_));
+    CUDA_CALL(hipStreamSynchronize(s->stream_));
   }, ctx, read_vars, write_vars, FnProperty::kNormal, 0,
   mangled_name_.c_str());
 }
@@ -185,4 +185,4 @@ void CudaModule::Kernel::Launch(
 }  // namespace rtc
 }  // namespace mxnet
 
-#endif  // MXNET_USE_CUDA && MXNET_ENABLE_CUDA_RTC
+#endif  // MXNET_USE_GPU && MXNET_ENABLE_CUDA_RTC

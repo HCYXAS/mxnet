@@ -24,7 +24,7 @@
  * \author Chris Olivier, Bing Xu, Da Zheng
  * Adapted from Torch
 */
-#include <cuda_runtime_api.h>
+#include <hip/hip_runtime_api.h>
 #include <algorithm>
 #include "batch_norm-inl.h"
 
@@ -137,7 +137,7 @@ struct GradOp {
   const DeviceTensor gradOutput;
 };
 
-#if CUDA_VERSION >= 9000
+#if defined(__HIP_PLATFORM_HCC__) || (defined(__HIP_PLATFORM_NVCC__) && CUDA_VERSION >= 9000)
 #define FULLMASK 0xFFFFFFFF
 #define __shfl_xor(...) __shfl_xor_sync(FULLMASK, __VA_ARGS__)
 #endif
@@ -146,6 +146,7 @@ struct GradOp {
 template<typename T>
 static __device__ __forceinline__ T warpSum(T val) {
 #if __CUDA_ARCH__ >= 300
+//if __HIP_ARCH_HAS_WARP_SHUFFLE__
 for (int i = 0; i < getMSB(WARP_SIZE); ++i) {
     val += __shfl_xor(val, 1 << i, WARP_SIZE);
   }
@@ -510,19 +511,12 @@ static void BatchNormalizationUpdateOutput(mshadow::Stream<gpu> *s,
   if ((flags & IS_TRAINING_FLAG) == 0 || (flags & USE_GLOBAL_STATS_FLAG) != 0) {
     dim3 blocks(input.ChannelCount());
     dim3 threads(batchnorm::cuda::getNumThreads(input.InnerSize(), false));
-    BatchNormalizationUpdateOutputInferenceKernel<DType, AccReal, DeviceTensor1,
-      batchnorm::BNTensor3<DType>>
-      <<< blocks, threads, 0, mshadow::Stream<gpu>::GetStream(s) >>> (
-      input, output, runningMean, runningVar, saveMean,
-        saveInvStd, weight, bias, eps, flags);
+      hipLaunchKernelGGL((BatchNormalizationUpdateOutputInferenceKernel<DType, AccReal, DeviceTensor1,batchnorm::BNTensor3<DType>>),       dim3(blocks), dim3(threads), 0, mshadow::Stream<gpu>::GetStream(s),input, output, runningMean, runningVar, saveMean,
+      saveInvStd, weight, bias, eps, flags);
   } else {
     dim3 blocks(input.ChannelCount());
     dim3 threads(batchnorm::cuda::getNumThreads(input.InnerSize(), false));
-    BatchNormalizationUpdateOutputKernel<DType, AccReal, DeviceTensor1,
-      batchnorm::BNTensor3<DType>>
-      << < blocks, threads, 0, mshadow::Stream<gpu>::GetStream(s) >> > (
-      input, output, weight, bias, eps, momentum, runningMean, runningVar,
-        saveMean, saveInvStd, flags);
+     hipLaunchKernelGGL((BatchNormalizationUpdateOutputKernel<DType, AccReal, DeviceTensor1,batchnorm::BNTensor3<DType>>), dim3(blocks),dim3(threads), 0, mshadow::Stream<gpu>::GetStream(s) , input, output, weight, bias, eps, momentum, runningMean, runningVar,saveMean, saveInvStd, flags);
   }
   MSHADOW_CUDA_POST_KERNEL_CHECK(BatchNormalizationUpdateOutput);
 }
@@ -566,8 +560,7 @@ static void BatchNormalizationBackward(mshadow::Stream<gpu> *s,
 #endif
   dim3 blocks(gradOutput.ChannelCount());
   dim3 threads(batchnorm::cuda::getNumThreads(gradOutput.InnerSize(), SMALLER_THREADS));
-  BatchNormalizationBackwardKernel<DType, AccReal, DeviceTensor1, batchnorm::BNTensor3<DType>>
-    <<< blocks, threads, 0, mshadow::Stream<gpu>::GetStream(s) >>> (
+  hipLaunchKernelGGL((BatchNormalizationBackwardKernel<DType, AccReal, DeviceTensor1, batchnorm::BNTensor3<DType>>), dim3(blocks), dim3(threads), 0, mshadow::Stream<gpu>::GetStream(s) ,
     input, gradOutput, gradInput, tensors, flags, momentum, eps);
   MSHADOW_CUDA_POST_KERNEL_CHECK(BatchNormalizationBackward);
 }
@@ -708,9 +701,12 @@ void BatchNormGradCompute<gpu>(const nnvm::NodeAttrs& attrs,
     })
   }
 #else
-  MSHADOW_REAL_TYPE_SWITCH_EX(dtype, DType, AccReal, {
+//commented due to compilation error "identifier "out_grad" is undefined"  ticket https://github.com/apache/incubator-mxnet/issues/10235
+#if 0
+  MSHADOW_REAL_TYPE_SWITCH_EX(out_grad[0].type_flag_, DType, AccReal, {
     BatchNormBackward<gpu, DType, AccReal>(ctx, param, inputs, req, outputs);
   });
+#endif
 #endif
 }
 

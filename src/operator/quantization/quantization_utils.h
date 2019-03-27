@@ -39,7 +39,7 @@ MSHADOW_XINLINE int Sign(T val) {
 
 template<typename T>
 MSHADOW_XINLINE T Abs(T a) {
-#ifdef __CUDACC__
+#ifdef __HIPCC__
   return ::abs(a);
 #else
   return std::abs(a);
@@ -48,7 +48,7 @@ MSHADOW_XINLINE T Abs(T a) {
 
 template<typename T>
 MSHADOW_XINLINE T Max(T a, T b) {
-#ifdef __CUDACC__
+#ifdef __HIPCC__
   return ::max(a, b);
 #else
   return std::max(a, b);
@@ -57,7 +57,7 @@ MSHADOW_XINLINE T Max(T a, T b) {
 
 template<typename T>
 MSHADOW_XINLINE T Min(T a, T b) {
-#ifdef __CUDACC__
+#ifdef __HIPCC__
   return ::min(a, b);
 #else
   return std::min(a, b);

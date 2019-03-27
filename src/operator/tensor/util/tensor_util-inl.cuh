@@ -1,3 +1,4 @@
+#include "hip/hip_runtime.h"
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -25,7 +26,7 @@
 #ifndef MXNET_OPERATOR_TENSOR_UTIL_TENSOR_UTIL_INL_CUH_
 #define MXNET_OPERATOR_TENSOR_UTIL_TENSOR_UTIL_INL_CUH_
 
-#include <cub/cub.cuh>
+#include <hipcub/hipcub.hpp>
 #include <mxnet/base.h>
 #include <mxnet/operator.h>
 
@@ -81,7 +82,7 @@ struct MarkRspRowWarpKernel {
                                              const nnvm::dim_t num_rows,
                                              const nnvm::dim_t row_length) {
     using nnvm::dim_t;
-    typedef cub::WarpReduce<dim_t> WarpReduce;
+    typedef hipcub::WarpReduce<dim_t> WarpReduce;
     const dim_t warps_per_block = mshadow::cuda::kBaseThreadNum / 32;
     __shared__ typename WarpReduce::TempStorage temp_storage[warps_per_block];
 
@@ -124,7 +125,7 @@ struct MarkRspRowBlockKernel {
                                              const nnvm::dim_t row_length) {
     using nnvm::dim_t;
     using mshadow::cuda::kBaseThreadNum;
-    typedef cub::BlockReduce<dim_t, kBaseThreadNum> BlockReduce;
+    typedef hipcub::BlockReduce<dim_t, kBaseThreadNum> BlockReduce;
     __shared__ typename BlockReduce::TempStorage temp_storage;
     if (blockIdx.x < num_rows) {
       dim_t flg = 0;

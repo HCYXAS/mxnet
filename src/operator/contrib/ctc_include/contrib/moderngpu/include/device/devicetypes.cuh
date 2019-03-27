@@ -34,8 +34,10 @@
 
 #pragma once
 
-#if __CUDA_ARCH__ == 100
+#if defined(__HIP_PLATFORM_NVCC__) && !defined (__HIP_PLATFORM_HCC__)
+   #if __CUDA_ARCH__ == 100
 	#error "COMPUTE CAPABILITY 1.0 NOT SUPPORTED BY MPGU. TRY 2.0!"
+   #endif
 #endif 
 
 #include <climits>
@@ -53,8 +55,17 @@ namespace mgpu {
 #define MGPU_DEVICE __device__ INLINESYMBOL
 #define MGPU_HOST_DEVICE __host__ __device__ INLINESYMBOL
 
-const int WARP_SIZE = 32;
-const int LOG_WARP_SIZE = 5;
+
+#if defined(__HIP_PLATFORM_NVCC__) && !defined (__HIP_PLATFORM_HCC__)
+
+	const int WARP_SIZE = 32;
+	const int LOG_WARP_SIZE = 5;
+
+#elif defined(__HIP_PLATFORM_HCC__) && !defined (__HIP_PLATFORM_NVCC__)
+
+	const int WARP_SIZE = 64;
+	const int LOG_WARP_SIZE = 6;
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 // Device-side comparison operators
@@ -196,17 +207,20 @@ template<> struct numeric_limits<double> {
 	MGPU_HOST_DEVICE static double MulIdent() { return 1; }
 };
 
-
+#if defined(__HIP_PLATFORM_NVCC__)
 MGPU_HOST_DEVICE int2 operator+(int2 a, int2 b) {
 	return make_int2(a.x + b.x, a.y + b.y); 
 }
+#endif
 MGPU_HOST_DEVICE int2& operator+=(int2& a, int2 b) {
 	a = a + b;
 	return a;
 }
+#if defined(__HIP_PLATFORM_NVCC__)
 MGPU_HOST_DEVICE int2 operator*(int2 a, int2 b) {
 	return make_int2(a.x * b.x, a.y * b.y);
 }
+#endif
 MGPU_HOST_DEVICE int2& operator*=(int2& a, int2 b) {
 	a = a * b;
 	return a;
@@ -214,18 +228,30 @@ MGPU_HOST_DEVICE int2& operator*=(int2& a, int2 b) {
 
 template<typename T>
 MGPU_HOST_DEVICE T max(T a, T b) {
-#if !defined(__CUDA_ARCH__) || (__CUDA_ARCH__ < 100)
-	return std::max(a, b);
-#else
-	return (a < b) ? b : a;
+
+#if defined(__HIP_PLATFORM_NVCC__)
+
+	#if !defined(__CUDA_ARCH__) || (__CUDA_ARCH__ < 100)
+		return std::max(a, b);
+	#else
+		return (a < b) ? b : a;
+	#endif
+#elif defined(__HIP_PLATFORM_HCC__)
+
+       return (a < b) ? b : a;
 #endif
 }
 template<typename T>
 MGPU_HOST_DEVICE T min(T a, T b) {
-#if !defined(__CUDA_ARCH__) || (__CUDA_ARCH__ < 100)
-	return std::min(a, b);
-#else
-	return (b < a) ? b : a;
+
+#if defined(__HIP_PLATFORM_NVCC__)
+	#if !defined(__CUDA_ARCH__) || (__CUDA_ARCH__ < 100)
+		return std::min(a, b);
+	#else
+		return (b < a) ? b : a;
+	#endif
+#elif defined(__HIP_PLATFORM_HCC__)
+		return (b < a) ? b : a;
 #endif
 }
 

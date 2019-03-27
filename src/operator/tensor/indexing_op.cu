@@ -160,8 +160,8 @@ void SparseEmbeddingOpForwardRspImpl<gpu>(const OpContext& ctx,
     int32_t* is_valid_ptr = reinterpret_cast<int32_t*>(workspace.dptr_);
     Kernel<set_zero, gpu>::Launch(s, 1, is_valid_ptr);
     Kernel<is_valid_check, gpu>::Launch(s, data_size, is_valid_ptr, data_ptr, min, max);
-    CUDA_CALL(cudaMemcpy(&is_valid, is_valid_ptr, sizeof(int32_t),
-              cudaMemcpyDeviceToHost));
+    CUDA_CALL(hipMemcpy(&is_valid, is_valid_ptr, sizeof(int32_t),
+              hipMemcpyDeviceToHost));
   })
   CHECK_EQ(is_valid, 0) << "SparseEmbedding input contains data out of bound";
   // the weight is actually dense
@@ -201,7 +201,7 @@ void SparseEmbeddingDeterministicKernelLaunch(const OpContext& ctx,
   // estimate unique temp space
   IType* data_ptr = data.dptr<IType>();
   size_t *null_ptr = nullptr;
-  cub::DeviceSelect::Unique(NULL, unique_workspace_bytes, data_ptr, data_ptr,
+  hipcub::DeviceSelect::Unique(NULL, unique_workspace_bytes, data_ptr, data_ptr,
     null_ptr, data_size, Stream<gpu>::GetStream(s));
   // One more space reserved for unique count
   size_t temp_workspace_bytes = std::max(unique_workspace_bytes,
@@ -241,12 +241,12 @@ void SparseEmbeddingDeterministicKernelLaunch(const OpContext& ctx,
 
   // fill row_idx array of output matrix, using the row_flg values
   RType* grad_row_idx = output.aux_data(kIdx).dptr<RType>();
-  cub::DeviceSelect::Unique(temp_storage_ptr, unique_workspace_bytes, sorted_data,
+  hipcub::DeviceSelect::Unique(temp_storage_ptr, unique_workspace_bytes, sorted_data,
       grad_row_idx, grad_row_idx + data_size, data_size, Stream<gpu>::GetStream(s));
 
   dim_t nnr = 0;
-  CUDA_CALL(cudaMemcpy(&nnr, grad_row_idx + data_size, sizeof(RType),
-      cudaMemcpyDeviceToHost));
+  CUDA_CALL(hipMemcpy(&nnr, grad_row_idx + data_size, sizeof(RType),
+      hipMemcpyDeviceToHost));
   CHECK_EQ(output.shape().ndim(), 2) << "Unexcepted ndim";
   output.CheckAndAllocData(Shape2(nnr, output.shape()[1]));
   output.set_aux_shape(kIdx, Shape1(nnr));
@@ -326,7 +326,7 @@ inline void SparseEmbeddingOpBackwardRspImpl<gpu>(const SparseEmbeddingParam& pa
         dim_t* prefix_sum = NULL;
         void* d_temp_storage = NULL;
         size_t temp_storage_bytes = 0;
-        cub::DeviceScan::InclusiveSum(d_temp_storage,
+        hipcub::DeviceScan::InclusiveSum(d_temp_storage,
                                       temp_storage_bytes,
                                       prefix_sum,
                                       prefix_sum,
@@ -341,15 +341,15 @@ inline void SparseEmbeddingOpBackwardRspImpl<gpu>(const SparseEmbeddingParam& pa
         Fill<false>(s, TBlob(prefix_sum, Shape1(num_threads), gpu::kDevMask), kWriteTo, 0);
         Kernel<MarkRowFlgKernel, gpu>::Launch(s, data_size, prefix_sum, data.dptr<IType>());
 
-        cub::DeviceScan::InclusiveSum(d_temp_storage,
+        hipcub::DeviceScan::InclusiveSum(d_temp_storage,
                                       temp_storage_bytes,
                                       prefix_sum,
                                       prefix_sum,
                                       num_rows,
                                       mshadow::Stream<gpu>::GetStream(s));
         dim_t nnr = 0;
-        CUDA_CALL(cudaMemcpy(&nnr, &prefix_sum[num_rows-1], sizeof(dim_t),
-            cudaMemcpyDeviceToHost));
+        CUDA_CALL(hipMemcpy(&nnr, &prefix_sum[num_rows-1], sizeof(dim_t),
+            hipMemcpyDeviceToHost));
         if (nnr == 0) {
           FillZerosRspImpl(s, output);
           return;

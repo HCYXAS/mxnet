@@ -1,3 +1,4 @@
+#include "hip/hip_runtime.h"
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -125,8 +126,8 @@ inline void ROIPoolForward(const Tensor<gpu, 4, Dtype> &out,
   dim3 dimGrid(kMaxGridDim, (gridSize + kMaxGridDim - 1) / kMaxGridDim);
   dim3 dimBlock(kMaxThreadsPerBlock);
   CheckLaunchParam(dimGrid, dimBlock, "ROIPooling Forward");
-  cudaStream_t stream = Stream<gpu>::GetStream(out.stream_);
-  ROIPoolForwardKernel<Dtype><<<dimGrid, dimBlock, 0, stream>>>(
+  hipStream_t stream = Stream<gpu>::GetStream(out.stream_);
+  hipLaunchKernelGGL(HIP_KERNEL_NAME(ROIPoolForwardKernel<Dtype>), dim3(dimGrid), dim3(dimBlock), 0, stream,
       count, bottom_data, spatial_scale, channels, height, width,
       pooled_height, pooled_width, bottom_rois, top_data, argmax_data);
   MSHADOW_CUDA_POST_KERNEL_CHECK(ROIPoolForwardKernel);
@@ -229,8 +230,8 @@ inline void ROIPoolBackwardAcc(const Tensor<gpu, 4, Dtype> &in_grad,
   dim3 dimGrid(kMaxGridDim, (gridSize + kMaxGridDim - 1) / kMaxGridDim);
   dim3 dimBlock(kMaxThreadsPerBlock);
   CheckLaunchParam(dimGrid, dimBlock, "ROIPooling Backward");
-  cudaStream_t stream = Stream<gpu>::GetStream(in_grad.stream_);
-  ROIPoolBackwardAccKernel<Dtype><<<dimGrid, dimBlock, 0, stream>>>(
+  hipStream_t stream = Stream<gpu>::GetStream(in_grad.stream_);
+  hipLaunchKernelGGL(HIP_KERNEL_NAME(ROIPoolBackwardAccKernel<Dtype>), dim3(dimGrid), dim3(dimBlock), 0, stream,
       count, top_diff, argmax_data, num_rois, spatial_scale, channels, height, width,
       pooled_height, pooled_width, bottom_diff, bottom_rois);
   MSHADOW_CUDA_POST_KERNEL_CHECK(ROIPoolBackwardAccKernel);

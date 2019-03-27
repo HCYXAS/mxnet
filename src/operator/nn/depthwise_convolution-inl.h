@@ -1,3 +1,4 @@
+#include "hip/hip_runtime.h"
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -29,8 +30,9 @@
 #include "./convolution-inl.h"
 #include "../../common/cuda_utils.h"
 
-#if MXNET_USE_CUDA
-#include <cub/cub.cuh>
+#if MXNET_USE_GPU
+//#include <cub/cub.cuh>
+#include <hipcub/hipcub.hpp>
 #include "./depthwise_convolution_tf.cuh"
 
 #define ROUND_TO_MULTIPLE(x, m) ((((x) + (m) - 1) / (m)) * (m))
@@ -107,15 +109,13 @@ void DepthwiseConv2dForwardGpu(mshadow::Stream<gpu> *stream,
                              mshadow::cuda::kMaxGridNum);
     auto s = mshadow::Stream<gpu>::GetStream(stream);
     if (args.filter_height == 3 && args.filter_width == 3) {
-      DepthwiseConv2dForwardKernel<DType, 3, 3>
-          <<<block_num, mshadow::cuda::kBaseThreadNum, 0, s>>>(data.dptr_,
+      hipLaunchKernelGGL((DepthwiseConv2dForwardKernel<DType, 3, 3>), dim3(block_num), dim3(mshadow::cuda::kBaseThreadNum), 0, s, data.dptr_,
                                                                weight.dptr_,
                                                                args,
                                                                num_output,
                                                                out.dptr_);
     } else {
-      DepthwiseConv2dForwardKernel<DType, -1, -1>
-          <<<block_num, mshadow::cuda::kBaseThreadNum, 0, s>>>(data.dptr_,
+      hipLaunchKernelGGL((DepthwiseConv2dForwardKernel<DType, -1, -1>), dim3(block_num), dim3(mshadow::cuda::kBaseThreadNum), 0, s, data.dptr_,
                                                                weight.dptr_,
                                                                args,
                                                                num_output,
@@ -151,8 +151,7 @@ void DepthwiseConv2dBackwardDataGpu(mshadow::Stream<gpu> *stream,
     auto s = mshadow::Stream<gpu>::GetStream(stream);
     int block_num = std::min(num_in_grad/mshadow::cuda::kBaseThreadNum + 1,
                              mshadow::cuda::kMaxGridNum);
-    DepthwiseConv2dBackwardDataKernel<DType>
-        <<<block_num, mshadow::cuda::kBaseThreadNum, 0, s>>>(args,
+    hipLaunchKernelGGL((DepthwiseConv2dBackwardDataKernel<DType>), dim3(block_num), dim3(mshadow::cuda::kBaseThreadNum), 0, s, args,
                                                              out_g.dptr_,
                                                              weight.dptr_,
                                                              in_data_g.dptr_,
@@ -185,15 +184,13 @@ void DepthwiseConv2dBackwardFilterGpu(mshadow::Stream<gpu> *stream,
     auto s = mshadow::Stream<gpu>::GetStream(stream);
     int block_num = std::min(args.out_channel * args.batch, mshadow::cuda::kMaxGridNum);
     if (args.filter_width == 3 && args.filter_height == 3) {
-      DepthwiseConv2dBackwardFilterKernel<DType, 3, 3>
-          <<<block_num, mshadow::cuda::kBaseThreadNum, 0, s>>>(args,
+      hipLaunchKernelGGL((DepthwiseConv2dBackwardFilterKernel<DType, 3, 3>), dim3(block_num), dim3(mshadow::cuda::kBaseThreadNum), 0, s, args,
                                                                out_g.dptr_,
                                                                in_d.dptr_,
                                                                weight_grad.dptr_,
                                                                num_out_grad);
     } else {
-      DepthwiseConv2dBackwardFilterKernel<DType, -1, -1>
-          <<<block_num, mshadow::cuda::kBaseThreadNum, 0, s>>>(args,
+      hipLaunchKernelGGL((DepthwiseConv2dBackwardFilterKernel<DType, -1, -1>), dim3(block_num), dim3(mshadow::cuda::kBaseThreadNum), 0, s, args,
                                                                out_g.dptr_,
                                                                in_d.dptr_,
                                                                weight_grad.dptr_,

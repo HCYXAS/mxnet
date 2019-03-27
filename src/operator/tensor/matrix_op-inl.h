@@ -1,3 +1,4 @@
+#include "hip/hip_runtime.h"
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -38,7 +39,7 @@
 #include "./init_op.h"
 #include "../../common/static_array.h"
 
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
 #include <thrust/device_vector.h>
 #endif
 
@@ -1895,7 +1896,7 @@ struct reverse {
     }
     return outputIndex;
   }
-#ifdef __CUDACC__
+#ifdef __HIPCC__
   template<typename DType>
   __device__  static void Map(int index, index_t nreversedim, const DType *src, DType *dst,
                               const index_t * stride_,
@@ -1950,7 +1951,7 @@ void ReverseOpForward(const nnvm::NodeAttrs& attrs,
     reverse_index++;
   }
 
-#ifdef __CUDACC__
+#ifdef __HIPCC__
   mshadow::Tensor<xpu, 1, uint8_t> workspace =
     ctx.requested[0].get_space_typed<xpu, 1, uint8_t>(
       mshadow::Shape1(reverse_index * sizeof(index_t) * 2), s);
@@ -1958,16 +1959,16 @@ void ReverseOpForward(const nnvm::NodeAttrs& attrs,
   auto stride_workspace = workspace.dptr_;
   auto trailing_workspace = workspace.dptr_ + reverse_index * sizeof(index_t);
 
-  cudaMemcpyAsync(stride_workspace, thrust::raw_pointer_cast(stride_.data()),
+  hipMemcpyAsync(stride_workspace, thrust::raw_pointer_cast(stride_.data()),
                   stride_.size() * sizeof(index_t),
-                  cudaMemcpyHostToDevice, mshadow::Stream<gpu>::GetStream(s));
-  cudaMemcpyAsync(trailing_workspace, thrust::raw_pointer_cast(trailing_.data()),
+                  hipMemcpyHostToDevice, mshadow::Stream<gpu>::GetStream(s));
+  hipMemcpyAsync(trailing_workspace, thrust::raw_pointer_cast(trailing_.data()),
                   trailing_.size() * sizeof(index_t),
-                  cudaMemcpyHostToDevice, mshadow::Stream<gpu>::GetStream(s));
+                  hipMemcpyHostToDevice, mshadow::Stream<gpu>::GetStream(s));
 
 #endif
 
-#ifdef __CUDACC__
+#ifdef __HIPCC__
   MSHADOW_TYPE_SWITCH(outputs[0].type_flag_, DType, {
     Kernel<reverse, xpu>::Launch(s, inputs[0].Size(), reverse_index,
     inputs[0].dptr<DType>(), outputs[0].dptr<DType>(),

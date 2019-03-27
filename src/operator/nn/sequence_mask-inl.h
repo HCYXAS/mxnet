@@ -1,3 +1,4 @@
+#include "hip/hip_runtime.h"
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -37,7 +38,7 @@ inline void SequenceMask(const mshadow::Tensor<cpu, 3, DType> &dst,
         dst[s][b][r] = value;
 }
 
-#ifdef __CUDACC__
+#ifdef __HIPCC__
 template<int n_bits, typename DType, typename LType>
 __global__ void SequenceMaskKernel(mshadow::Tensor<gpu, 3, DType> dst,
                                    const mshadow::Tensor<gpu, 1, LType> lengths, DType value) {
@@ -64,8 +65,8 @@ inline void SequenceMask(const mshadow::Tensor<gpu, 3, DType> &dst,
   dim3 dimBlock(kBaseThreadNum);
   dim3 dimGrid(dst.size(1));
   CheckLaunchParam(dimGrid, dimBlock, "SequenceMask");
-  cudaStream_t stream = Stream<gpu>::GetStream(dst.stream_);
-  SequenceMaskKernel<kBaseThreadBits, DType><<<dimGrid, dimBlock, 0, stream>>>(dst, lengths, value);
+  hipStream_t stream = Stream<gpu>::GetStream(dst.stream_);
+  hipLaunchKernelGGL((SequenceMaskKernel<kBaseThreadBits, DType>), dim3(dimGrid), dim3(dimBlock), 0, stream, dst, lengths, value);
   MSHADOW_CUDA_POST_KERNEL_CHECK(SequenceMaskKernel);
 }
 #endif

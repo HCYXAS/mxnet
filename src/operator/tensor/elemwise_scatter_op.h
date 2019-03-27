@@ -212,7 +212,7 @@ class ElemwiseScatterBinaryOp : public ElemwiseBinaryOp,
     }
   }
 
-#ifdef __CUDACC__
+#ifdef __HIPCC__
   /*! \brief GPU version, fallback op + retain */
   template<typename OP>
   static void ComputeEx_(mshadow::Stream<gpu> *stream,
@@ -230,7 +230,7 @@ class ElemwiseScatterBinaryOp : public ElemwiseBinaryOp,
         ComputeAsDense<gpu>(attrs, ctx, inputs, req, outputs, ElemwiseBinaryOp::Compute<gpu, OP>);
       });
   }
-#endif  // #ifdef __CUDACC__
+#endif  // #ifdef __HIPCC__
 
  public:
   /*! \brief General compute for operations which include sparse tensors */
@@ -268,7 +268,7 @@ class ElemwiseScatterBinaryScalarOp : public BinaryScalarOp,
     });
   }
 
-#ifdef __CUDACC__
+#ifdef __HIPCC__
   /*! \brief GPU version, fallback op + retain */
   template<typename OP>
   static void ComputeEx_(mshadow::Stream<gpu> *stream,
@@ -292,7 +292,7 @@ class ElemwiseScatterBinaryScalarOp : public BinaryScalarOp,
       });
     }
   }
-#endif  // __CUDACC__
+#endif  // __HIPCC__
 
  public:
   using BinaryScalarOp::Compute;

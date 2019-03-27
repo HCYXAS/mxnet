@@ -149,7 +149,7 @@ class DropoutOp {
     return false;
   }
 
-#ifdef __CUDACC__
+#ifdef __HIPCC__
   // GPU never uses MKL
   static bool MSHADOW_CINLINE MKLForward(mshadow::Stream<gpu> *s, RandGenerator<gpu, DType> *pgen,
                                          const double pkeep,
@@ -163,7 +163,7 @@ class DropoutOp {
                                           const std::vector<TBlob> &out_grad) {
     return false;
   }
-#endif  // __CUDACC__
+#endif  // __HIPCC__
 
 #else  // #if defined(USE_MKL) && defined(_OPENMP)
   static bool MSHADOW_CINLINE MKLForward(mshadow::Stream<xpu> *s, RandGenerator<xpu, DType> *pgen,

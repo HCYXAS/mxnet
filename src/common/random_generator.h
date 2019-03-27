@@ -29,10 +29,10 @@
 #include <random>
 #include <new>
 
-#if MXNET_USE_CUDA
-#include <curand_kernel.h>
+#if MXNET_USE_GPU
+#include <hiprand_kernel.h>
 #include "../common/cuda_utils.h"
-#endif  // MXNET_USE_CUDA
+#endif  // MXNET_USE_GPU
 
 namespace mxnet {
 namespace common {
@@ -102,7 +102,7 @@ const int RandGenerator<cpu, DType>::kMinNumRandomPerThread = 64;
 template<typename DType>
 const int RandGenerator<cpu, DType>::kNumRandomStates = 1024;
 
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
 
 template<typename DType>
 class RandGenerator<gpu, DType> {
@@ -113,7 +113,7 @@ class RandGenerator<gpu, DType> {
   static const int kNumRandomStates;
 
   // uniform number generation in Cuda made consistent with stl (include 0 but exclude 1)
-  // by using 1.0-curand_uniform().
+  // by using 1.0-hiprand_uniform().
   // Needed as some samplers in sampler.h won't be able to deal with
   // one of the boundary cases.
   class Impl {
@@ -128,48 +128,48 @@ class RandGenerator<gpu, DType> {
           state_(*(gen->states_ + state_idx)) {}
 
     __device__ ~Impl() {
-      // store the curand state back into global memory
+      // store the hiprand state back into global memory
       global_gen_->states_[global_state_idx_] = state_;
     }
 
     MSHADOW_FORCE_INLINE __device__ int rand() {
-      return curand(&state_);
+      return hiprand(&state_);
     }
 
     MSHADOW_FORCE_INLINE __device__ float uniform() {
-      return static_cast<float>(1.0) - curand_uniform(&state_);
+      return static_cast<float>(1.0) - hiprand_uniform(&state_);
     }
 
     MSHADOW_FORCE_INLINE __device__ float normal() {
-      return curand_normal(&state_);
+      return hiprand_normal(&state_);
     }
 
    private:
     RandGenerator<gpu, DType> *global_gen_;
     int global_state_idx_;
-    curandStatePhilox4_32_10_t state_;
+    hiprandStatePhilox4_32_10_t state_;
   };  // class RandGenerator<gpu, DType>::Impl
 
   static void AllocState(RandGenerator<gpu, DType> *inst) {
-    CUDA_CALL(cudaMalloc(&inst->states_,
-                         kNumRandomStates * sizeof(curandStatePhilox4_32_10_t)));
+    CUDA_CALL(hipMalloc(&inst->states_,
+                         kNumRandomStates * sizeof(hiprandStatePhilox4_32_10_t)));
   }
 
   static void FreeState(RandGenerator<gpu, DType> *inst) {
-    CUDA_CALL(cudaFree(inst->states_));
+    CUDA_CALL(hipFree(inst->states_));
   }
 
   void Seed(mshadow::Stream<gpu> *s, uint32_t seed);
 
  private:
-  curandStatePhilox4_32_10_t *states_;
+  hiprandStatePhilox4_32_10_t *states_;
 };  // class RandGenerator<gpu, DType>
 
 template<>
 class RandGenerator<gpu, double> {
  public:
   // uniform number generation in Cuda made consistent with stl (include 0 but exclude 1)
-  // by using 1.0-curand_uniform().
+  // by using 1.0-hiprand_uniform().
   // Needed as some samplers in sampler.h won't be able to deal with
   // one of the boundary cases.
   class Impl {
@@ -184,33 +184,33 @@ class RandGenerator<gpu, double> {
           state_(*(gen->states_ + state_idx)) {}
 
     __device__ ~Impl() {
-      // store the curand state back into global memory
+      // store the hiprand state back into global memory
       global_gen_->states_[global_state_idx_] = state_;
     }
 
     MSHADOW_FORCE_INLINE __device__ int rand() {
-      return curand(&state_);
+      return hiprand(&state_);
     }
 
     MSHADOW_FORCE_INLINE __device__ double uniform() {
-      return static_cast<float>(1.0) - curand_uniform_double(&state_);
+      return static_cast<float>(1.0) - hiprand_uniform_double(&state_);
     }
 
     MSHADOW_FORCE_INLINE __device__ double normal() {
-      return curand_normal_double(&state_);
+      return hiprand_normal_double(&state_);
     }
 
    private:
     RandGenerator<gpu, double> *global_gen_;
     int global_state_idx_;
-    curandStatePhilox4_32_10_t state_;
+    hiprandStatePhilox4_32_10_t state_;
   };  // class RandGenerator<gpu, double>::Impl
 
  private:
-  curandStatePhilox4_32_10_t *states_;
+  hiprandStatePhilox4_32_10_t *states_;
 };  // class RandGenerator<gpu, double>
 
-#endif  // MXNET_USE_CUDA
+#endif  // MXNET_USE_GPU
 
 }  // namespace random
 }  // namespace common

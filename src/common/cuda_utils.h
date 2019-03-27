@@ -32,7 +32,7 @@
 
 /*! \brief Macros/inlines to assist CLion to parse Cuda files (*.cu, *.cuh) */
 #ifdef __JETBRAINS_IDE__
-#define __CUDACC__ 1
+#define __HIPCC__ 1
 #define __host__
 #define __device__
 #define __global__
@@ -47,60 +47,45 @@ extern __cuda_fake_struct threadIdx;
 extern __cuda_fake_struct blockIdx;
 #endif
 
-#if MXNET_USE_CUDA
-
-#include <cuda_runtime.h>
-#include <cublas_v2.h>
-#include <curand.h>
-
-/*!
- * \brief When compiling a __device__ function, check that the architecture is >= Kepler (3.0)
- *        Note that __CUDA_ARCH__ is not defined outside of a __device__ function
- */
-#ifdef __CUDACC__
-inline __device__ bool __is_supported_cuda_architecture() {
-#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ < 300
-#error "Fermi and earlier GPU architectures are not supported (architecture versions less than 3.0)"
-  return false;
-#else
-  return true;
-#endif  // __CUDA_ARCH__ < 300
-}
-#endif  // __CUDACC__
+#if MXNET_USE_GPU
+#include <hip-wrappers.h> // dummy include file placed in /opt/rocm/include
+#include <hip/hip_runtime.h>
+#include <hipblas.h>
+#include <hiprand.h>
 
 namespace mxnet {
 namespace common {
 /*! \brief common utils for cuda */
 namespace cuda {
 /*!
- * \brief Get string representation of cuBLAS errors.
+ * \brief Get string representation of hipBLAS errors.
  * \param error The error.
  * \return String representation.
  */
-inline const char* CublasGetErrorString(cublasStatus_t error) {
+inline const char* HipblasGetErrorString(hipblasStatus_t error) {
   switch (error) {
-  case CUBLAS_STATUS_SUCCESS:
-    return "CUBLAS_STATUS_SUCCESS";
-  case CUBLAS_STATUS_NOT_INITIALIZED:
-    return "CUBLAS_STATUS_NOT_INITIALIZED";
-  case CUBLAS_STATUS_ALLOC_FAILED:
-    return "CUBLAS_STATUS_ALLOC_FAILED";
-  case CUBLAS_STATUS_INVALID_VALUE:
-    return "CUBLAS_STATUS_INVALID_VALUE";
-  case CUBLAS_STATUS_ARCH_MISMATCH:
-    return "CUBLAS_STATUS_ARCH_MISMATCH";
-  case CUBLAS_STATUS_MAPPING_ERROR:
-    return "CUBLAS_STATUS_MAPPING_ERROR";
-  case CUBLAS_STATUS_EXECUTION_FAILED:
-    return "CUBLAS_STATUS_EXECUTION_FAILED";
-  case CUBLAS_STATUS_INTERNAL_ERROR:
-    return "CUBLAS_STATUS_INTERNAL_ERROR";
-  case CUBLAS_STATUS_NOT_SUPPORTED:
-    return "CUBLAS_STATUS_NOT_SUPPORTED";
+  case HIPBLAS_STATUS_SUCCESS:
+    return "HIPBLAS_STATUS_SUCCESS";
+  case HIPBLAS_STATUS_NOT_INITIALIZED:
+    return "HIPBLAS_STATUS_NOT_INITIALIZED";
+  case HIPBLAS_STATUS_ALLOC_FAILED:
+    return "HIPBLAS_STATUS_ALLOC_FAILED";
+  case HIPBLAS_STATUS_INVALID_VALUE:
+    return "HIPBLAS_STATUS_INVALID_VALUE";
+  /*case HIPBLAS_STATUS_ARCH_MISMATCH:
+    return "HIPBLAS_STATUS_ARCH_MISMATCH";*/ //not supported
+  case HIPBLAS_STATUS_MAPPING_ERROR:
+    return "HIPBLAS_STATUS_MAPPING_ERROR";
+  case HIPBLAS_STATUS_EXECUTION_FAILED:
+    return "HIPBLAS_STATUS_EXECUTION_FAILED";
+  case HIPBLAS_STATUS_INTERNAL_ERROR:
+    return "HIPBLAS_STATUS_INTERNAL_ERROR";
+  case HIPBLAS_STATUS_NOT_SUPPORTED:
+    return "HIPBLAS_STATUS_NOT_SUPPORTED";
   default:
     break;
   }
-  return "Unknown cuBLAS status";
+  return "Unknown hipBLAS status";
 }
 
 /*!
@@ -108,7 +93,7 @@ inline const char* CublasGetErrorString(cublasStatus_t error) {
  * \param error The error.
  * \return String representation.
  */
-inline const char* CusolverGetErrorString(cusolverStatus_t error) {
+/*inline const char* CusolverGetErrorString(cusolverStatus_t error) {
   switch (error) {
   case CUSOLVER_STATUS_SUCCESS:
     return "CUSOLVER_STATUS_SUCCESS";
@@ -130,43 +115,43 @@ inline const char* CusolverGetErrorString(cusolverStatus_t error) {
     break;
   }
   return "Unknown cuSOLVER status";
-}
+}*/
 
 /*!
- * \brief Get string representation of cuRAND errors.
+ * \brief Get string representation of hipRNG errors.
  * \param status The status.
  * \return String representation.
  */
-inline const char* CurandGetErrorString(curandStatus_t status) {
+inline const char* HiprandGetErrorString(hiprandStatus_t status) {
   switch (status) {
-  case CURAND_STATUS_SUCCESS:
-    return "CURAND_STATUS_SUCCESS";
-  case CURAND_STATUS_VERSION_MISMATCH:
-    return "CURAND_STATUS_VERSION_MISMATCH";
-  case CURAND_STATUS_NOT_INITIALIZED:
-    return "CURAND_STATUS_NOT_INITIALIZED";
-  case CURAND_STATUS_ALLOCATION_FAILED:
-    return "CURAND_STATUS_ALLOCATION_FAILED";
-  case CURAND_STATUS_TYPE_ERROR:
-    return "CURAND_STATUS_TYPE_ERROR";
-  case CURAND_STATUS_OUT_OF_RANGE:
-    return "CURAND_STATUS_OUT_OF_RANGE";
-  case CURAND_STATUS_LENGTH_NOT_MULTIPLE:
-    return "CURAND_STATUS_LENGTH_NOT_MULTIPLE";
-  case CURAND_STATUS_DOUBLE_PRECISION_REQUIRED:
-    return "CURAND_STATUS_DOUBLE_PRECISION_REQUIRED";
-  case CURAND_STATUS_LAUNCH_FAILURE:
-    return "CURAND_STATUS_LAUNCH_FAILURE";
-  case CURAND_STATUS_PREEXISTING_FAILURE:
-    return "CURAND_STATUS_PREEXISTING_FAILURE";
-  case CURAND_STATUS_INITIALIZATION_FAILED:
-    return "CURAND_STATUS_INITIALIZATION_FAILED";
-  case CURAND_STATUS_ARCH_MISMATCH:
-    return "CURAND_STATUS_ARCH_MISMATCH";
-  case CURAND_STATUS_INTERNAL_ERROR:
-    return "CURAND_STATUS_INTERNAL_ERROR";
+  case HIPRAND_STATUS_SUCCESS:
+    return "HIPRAND_STATUS_SUCCESS";
+  case HIPRAND_STATUS_VERSION_MISMATCH:
+    return "HIPRAND_STATUS_VERSION_MISMATCH";
+  case HIPRAND_STATUS_NOT_INITIALIZED:
+    return "HIPRAND_STATUS_NOT_INITIALIZED";
+  case HIPRAND_STATUS_ALLOCATION_FAILED:
+    return "HIPRAND_STATUS_ALLOCATION_FAILED";
+  case HIPRAND_STATUS_TYPE_ERROR:
+    return "HIPRAND_STATUS_TYPE_ERROR";
+  case HIPRAND_STATUS_OUT_OF_RANGE:
+    return "HIPRAND_STATUS_OUT_OF_RANGE";
+  case HIPRAND_STATUS_LENGTH_NOT_MULTIPLE:
+    return "HIPRAND_STATUS_LENGTH_NOT_MULTIPLE";
+//  case HIPRNG_STATUS_DOUBLE_PRECISION_REQUIRED: // NOT SUPPORTED YET
+//    return "HIPRNG_STATUS_DOUBLE_PRECISION_REQUIRED";
+  case HIPRAND_STATUS_LAUNCH_FAILURE:
+    return "HIPRAND_STATUS_LAUNCH_FAILURE";
+  case HIPRAND_STATUS_PREEXISTING_FAILURE:
+    return "HIPRAND_STATUS_PREEXISTING_FAILURE";
+  case HIPRAND_STATUS_INITIALIZATION_FAILED:
+    return "HIPRAND_STATUS_INITIALIZATION_FAILED";
+  case HIPRAND_STATUS_ARCH_MISMATCH:
+    return "HIPRAND_STATUS_ARCH_MISMATCH";
+  case HIPRAND_STATUS_INTERNAL_ERROR:
+    return "HIPRAND_STATUS_INTERNAL_ERROR";
   }
-  return "Unknown cuRAND status";
+  return "Unknown hipRAND status";
 }
 
 template <typename DType>
@@ -189,8 +174,8 @@ inline DType __device__ CudaMin(DType a, DType b) {
  */
 #define CHECK_CUDA_ERROR(msg)                                                \
   {                                                                          \
-    cudaError_t e = cudaGetLastError();                                      \
-    CHECK_EQ(e, cudaSuccess) << (msg) << " CUDA: " << cudaGetErrorString(e); \
+    hipError_t e = hipGetLastError();                                      \
+    CHECK_EQ(e, hipSuccess) << (msg) << " CUDA: " << hipGetErrorString(e); \
   }
 
 /*!
@@ -201,22 +186,22 @@ inline DType __device__ CudaMin(DType a, DType b) {
  */
 #define CUDA_CALL(func)                                            \
   {                                                                \
-    cudaError_t e = (func);                                        \
-    CHECK(e == cudaSuccess || e == cudaErrorCudartUnloading)       \
-        << "CUDA: " << cudaGetErrorString(e);                      \
+    hipError_t e = (func);                                        \
+    CHECK(e == hipSuccess)       \
+        << "CUDA: " << hipGetErrorString(e);                      \
   }
 
 /*!
- * \brief Protected cuBLAS call.
+ * \brief Protected hipBLAS call.
  * \param func Expression to call.
  *
- * It checks for cuBLAS errors after invocation of the expression.
+ * It checks for hipBLAS errors after invocation of the expression.
  */
-#define CUBLAS_CALL(func)                                       \
+#define HIPBLAS_CALL(func)                                       \
   {                                                             \
-    cublasStatus_t e = (func);                                  \
-    CHECK_EQ(e, CUBLAS_STATUS_SUCCESS)                          \
-        << "cuBLAS: " << mxnet::common::cuda::CublasGetErrorString(e); \
+    hipblasStatus_t e = (func);                                  \
+    CHECK_EQ(e, HIPBLAS_STATUS_SUCCESS)                          \
+        << "hipBLAS: " << common::cuda::HipblasGetErrorString(e); \
   }
 
 /*!
@@ -233,16 +218,16 @@ inline DType __device__ CudaMin(DType a, DType b) {
   }
 
 /*!
- * \brief Protected cuRAND call.
+ * \brief Protected hipRAND call.
  * \param func Expression to call.
  *
- * It checks for cuRAND errors after invocation of the expression.
+ * It checks for hipRAND errors after invocation of the expression.
  */
-#define CURAND_CALL(func)                                       \
+#define HIPRAND_CALL(func)                                       \
   {                                                             \
-    curandStatus_t e = (func);                                  \
-    CHECK_EQ(e, CURAND_STATUS_SUCCESS)                          \
-        << "cuRAND: " << mxnet::common::cuda::CurandGetErrorString(e); \
+    hiprandStatus_t e = (func);                                  \
+    CHECK_EQ(e, HIPRAND_STATUS_SUCCESS)                          \
+        << "hipRAND: " << common::cuda::HiprandGetErrorString(e); \
   }
 
 /*!
@@ -294,8 +279,8 @@ inline DType __device__ CudaMin(DType a, DType b) {
  */
 inline int ComputeCapabilityMajor(int device_id) {
   int major = 0;
-  CUDA_CALL(cudaDeviceGetAttribute(&major,
-                                   cudaDevAttrComputeCapabilityMajor, device_id));
+  CUDA_CALL(hipDeviceGetAttribute(&major,
+                                   hipDeviceAttributeComputeCapabilityMajor, device_id));
   return major;
 }
 
@@ -306,8 +291,8 @@ inline int ComputeCapabilityMajor(int device_id) {
  */
 inline int ComputeCapabilityMinor(int device_id) {
   int minor = 0;
-  CUDA_CALL(cudaDeviceGetAttribute(&minor,
-                                   cudaDevAttrComputeCapabilityMinor, device_id));
+  CUDA_CALL(hipDeviceGetAttribute(&minor,
+                                   hipDeviceAttributeComputeCapabilityMinor, device_id));
   return minor;
 }
 
@@ -374,26 +359,28 @@ inline bool GetEnvAllowTensorCore() {
   return allow_tensor_core;
 }
 
-#if CUDA_VERSION >= 9000
+/*#if CUDA_VERSION >= 9000
 // Sets the cuBLAS math mode that determines the 'allow TensorCore' policy.  Returns previous.
-inline cublasMath_t SetCublasMathMode(cublasHandle_t blas_handle, cublasMath_t new_math_type) {
+inline cublasMath_t SetCublasMathMode(hipblasHandle_t blas_handle, cublasMath_t new_math_type) {
   auto handle_math_mode = CUBLAS_DEFAULT_MATH;
-  CUBLAS_CALL(cublasGetMathMode(blas_handle, &handle_math_mode));
-  CUBLAS_CALL(cublasSetMathMode(blas_handle, new_math_type));
+  HIPBLAS_CALL(cublasGetMathMode(blas_handle, &handle_math_mode));
+  HIPBLAS_CALL(cublasSetMathMode(blas_handle, new_math_type));
   return handle_math_mode;
 }
-#endif
+#endif*/ //hip porting for the cublas apis not supported
 
-#endif  // MXNET_USE_CUDA
+#endif  // MXNET_USE_GPU
 
 #if MXNET_USE_CUDNN
 
-#include <cudnn.h>
+//#include <cudnn.h>
+#include <miopen/miopen.h>
 
 #define CUDNN_CALL(func)                                                      \
   {                                                                           \
-    cudnnStatus_t e = (func);                                                 \
-    CHECK_EQ(e, CUDNN_STATUS_SUCCESS) << "cuDNN: " << cudnnGetErrorString(e); \
+    miopenStatus_t e = (func);                                                 \
+    CHECK_EQ(e, miopenStatusSuccess) << "cuDNN: " << (e); \
+    /*CHECK_EQ(e, miopenStatusSuccess) << "cuDNN: " << cudnnGetErrorString(e);*/ \
   }
 
 /*!
@@ -403,14 +390,14 @@ inline cublasMath_t SetCublasMathMode(cublasHandle_t blas_handle, cublasMath_t n
  * \return max number of perf structs cudnnFindConvolutionForwardAlgorithm() may
  *         want to populate.
  */
-inline int MaxForwardAlgos(cudnnHandle_t cudnn_handle) {
-#if CUDNN_MAJOR >= 7
+inline int MaxForwardAlgos(miopenHandle_t cudnn_handle) {
+/*#if CUDNN_MAJOR >= 7 && defined( __HIP_PLATFORM_NVCC__)  //TODO cudnnGetConvolutionForwardAlgorithmMaxCount() no supported API in MIOpen
   int max_algos = 0;
   CUDNN_CALL(cudnnGetConvolutionForwardAlgorithmMaxCount(cudnn_handle, &max_algos));
   return max_algos;
-#else
+#else*/
   return 10;
-#endif
+//#endif
 }
 
 /*!
@@ -420,14 +407,15 @@ inline int MaxForwardAlgos(cudnnHandle_t cudnn_handle) {
  * \return max number of perf structs cudnnFindConvolutionBackwardFilterAlgorithm() may
  *         want to populate.
  */
-inline int MaxBackwardFilterAlgos(cudnnHandle_t cudnn_handle) {
-#if CUDNN_MAJOR >= 7
+inline int MaxBackwardFilterAlgos(miopenHandle_t cudnn_handle) {
+/*#if CUDNN_MAJOR >= 7 && defined( __HIP_PLATFORM_NVCC__)
   int max_algos = 0;
   CUDNN_CALL(cudnnGetConvolutionBackwardFilterAlgorithmMaxCount(cudnn_handle, &max_algos));
   return max_algos;
-#else
+#else*/
+ //TODO cudnnGetConvolutionBackwardFilterAlgorithmMaxCount() no supported API in MIOpen
   return 10;
-#endif
+//#endif
 }
 
 /*!
@@ -437,22 +425,22 @@ inline int MaxBackwardFilterAlgos(cudnnHandle_t cudnn_handle) {
  * \return max number of perf structs cudnnFindConvolutionBackwardDataAlgorithm() may
  *         want to populate.
  */
-inline int MaxBackwardDataAlgos(cudnnHandle_t cudnn_handle) {
-#if CUDNN_MAJOR >= 7
+inline int MaxBackwardDataAlgos(miopenHandle_t cudnn_handle) {
+/*#if CUDNN_MAJOR >= 7 && defined( __HIP_PLATFORM_NVCC__)
   int max_algos = 0;
   CUDNN_CALL(cudnnGetConvolutionBackwardDataAlgorithmMaxCount(cudnn_handle, &max_algos));
   return max_algos;
-#else
+#else*/
+ //TODO cudnnGetConvolutionBackwardDataAlgorithmMaxCount() no supported API in MIOpen
   return 10;
-#endif
+//#endif
 }
 
 #endif  // MXNET_USE_CUDNN
 
 // Overload atomicAdd to work for floats on all architectures
-#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ < 600
-// From CUDA Programming Guide
-static inline  __device__  void atomicAdd(double *address, double val) {
+#if (__HIP_DEVICE_COMPILE__ && (__CUDA_ARCH__ < 600) && defined(__HIP_PLATFORM_NVCC__))
+static inline __device__  void atomicAdd(double *address, double val) {
   unsigned long long* address_as_ull =                  // NOLINT(*)
     reinterpret_cast<unsigned long long*>(address);     // NOLINT(*)
   unsigned long long old = *address_as_ull;             // NOLINT(*)
@@ -472,7 +460,9 @@ static inline  __device__  void atomicAdd(double *address, double val) {
 // Overload atomicAdd for half precision
 // Taken from:
 // https://github.com/torch/cutorch/blob/master/lib/THC/THCAtomics.cuh
-#if defined(__CUDA_ARCH__)
+//#if defined(__CUDA_ARCH__)
+//#if (__HIP_DEVICE_COMPILE__)
+#if (__HIP_DEVICE_COMPILE__) || defined(__HCC__)
 static inline __device__ void atomicAdd(mshadow::half::half_t *address,
                                         mshadow::half::half_t val) {
   unsigned int *address_as_ui =

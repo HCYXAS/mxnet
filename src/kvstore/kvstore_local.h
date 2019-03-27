@@ -388,7 +388,7 @@ class KVStoreLocal : public KVStore {
             UniqueImpl(rsc, s, out);
             break;
           }
-  #if MXNET_USE_CUDA
+  #if MXNET_USE_GPU
           case gpu::kDevMask: {
             mshadow::Stream<gpu> *s = rctx.get_stream<gpu>();
             ndarray::Copy<gpu, gpu>(data_in_ctx.data(), &out_data,
