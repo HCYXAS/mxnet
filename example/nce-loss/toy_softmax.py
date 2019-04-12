@@ -51,7 +51,7 @@ if __name__ == '__main__':
         symbol=network,
         data_names=[x[0] for x in data_train.provide_data],
         label_names=[y[0] for y in data_train.provide_label],
-        context=[mx.cpu()]
+        context=[mx.gpu()]
     )
 
     model.fit(

@@ -51,7 +51,7 @@ def main():
     learning_rate = 0.1
     momentum = 0.9
 
-    contexts = [mx.context.cpu(i) for i in range(1)]
+    contexts = [mx.context.gpu(i) for i in range(1)]
 
     vocab = default_build_vocab(os.path.join(DATA_DIR, TRAIN_FILE))
     rvocab = {}

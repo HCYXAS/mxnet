@@ -318,8 +318,8 @@ def run_synthetic_SGLD():
                                     lr_scheduler=lr_scheduler,
                                     wd=0)
     updater = mx.optimizer.get_updater(optimizer)
-    theta = mx.random.normal(0, 1, (2,), mx.cpu())
-    grad = nd.empty((2,), mx.cpu())
+    theta = mx.random.normal(0, 1, (2,), mx.gpu())
+    grad = nd.empty((2,), mx.gpu())
     samples = numpy.zeros((2, total_iter_num))
     start = time.time()
     for i in xrange(total_iter_num):

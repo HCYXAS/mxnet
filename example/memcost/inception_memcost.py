@@ -100,7 +100,7 @@ if len(sys.argv) == 2:
 else:
     grad_req = 'write'
 
-texec = softmax.simple_bind(ctx=mx.cpu(),
+texec = softmax.simple_bind(ctx=mx.gpu(),
                             data=(batch_size, 3, 224, 224),
                             grad_req=grad_req)
 # We extract the memory cost from the execution plan

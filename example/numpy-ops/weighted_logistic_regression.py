@@ -54,9 +54,9 @@ if __name__ == '__main__':
     lr = mx.sym.LogisticRegressionOutput(data, name='lr')
 
     # MXNET_CPU_WORKER_NTHREADS must be greater than 1 for custom op to work on CPU
-    context = mx.cpu()
+    #context = mx.cpu()
     # Uncomment this line to compute on GPU
-    # context=mx.gpu(0)
+    context=mx.gpu(0)
 
     exe1 = wlr.simple_bind(ctx=context, data=(2 * m, n))
     exe2 = lr.simple_bind(ctx=context, data=(2 * m, n))

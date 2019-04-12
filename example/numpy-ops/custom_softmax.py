@@ -78,9 +78,9 @@ train, val = get_mnist_iterator(batch_size=100, input_shape = (784,))
 logging.basicConfig(level=logging.DEBUG)
 
 # MXNET_CPU_WORKER_NTHREADS must be greater than 1 for custom op to work on CPU
-context=mx.cpu()
+#context=mx.cpu()
 # Uncomment this line to train on GPU
-# context=mx.gpu(0)
+context=mx.gpu(0)
 
 mod = mx.mod.Module(mlp, context=context)
 

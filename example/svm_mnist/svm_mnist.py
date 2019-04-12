@@ -75,7 +75,7 @@ test_iter = mx.io.NDArrayIter(X_test, Y_test, batch_size=batch_size, label_name=
 # The article actually suggests using 400 epochs,
 # But I reduced to 10, for convinience
 mod = mx.mod.Module(
-    context = mx.cpu(0),  # Run on CPU 0
+    context = mx.gpu(0),  # Run on CPU 0
     symbol = mlp,         # Use the network we just defined
     label_names = ['svm_label'],
 )
