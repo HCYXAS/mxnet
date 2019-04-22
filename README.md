@@ -142,7 +142,7 @@ $sudo apt-get install -y libopenblas-dev liblapack-dev libomp-dev libatlas-dev l
 ```
 ***Step 4 :*** Download MXNet sources and build MXNet core shared library.
 ```
-$ git clone --recursive https://github.com/ROCmSoftwarePlatform/mxnet
+$ git clone --recursive -b hip_port_v1.2.0 --single-branch https://github.com/ROCmSoftwarePlatform/mxnet.git
 $ cd mxnet
 ```
 To compile on HCC PLATFORM:	
