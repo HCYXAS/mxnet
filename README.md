@@ -101,15 +101,26 @@ Next, update the apt-get repository list and install/update the rocm package:
 Warning: Before proceeding, make sure to completely [uninstall any previous ROCm package](https://github.com/RadeonOpenCompute/ROCm#removing-pre-release-packages)
 
 ```
-$ sudo apt-get update
-$ sudo apt-get install rocm
+$ sudo apt update
+$ sudo apt install -y rocm-dkms
 ```
 
 ***Step 3:*** Install dependent libraries
 ```
-$ sudo apt-get install rocm-device-libs rocblas rocm-libs 
+$ sudo apt-get install rocm-device-libs rocblas rocm-libs rocblas hipblas rocrand rocfft
+$ sudo apt install -y hip-thrust 
+$ sudo apt install -y rocm-opencl rocm-opencl-dev rocm-utils
+$ sudo apt install -y miopengemm miopen-hip
 ```
 For detailed installation steps refer the given [installation link](https://github.com/RadeonOpenCompute/ROCm)
+
+***Step 4 :*** Install and build rocPRIM.
+```
+$git clone https://github.com/ROCmSoftwarePlatform/rocPRIM.git
+$cd rocPRIM; mkdir build; cd build
+$CXX=/opt/rocm/bin/hcc cmake -DBUILD_BENCHMARK=OFF -DBUILD_TEST=OFF ../
+$make -j2
+```
 
 ***Build the MXNet core shared library***
 
@@ -125,7 +136,11 @@ MXNet uses OpenCV for efficient image loading and augmentation operations.
 ```
 $ sudo apt-get install -y libopencv-dev
 ```
-***Step 3 :*** To build MXNet with Thrust
+***Step 3 :*** Install OpenBLAS
+```
+$sudo apt-get install -y libopenblas-dev liblapack-dev libomp-dev libatlas-dev libatlas-base-dev
+```
+***Step 4 :*** To build MXNet with Thrust
 ```
 $ git clone --recursive https://github.com/ROCmSoftwarePlatform/Thrust
 ```
@@ -136,7 +151,7 @@ ifeq ($(HIP_PLATFORM), hcc)
                <Example: HIPINCLUDE += -I../Thrust>
 endif
 ```
-***Step 4 :*** Download MXNet sources and build MXNet core shared library.
+***Step 5 :*** Download MXNet sources and build MXNet core shared library.
 ```
 $ git clone --recursive https://github.com/ROCmSoftwarePlatform/mxnet
 $ cd mxnet
@@ -161,6 +176,7 @@ $ make -jn (n = no of cores)
 ***Step 1 :*** Install prerequisites - python, setup-tools, python-pip and numpy.
 ```
 $ sudo apt-get install -y python-dev python-setuptools python-numpy python-pip
+$ sudo apt install -y fftw3 fftw3-dev pkg-config
 ```
 ***Step 2 :*** Install the MXNet Python binding.
 ```
