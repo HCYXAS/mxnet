@@ -116,10 +116,10 @@ For detailed installation steps refer the given [installation link](https://gith
 
 ***Step 4 :*** Install and build rocPRIM.
 ```
-$git clone https://github.com/ROCmSoftwarePlatform/rocPRIM.git
-$cd rocPRIM; mkdir build; cd build
-$CXX=/opt/rocm/bin/hcc cmake -DBUILD_BENCHMARK=OFF -DBUILD_TEST=OFF ../
-$make -j2
+$ git clone https://github.com/ROCmSoftwarePlatform/rocPRIM.git
+$ cd rocPRIM; mkdir build; cd build
+$ CXX=/opt/rocm/bin/hcc cmake -DBUILD_BENCHMARK=OFF -DBUILD_TEST=OFF ../
+$ make -j2
 ```
 
 ***Build the MXNet core shared library***
@@ -140,18 +140,7 @@ $ sudo apt-get install -y libopencv-dev
 ```
 $sudo apt-get install -y libopenblas-dev liblapack-dev libomp-dev libatlas-dev libatlas-base-dev
 ```
-***Step 4 :*** To build MXNet with Thrust
-```
-$ git clone --recursive https://github.com/ROCmSoftwarePlatform/Thrust
-```
-Add thrust path to the Makefile,
-```
-ifeq ($(HIP_PLATFORM), hcc)
-               HIPINCLUDE += -I<Root path of Thrust>
-               <Example: HIPINCLUDE += -I../Thrust>
-endif
-```
-***Step 5 :*** Download MXNet sources and build MXNet core shared library.
+***Step 4 :*** Download MXNet sources and build MXNet core shared library.
 ```
 $ git clone --recursive https://github.com/ROCmSoftwarePlatform/mxnet
 $ cd mxnet
