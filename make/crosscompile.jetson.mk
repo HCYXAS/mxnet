@@ -67,7 +67,7 @@ ADD_CFLAGS = -I${CROSS_ROOT}/include -I/usr/include/aarch64-linux-gnu/
 #---------------------------------------------
 
 # whether use CUDA during compile
-USE_CUDA = 1
+USE_GPU = 1
 
 # add the path to CUDA library to link and compile flag
 # if you have already add them to environment variable, leave it as NONE

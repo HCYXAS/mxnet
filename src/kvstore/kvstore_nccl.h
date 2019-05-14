@@ -70,7 +70,7 @@ class KVStoreNCCL : public KVStoreLocal {
 
   virtual ~KVStoreNCCL() {
     for (auto e : nccl_data_) {
-      cudaStreamDestroy(e.second.stream);
+      hipStreamDestroy(e.second.stream);
       ncclCommDestroy(e.second.comm);
     }
   }
@@ -431,7 +431,7 @@ class KVStoreNCCL : public KVStoreLocal {
         mxnet::common::cuda::DeviceStore device_store;
         for (auto cur : nccl_data_) {
           device_store.SetDevice(cur.second.dev_id);
-          CUDA_CALL(cudaStreamSynchronize(cur.second.stream));
+          CUDA_CALL(hipStreamSynchronize(cur.second.stream));
         }
       },
       Context::CPU(),
@@ -487,7 +487,7 @@ class KVStoreNCCL : public KVStoreLocal {
       e.comm = comms[i];
       e.rank = i;
       device_store.SetDevice(e.dev_id);
-      cudaStreamCreate(&(e.stream));
+      hipStreamCreate(&(e.stream));
       nccl_data_[device_ids_[i]] = e;
     }
   }
@@ -541,7 +541,7 @@ class KVStoreNCCL : public KVStoreLocal {
     /// \brief NCCL rank
     int rank;
     /// \brief GPU stream to use with NCCL
-    cudaStream_t stream;
+    hipStream_t stream;
   };
   std::unordered_map<int, BufferEntry> merge_buf_;
   std::unordered_map<int, NCCLEntry> nccl_data_;

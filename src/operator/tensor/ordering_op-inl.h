@@ -1,3 +1,4 @@
+#include "hip/hip_runtime.h"
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -232,7 +233,7 @@ MSHADOW_FORCE_INLINE void TopKSort(const Tensor<cpu, 1, DType>& dat,
   }
 }
 
-#ifdef __CUDACC__
+#ifdef __HIPCC__
 
 template<typename DType>
 MSHADOW_XINLINE bool TopKCompare(DType val1, int ind1, DType val2, int ind2, bool is_ascend) {
@@ -270,7 +271,7 @@ MSHADOW_XINLINE void MergeTopK(int K, DType *val1, int *ind1, DType *val2, int *
 template<typename DType>
 __global__ void PartialSortSmallK(int K, int N, DType *val, int *ind, bool is_ascend) {
   // Buffer for pairwise reduction.
-  extern __shared__ int buff[];
+  HIP_DYNAMIC_SHARED( int, buff)
   // Start of buffer sections associated with this thread.
   const int offset(threadIdx.x*K);
   int *ind_buff = &buff[offset];
@@ -343,9 +344,7 @@ MSHADOW_FORCE_INLINE void TopKSort(const Tensor<gpu, 1, DType>& dat,
     }
   } else {
     const int nthreads(mshadow::cuda::kBaseThreadNum);
-    PartialSortSmallK<<<M, nthreads, nthreads*K*(sizeof(int)+sizeof(DType)),
-                        mshadow::Stream<gpu>::GetStream(s)>>>
-                        (K, N, dat.dptr_, ind.dptr_, is_ascend);
+    hipLaunchKernelGGL((PartialSortSmallK), dim3(M), dim3(nthreads), nthreads*K*(sizeof(int)+sizeof(DType)), mshadow::Stream<gpu>::GetStream(s), K, N, dat.dptr_, ind.dptr_, is_ascend);
   }
 }
 

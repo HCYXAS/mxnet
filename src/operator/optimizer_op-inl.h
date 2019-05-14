@@ -637,7 +637,7 @@ struct SGDMomStdDnsRspDnsKernel;
  * \brief standard momentum update for dense weight, row_sparse grad and dense states.
  */
 template<typename xpu>
-void SGDMomStdUpdateDnsRspDnsImpl(const SGDMomParam& param,
+static inline void SGDMomStdUpdateDnsRspDnsImpl(const SGDMomParam& param,
                                   const OpContext& ctx,
                                   const TBlob& weight,
                                   const NDArray& grad,
@@ -650,7 +650,7 @@ void SGDMomStdUpdateDnsRspDnsImpl(const SGDMomParam& param,
  *        both row_sparse and dense weight are supported.
  */
 template<typename xpu>
-inline void SGDMomStdUpdateRspImpl(const SGDMomParam& param,
+static inline void SGDMomStdUpdateRspImpl(const SGDMomParam& param,
                                    const OpContext& ctx,
                                    const NDArray& weight,
                                    const NDArray& grad,
@@ -1032,7 +1032,7 @@ struct AdamStdDnsRspDnsKernel;
  * \brief standard adam update for dense weight, row_sparse grad and dense states.
  */
 template<typename xpu>
-void AdamStdUpdateDnsRspDnsImpl(const AdamParam& param,
+static inline void AdamStdUpdateDnsRspDnsImpl(const AdamParam& param,
                                 const OpContext& ctx,
                                 const TBlob& weight,
                                 const NDArray& grad,
@@ -1046,7 +1046,7 @@ void AdamStdUpdateDnsRspDnsImpl(const AdamParam& param,
  *        states are expected to be dense, while grad is expected to be row_sparse.
  */
 template<typename xpu>
-inline void AdamStdUpdateRspImpl(const AdamParam& param,
+static inline void AdamStdUpdateRspImpl(const AdamParam& param,
                                  const OpContext& ctx,
                                  const NDArray& weight,
                                  const NDArray& grad,

@@ -44,7 +44,7 @@ ifndef CXX
 export CXX = g++
 endif
 ifndef NVCC
-export NVCC = nvcc
+export NVCC = hipcc
 endif
 
 # whether compile with options for MXNet developer
@@ -67,15 +67,18 @@ ADD_CFLAGS =
 #---------------------------------------------
 
 # whether use CUDA during compile
-USE_CUDA = 0
+USE_GPU = 1
 
 # add the path to CUDA library to link and compile flag
 # if you have already add them to environment variable, leave it as NONE
-# USE_CUDA_PATH = /usr/local/cuda
-USE_CUDA_PATH = NONE
+ifeq ($(HIP_PLATFORM), nvcc)
+	USE_CUDA_PATH = /usr/local/cuda
+else
+	USE_CUDA_PATH = NONE
+endif
 
 # whether to enable CUDA runtime compilation
-ENABLE_CUDA_RTC = 1
+ENABLE_CUDA_RTC = 0
 
 # whether use CuDNN R3 library
 USE_CUDNN = 0

@@ -171,7 +171,7 @@ class CuDNNAlgoReg {
 typedef CuDNNAlgoReg<ConvolutionParam> CuDNNConvAlgoReg;
 typedef CuDNNAlgoReg<DeconvolutionParam> CuDNNDeconvAlgoReg;
 
-#endif  // __CUDACC__ && CUDNN
+#endif  // __HIPCC__ && CUDNN
 }  // namespace op
 }  // namespace mxnet
 

@@ -22,7 +22,7 @@
  * \brief adaptive average pooling operator
  * \author Hang Zhang
 */
-#include <cuda_runtime_api.h>
+#include <hip/hip_runtime_api.h>
 #include <algorithm>
 #include "adaptive_avg_pooling-inl.h"
 
@@ -181,11 +181,18 @@ void AdaptiveAvgPoolUpdateOutput(mshadow::Stream<gpu> *s,
   dim3 blocks(sizeB * sizeD, blocksH);
   dim3 threads(32, 8);
 
-  cudaStream_t stream = mshadow::Stream<gpu>::GetStream(s);
+  hipStream_t stream = mshadow::Stream<gpu>::GetStream(s);
   // run averagepool kernel
-  adaptiveaveragepool <<<blocks, threads, 0, stream>>> (
-    input_data, output_data, isizeH, isizeW, osizeH, osizeW,
-    istrideD, istrideH, istrideW);
+  hipLaunchKernelGGL(HIP_KERNEL_NAME(adaptiveaveragepool), dim3(blocks), dim3(threads), 0, stream,
+	reinterpret_cast<DType*>(input_data),
+	reinterpret_cast<DType*>(output_data),
+	static_cast<int>(isizeH),
+	static_cast<int>(isizeW),
+	static_cast<int>(osizeH),
+	static_cast<int>(osizeW),
+	static_cast<int64_t>(istrideD),
+	static_cast<int64_t>(istrideH),
+	static_cast<int64_t>(istrideW));
   MSHADOW_CUDA_POST_KERNEL_CHECK(AdaptiveAvgPoolUpdateOutput);
 }
 
@@ -212,10 +219,15 @@ void AdaptiveAvgPoolUpdateGradInput(mshadow::Stream<gpu> *s,
   dim3 blocks(sizeB * sizeD, blocksH);
   dim3 threads(32, 8);
 
-  cudaStream_t stream = mshadow::Stream<gpu>::GetStream(s);
+  hipStream_t stream = mshadow::Stream<gpu>::GetStream(s);
   // run updateGradInput kernel, accumulate gradients atomically
-  atomicadaptiveaveragegradinput <<<blocks, threads, 0, stream>>> (
-    gradInput_data, gradOutput_data, isizeH, isizeW, osizeH, osizeW);
+  hipLaunchKernelGGL(HIP_KERNEL_NAME(atomicadaptiveaveragegradinput), dim3(blocks), dim3(threads), 0, stream,
+	reinterpret_cast<DType*>(gradInput_data),
+	reinterpret_cast<DType*>(gradOutput_data),
+	static_cast<int>(isizeH),
+	static_cast<int>(isizeW),
+	static_cast<int>(osizeH),
+	static_cast<int>(osizeW));
   MSHADOW_CUDA_POST_KERNEL_CHECK(AdaptiveAvgPoolUpdateGradInput);
 }
 

@@ -73,7 +73,7 @@ class KVStoreLocal : public KVStore {
    */
   explicit KVStoreLocal(bool use_device_comm) : KVStore() {
     if (use_device_comm) {
-      bool tree = dmlc::GetEnv("MXNET_KVSTORE_USETREE", 0) & MXNET_USE_CUDA;
+      bool tree = dmlc::GetEnv("MXNET_KVSTORE_USETREE", 0) & MXNET_USE_GPU;
       if (tree) {
         comm_ = new CommDeviceTree();
       } else {
@@ -417,7 +417,7 @@ class KVStoreLocal : public KVStore {
             UniqueImpl(&workspace, s, out);
             break;
           }
-  #if MXNET_USE_CUDA
+  #if MXNET_USE_GPU
           case gpu::kDevMask: {
             mshadow::Stream<gpu> *s = rctx.get_stream<gpu>();
             ndarray::Copy<gpu, gpu>(data_in_ctx.data(), &out_data,

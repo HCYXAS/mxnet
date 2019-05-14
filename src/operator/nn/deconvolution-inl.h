@@ -251,7 +251,7 @@ class DeconvolutionOp {
                param_.num_filter / param_.num_group * kernel_size);
     Tensor<xpu, 3, DType> wmat =
         in_data[deconv::kWeight].get_with_shape<xpu, 3, DType>(wmat_shape, s);
-#if defined(__CUDACC__)
+#if defined(__HIPCC__)
     CHECK_EQ(s->blas_handle_ownership_, Stream<xpu>::OwnHandle)
         << "Must init CuBLAS handle in stream";
 #endif
@@ -373,7 +373,7 @@ class DeconvolutionOp {
         in_data[deconv::kWeight].get_with_shape<xpu, 3, DType>(wmat_shape, s);
     Tensor<xpu, 3, DType> gwmat =
         in_grad[deconv::kWeight].get_with_shape<xpu, 3, DType>(wmat_shape, s);
-#if defined(__CUDACC__)
+#if defined(__HIPCC__)
     CHECK_EQ(s->blas_handle_ownership_, Stream<xpu>::OwnHandle)
         << "Must init CuBLAS handle in stream";
 #endif

@@ -30,7 +30,7 @@
 namespace mxnet {
 namespace op {
 
-#if CUDA_VERSION >= 8000
+#if defined(__HIP_PLATFORM_HCC__) || (defined(__HIP_PLATFORM_NVCC__) && (CUDA_VERSION >= 8000))
 // value + bias_value * (range1 / limit_range1) * (limit_range2 / range2)
 struct QuantizedBiasAddKernel {
   MSHADOW_XINLINE static void Map(int i, size_t k, int32_t *out,
@@ -58,7 +58,7 @@ void QuantizedFullyConnectedForwardGPU(const nnvm::NodeAttrs& attrs,
                                        const std::vector<TBlob> &inputs,
                                        const std::vector<OpReqType> &req,
                                        const std::vector<TBlob> &outputs) {
-#if CUDA_VERSION >= 8000
+  #if defined(__HIP_PLATFORM_HCC__) || (defined(__HIP_PLATFORM_NVCC__) && (CUDA_VERSION >= 8000))
   const FullyConnectedParam& param = nnvm::get<FullyConnectedParam>(attrs.parsed);
   using namespace mshadow;
   using namespace mxnet_op;
@@ -81,12 +81,14 @@ void QuantizedFullyConnectedForwardGPU(const nnvm::NodeAttrs& attrs,
   const int m = dshape[0], n = dshape.ProdShape(1, dshape.ndim()), k = wshape[0];
   CmpType alpha = 1.0f;
   CmpType beta  = 0.0f;
-  const cudaDataType src_type = mshadow::DataType<SrcType>::kCudaFlag;
-  const cudaDataType dst_type = mshadow::DataType<DstType>::kCudaFlag;
-  const cudaDataType cmp_type = mshadow::DataType<CmpType>::kCudaFlag;
-  CUBLAS_CALL(cublasGemmEx(s->blas_handle_,
-                           CUBLAS_OP_T,
-                           CUBLAS_OP_N,
+  #if defined(__HIP_PLATFORM_HCC__) || (defined(__HIP_PLATFORM_NVCC__) && (CUDA_VERSION >= 8000))
+  const hipDataType src_type = mshadow::DataType<SrcType>::kCudaFlag;
+  const hipDataType dst_type = mshadow::DataType<DstType>::kCudaFlag;
+  const hipDataType cmp_type = mshadow::DataType<CmpType>::kCudaFlag;
+  #endif
+  /*HIPBLAS_CALL(hipblasGemmEx(s->blas_handle_,
+                           HIPBLAS_OP_T,
+                           HIPBLAS_OP_N,
                            k,
                            m,
                            n,
@@ -102,7 +104,7 @@ void QuantizedFullyConnectedForwardGPU(const nnvm::NodeAttrs& attrs,
                            dst_type,
                            k,
                            cmp_type,
-                           CUBLAS_GEMM_DFALT));
+                           HIPBLAS_GEMM_DFALT));*/ //hipblasGemmEx and HIPBLAS_GEMM_DFALT are not supported
 
   Kernel<QuantizationRangeForMultiplicationStruct, gpu>::Launch(s, 1,
     outputs[1].dptr<float>(), outputs[2].dptr<float>(),

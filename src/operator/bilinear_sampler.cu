@@ -1,3 +1,4 @@
+#include "hip/hip_runtime.h"
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -174,12 +175,11 @@ inline void BilinearSamplerForward(const Tensor<gpu, 4, DType> &output,
     dim3 num_blocks(grid_dim_x, grid_dim_y);
     dim3 threads_per_block(kMaxThreadsPerBlock);
     CheckLaunchParam(num_blocks, threads_per_block, "bilinear sampler forward");
-    cudaStream_t stream = Stream<gpu>::GetStream(output.stream_);
-    cuda::BilinearSamplerForwardKernel<DType> << <num_blocks, threads_per_block, 0, stream >> >(
-      i_c, i_h, i_w, data, grid, o_n, o_c, o_h, o_w, out);
+    hipStream_t stream = Stream<gpu>::GetStream(output.stream_);
+    hipLaunchKernelGGL(HIP_KERNEL_NAME(cuda::BilinearSamplerForwardKernel<DType>), dim3(num_blocks), dim3(threads_per_block), 0, stream,i_c, i_h, i_w, data, grid, o_n, o_c, o_h, o_w, out);
     // post kernel check
-    cudaError err = cudaPeekAtLastError();
-    CHECK_EQ(err, cudaSuccess) << cudaGetErrorString(err);
+    hipError_t err = hipPeekAtLastError();
+    CHECK_EQ(err, hipSuccess) << hipGetErrorString(err);
 }
 
 template<typename DType>
@@ -208,17 +208,15 @@ inline void BilinearSamplerBackward(const Tensor<gpu, 4, DType> &input_grad,
   dim3 num_blocks(grid_dim_x, grid_dim_y);
   dim3 threads_per_block(kMaxThreadsPerBlock);
   CheckLaunchParam(num_blocks, threads_per_block, "bilinear sampler backward");
-  cudaStream_t stream = Stream<gpu>::GetStream(input_grad.stream_);
+  hipStream_t stream = Stream<gpu>::GetStream(input_grad.stream_);
   MXNET_REQ_TYPE_SWITCH(data_req, Req1, {
     MXNET_REQ_TYPE_SWITCH(grid_req, Req2, {
-      cuda::BilinearSamplerBackwardKernel<DType, Req1, Req2>
-      <<<num_blocks, threads_per_block, 0, stream >>>(
-        i_c, i_h, i_w, grad, data, o_n, o_c, o_h, o_w, g_input, grid_src, grad_grid);
+     hipLaunchKernelGGL(HIP_KERNEL_NAME(cuda::BilinearSamplerBackwardKernel<DType, Req1, Req2>), dim3(num_blocks), dim3(threads_per_block), 0, stream,i_c, i_h, i_w, grad, data, o_n, o_c, o_h, o_w, g_input, grid_src, grad_grid);
     });
   });
   // post kernel check
-  cudaError err = cudaPeekAtLastError();
-  CHECK_EQ(err, cudaSuccess) << cudaGetErrorString(err);
+  hipError_t err = hipPeekAtLastError();
+  CHECK_EQ(err, hipSuccess) << hipGetErrorString(err);
 }
 
 }  // namespace mshadow

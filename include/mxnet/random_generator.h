@@ -29,10 +29,10 @@
 #include <new>
 #include "./base.h"
 
-#if MXNET_USE_CUDA
-#include <curand_kernel.h>
+#if MXNET_USE_GPU
+#include <hiprand_kernel.h>
 #include <math.h>
-#endif  // MXNET_USE_CUDA
+#endif  // MXNET_USE_GPU
 
 namespace mxnet {
 namespace common {
@@ -106,7 +106,7 @@ const int RandGenerator<cpu, DType>::kMinNumRandomPerThread = 64;
 template<typename DType>
 const int RandGenerator<cpu, DType>::kNumRandomStates = 1024;
 
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
 
 template<typename DType>
 class RandGenerator<gpu, DType> {
@@ -138,25 +138,25 @@ class RandGenerator<gpu, DType> {
     }
 
     MSHADOW_FORCE_INLINE __device__ int rand() {
-      return curand(&state_);
+      return hiprand(&state_);
     }
 
     MSHADOW_FORCE_INLINE __device__ int64_t rand_int64() {
-      return static_cast<int64_t>(curand(&state_) << 31) + curand(&state_);
+      return static_cast<int64_t>(hiprand(&state_) << 31) + hiprand(&state_);
     }
 
     MSHADOW_FORCE_INLINE __device__ float uniform() {
-      return static_cast<float>(1.0) - curand_uniform(&state_);
+      return static_cast<float>(1.0) - hiprand_uniform(&state_);
     }
 
     MSHADOW_FORCE_INLINE __device__ float normal() {
-      return curand_normal(&state_);
+      return hiprand_normal(&state_);
     }
 
    private:
     RandGenerator<gpu, DType> *global_gen_;
     int global_state_idx_;
-    curandStatePhilox4_32_10_t state_;
+    hiprandStatePhilox4_32_10_t state_;
   };  // class RandGenerator<gpu, DType>::Impl
 
   static void AllocState(RandGenerator<gpu, DType> *inst);
@@ -166,7 +166,7 @@ class RandGenerator<gpu, DType> {
   void Seed(mshadow::Stream<gpu> *s, uint32_t seed);
 
  private:
-  curandStatePhilox4_32_10_t *states_;
+  hiprandStatePhilox4_32_10_t *states_;
 };  // class RandGenerator<gpu, DType>
 
 template<>
@@ -194,32 +194,32 @@ class RandGenerator<gpu, double> {
     }
 
     MSHADOW_FORCE_INLINE __device__ int rand() {
-      return curand(&state_);
+      return hiprand(&state_);
     }
 
     MSHADOW_FORCE_INLINE __device__ int64_t rand_int64() {
-      return static_cast<int64_t>(curand(&state_) << 31) + curand(&state_);
+      return static_cast<int64_t>(hiprand(&state_) << 31) + hiprand(&state_);
     }
 
     MSHADOW_FORCE_INLINE __device__ double uniform() {
-      return static_cast<float>(1.0) - curand_uniform_double(&state_);
+      return static_cast<float>(1.0) - hiprand_uniform_double(&state_);
     }
 
     MSHADOW_FORCE_INLINE __device__ double normal() {
-      return curand_normal_double(&state_);
+      return hiprand_normal_double(&state_);
     }
 
    private:
     RandGenerator<gpu, double> *global_gen_;
     int global_state_idx_;
-    curandStatePhilox4_32_10_t state_;
+    hiprandStatePhilox4_32_10_t state_;
   };  // class RandGenerator<gpu, double>::Impl
 
  private:
-  curandStatePhilox4_32_10_t *states_;
+  hiprandStatePhilox4_32_10_t *states_;
 };  // class RandGenerator<gpu, double>
 
-#endif  // MXNET_USE_CUDA
+#endif  // MXNET_USE_GPU
 
 }  // namespace random
 }  // namespace common

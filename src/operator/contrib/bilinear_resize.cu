@@ -22,7 +22,7 @@
  * \brief bilinear resize operator
  * \author Hang Zhang
 */
-#include <cuda_runtime_api.h>
+#include <hip/hip_runtime_api.h>
 #include <algorithm>
 #include "bilinear_resize-inl.h"
 
@@ -180,9 +180,8 @@ void SpatialUpSamplingBilinearUpdateOutput(mshadow::Stream<gpu> *s,
   const int num_threads = getNumThreads(inputHeight*inputWidth, false);
   dim3 blocks(static_cast<int>(num_kernels / num_threads) + 1);
   dim3 threads(num_threads);
-  cudaStream_t stream = mshadow::Stream<gpu>::GetStream(s);
-  caffe_gpu_interp2_kernel<xpu, DType, AccReal>
-  <<<blocks, threads , 0, stream>>>(
+  hipStream_t stream = mshadow::Stream<gpu>::GetStream(s);
+  hipLaunchKernelGGL((caffe_gpu_interp2_kernel<xpu, DType, AccReal>), dim3(blocks), dim3(threads ), 0, stream,
     num_kernels, rheight, rwidth, idata, odata);
   MSHADOW_CUDA_POST_KERNEL_CHECK(SpatialUpSamplingBilinearUpdateOutput);
 }
@@ -203,9 +202,8 @@ void SpatialUpSamplingBilinearUpdateGradInput(mshadow::Stream<gpu> *s,
   const int num_threads = getNumThreads(height1*width1, false);
   dim3 blocks(static_cast<int>(num_kernels / num_threads) + 1);
   dim3 threads(num_threads);
-  cudaStream_t stream = mshadow::Stream<gpu>::GetStream(s);
-  caffe_gpu_interp2_kernel_backward<xpu, DType, AccReal>
-  <<<blocks, threads, 0, stream>>>(
+  hipStream_t stream = mshadow::Stream<gpu>::GetStream(s);
+  hipLaunchKernelGGL((caffe_gpu_interp2_kernel_backward<xpu, DType, AccReal>), dim3(blocks), dim3(threads), 0, stream,
     num_kernels, rheight, rwidth, data1, data2);
   MSHADOW_CUDA_POST_KERNEL_CHECK(SpatialUpSamplingBilinearUpdateGradInput);
 }

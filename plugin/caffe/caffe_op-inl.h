@@ -104,12 +104,12 @@ class CaffeOp : public Operator {
     CHECK_EQ(in_data.size(), expected_num_data);
     CHECK_EQ(out_data.size(), param_.num_out);
 
-#if defined(__CUDACC__)
+#if defined(__HIPCC__)
     Stream<xpu> *s = ctx.get_stream<xpu>();
     // TODO(Haoran): when need cublas handle in stream?
     CHECK_EQ(s->blas_handle_ownership_, Stream<xpu>::OwnHandle)
           << "Must init CuBLAS handle in stream";
-#endif  // __CUDACC__
+#endif  // __HIPCC__
 
     caffe::TBlob2CaffeBlob<xpu, Dtype>(caffe::Data,
                                        bot_.begin(),
@@ -135,13 +135,13 @@ class CaffeOp : public Operator {
       MXCAFFELAYER(caffeOp_, Dtype)->SetPhase(::caffe::TEST);
     caffeOp_->Forward(bot_, top_);
 
-#if defined(__CUDACC__)
+#if defined(__HIPCC__)
     // Sync cpu data to gpu data
     for (uint32_t i = 0; i < top_.size(); ++i)
       top_[i]->gpu_data();
 
-    CHECK_EQ(cudaStreamSynchronize(NULL), cudaSuccess);
-#endif  // __CUDACC__
+    CHECK_EQ(hipStreamSynchronize(NULL), hipSuccess);
+#endif  // __HIPCC__
   }
 
   // Set up caffe op with real data
@@ -172,11 +172,11 @@ class CaffeOp : public Operator {
     CHECK_EQ(req.size(), expected_num_data);
 
     Stream<xpu> *s = ctx.get_stream<xpu>();
-#if defined(__CUDACC__)
+#if defined(__HIPCC__)
     // TODO(Haoran): when need cublas handle in stream?
     CHECK_EQ(s->blas_handle_ownership_, Stream<xpu>::OwnHandle)
           << "Must init CuBLAS handle in stream";
-#endif  // __CUDACC__
+#endif  // __HIPCC__
 
     caffe::TBlob2CaffeBlob<xpu, Dtype>(caffe::Grad,
                                        bot_.begin(),
@@ -206,13 +206,13 @@ class CaffeOp : public Operator {
 
     caffeOp_->Backward(top_, flags_, bot_);
 
-#if defined(__CUDACC__)
+#if defined(__HIPCC__)
     // Sync cpu diff to gpu diff
     for (uint32_t i = 0; i < bot_.size(); ++i)
       bot_[i]->gpu_diff();
 
-    CHECK_EQ(cudaStreamSynchronize(NULL), cudaSuccess);
-#endif  // __CUDACC__
+    CHECK_EQ(hipStreamSynchronize(NULL), hipSuccess);
+#endif  // __HIPCC__
   }
 
   void HandleOpReq(mshadow::Stream<xpu>*s, OpReqType req, const TBlob& in_g) {

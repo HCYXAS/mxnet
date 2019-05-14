@@ -106,7 +106,7 @@ class TVMFunctor {
     TVMRetValue rv;
     TVMArgs args(&values_[0], &type_codes_[0], values_.size());
     if (ctx().dev_type == Context::kGPU) {
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
       // pass stream via last argument.
       void* strm = static_cast<void*>(rctx.get_stream<gpu>()->stream_);
       int dev_type = kDLGPU;

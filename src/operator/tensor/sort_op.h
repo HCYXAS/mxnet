@@ -112,7 +112,7 @@ SortByKeyWorkspaceSize(const size_t num_keys);
 
 }  // namespace op
 }  // namespace mxnet
-#ifdef __CUDACC__
+#ifdef __HIPCC__
 #include "./sort_op-inl.cuh"
 #endif
 #endif  // MXNET_OPERATOR_TENSOR_SORT_OP_H_

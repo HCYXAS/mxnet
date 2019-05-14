@@ -812,7 +812,7 @@ void TernaryOp(const NDArray &lhs,
     FnProperty::kNormal, 0, PROFILER_MESSAGE_FUNCNAME);
     break;
   }
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
   case gpu::kDevMask: {
     Engine::Get()->PushSync([lhs, mhs, rhs, ret](RunContext ctx) {
       TBlob tmp = ret.data();
@@ -889,7 +889,7 @@ void BinaryOpKernel(const NDArray &lhs,
       FnProperty::kNormal, 0, PROFILER_MESSAGE_FUNCNAME);
       break;
     }
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
     case gpu::kDevMask: {
       Engine::Get()->PushSync([lhs, rhs, ret](RunContext ctx) {
         TBlob tmp = ret.data();
@@ -930,7 +930,7 @@ void BinaryOp(const NDArray &lhs,
           FnProperty::kNormal, 0, PROFILER_MESSAGE_FUNCNAME);
       break;
     }
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
     case gpu::kDevMask: {
       Engine::Get()->PushSync([lhs, rhs, ret](RunContext ctx) {
           TBlob tmp = ret.data();
@@ -962,7 +962,7 @@ void SetValueOp(const real_t &rhs, NDArray *out) {
           }
           break;
         }
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
         case gpu::kDevMask: {
           if (stype == kDefaultStorage) {
             ndarray::Eval<gpu>(rhs, &tmp, ctx);
@@ -1013,7 +1013,7 @@ void ScalarOp(const NDArray &lhs,
         FnProperty::kNormal, 0, PROFILER_MESSAGE_FUNCNAME);
       break;
     }
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
     case gpu::kDevMask: {
       Engine::Get()->PushSync([lhs, rhs, ret](RunContext ctx) {
           TBlob tmp = ret.data();
@@ -1246,7 +1246,7 @@ void CopyFromTo(const NDArray& from, const NDArray& to, int priority, bool is_op
       }, from.ctx(), const_vars, mutable_vars,
       FnProperty::kNormal, priority, "CopyCPU2CPU");
   } else {
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
     if (a == cpu::kDevMask && b == gpu::kDevMask) {
       Engine::Get()->PushAsync(
         [from, to, requested](RunContext ctx, Engine::CallbackOnComplete on_complete) {
@@ -1322,7 +1322,7 @@ void ElementwiseSum(const std::vector<NDArray> &source, NDArray *out, int priori
           FnProperty::kNormal, priority, PROFILER_MESSAGE_FUNCNAME);
         break;
       }
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
       case gpu::kDevMask: {
         Engine::Get()->PushSync([source, ret](RunContext ctx) {
             std::vector<TBlob> source_tblob(source.size());
@@ -1352,7 +1352,7 @@ void ElementwiseSum(const std::vector<NDArray> &source, NDArray *out, int priori
             mxnet::ndarray::ElementwiseSum(rctx.get_stream<cpu>(), rsc, source, &result);
             break;
           }
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
           case gpu::kDevMask: {
             mxnet::ndarray::ElementwiseSum(rctx.get_stream<gpu>(), rsc, source, &result);
             // wait for GPU operations to complete
@@ -1390,7 +1390,7 @@ void ClipOp(const NDArray &src,
         FnProperty::kNormal, 0, PROFILER_MESSAGE_FUNCNAME);
       break;
     }
-    #if MXNET_USE_CUDA
+    #if MXNET_USE_GPU
     case gpu::kDevMask: {
       Engine::Get()->PushSync([src, a_min, a_max, ret](RunContext ctx) {
           TBlob tmp = ret.data();
@@ -1423,7 +1423,7 @@ void SampleOP(const real_t &a,
         FnProperty::kNormal, 0, PROFILER_MESSAGE_FUNCNAME);
       break;
     }
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
     case gpu::kDevMask: {
       Engine::Get()->PushSync([a, b, resource, ret](RunContext ctx) {
           TBlob tmp = ret.data();
@@ -1689,7 +1689,7 @@ bool NDArray::LegacyLoad(dmlc::Stream *strm, const uint32_t magic) {
   if (ctx.dev_mask() == cpu::kDevMask) {
     *this = std::move(temp); return true;
   } else {
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
     *this = temp.Copy(ctx); return true;
 #else
     *this = std::move(temp); return true;
@@ -1772,7 +1772,7 @@ bool NDArray::Load(dmlc::Stream *strm) {
   if (ctx.dev_mask() == cpu::kDevMask) {
     *this = std::move(temp); return true;
   } else {
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
     *this = temp.Copy(ctx); return true;
 #else
     *this = std::move(temp); return true;
@@ -1837,7 +1837,7 @@ void NDArray::SyncCopyFromCPU(const void *data, size_t size) const {
     TBlob dst = this->data();
     ndarray::Copy<cpu, cpu>(src, &dst, Context::CPU(), Context::CPU(), rctx);
   } else {
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
     Engine::Get()->PushAsync(
       [&](RunContext rctx, Engine::CallbackOnComplete on_complete) {
         TBlob dst = this->data();
@@ -1906,7 +1906,7 @@ void NDArray::SyncCopyFromNDArray(const NDArray& src, int i, int j) {
       }, this->ctx(), const_vars, {this->var()},
       FnProperty::kNormal, 0, "SyncCopyFromNDArrayCPU2CPU");
   } else {
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
     if (src_dev_mask == cpu::kDevMask && dst_dev_mask == gpu::kDevMask) {
       Engine::Get()->PushAsync(
         [&](RunContext rctx, Engine::CallbackOnComplete on_complete) {
@@ -1973,7 +1973,7 @@ void NDArray::SyncCopyToCPU(void *data, size_t size) const {
     ndarray::Copy<cpu, cpu>(src.data(), &dst,
                             Context::CPU(), Context::CPU(), rctx);
   } else {
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
     Engine::Get()->PushAsync(
       [&](RunContext rctx, Engine::CallbackOnComplete on_complete) {
         ndarray::Copy<gpu, cpu>(this->data(), &dst,
@@ -1999,7 +1999,7 @@ void NDArray::SyncCheckFormat(const bool full_check) const {
       }, this->ctx(), {this->var()}, {},
       FnProperty::kNormal, 0, "CheckFormat");
   } else {
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
     Engine::Get()->PushSync([&](RunContext rctx) {
         common::CheckFormatWrapper<gpu>(rctx, *this, err_cpu, full_check);
         rctx.get_stream<gpu>()->Wait();

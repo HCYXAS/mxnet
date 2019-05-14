@@ -319,11 +319,11 @@ void ThreadedEngine::PushAsync(AsyncFn fn, Context exec_ctx,
                                int priority,
                                const char* opr_name,
                                bool wait) {
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
   if (exec_ctx.dev_mask() == gpu::kDevMask) {
     if (device_count_ < 0) {
       int tmp = -1;
-      cudaGetDeviceCount(&tmp);
+      hipGetDeviceCount(&tmp);
       device_count_ = tmp;
       CHECK_GT(device_count_, 0) << "GPU usage requires at least 1 GPU";
     }

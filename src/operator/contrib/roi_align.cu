@@ -1,3 +1,4 @@
+#include "hip/hip_runtime.h"
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -364,16 +365,12 @@ void ROIAlignForwardCompute(const nnvm::NodeAttrs& attrs,
   const int pooled_width = out_data[roialign::kOut].size(3);
 
   Stream<gpu> *s = ctx.get_stream<gpu>();
-  cudaStream_t stream = mshadow::Stream<gpu>::GetStream(s);
+  hipStream_t stream = mshadow::Stream<gpu>::GetStream(s);
   MSHADOW_REAL_TYPE_SWITCH(in_data[0].type_flag_, DType, {
     const DType *bottom_data = in_data[roialign::kData].dptr<DType>();
     const DType *bottom_rois = in_data[roialign::kBox].dptr<DType>();
     DType *top_data = out_data[roialign::kOut].dptr<DType>();
-    RoIAlignForwardKernel<DType>
-      <<<ROI_GET_BLOCKS(count),
-         kMaxThreadsPerBlock,
-         0,
-         stream>>>(
+    hipLaunchKernelGGL((RoIAlignForwardKernel<DType>), dim3(ROI_GET_BLOCKS(count)), dim3(kMaxThreadsPerBlock), 0, stream,
           count,
           bottom_data,
           param.spatial_scale,
@@ -421,7 +418,7 @@ void ROIAlignBackwardCompute(const nnvm::NodeAttrs& attrs,
   const int pooled_width = out_grad[0].size(3);
 
   Stream<gpu> *s = ctx.get_stream<gpu>();
-  cudaStream_t stream = mshadow::Stream<gpu>::GetStream(s);
+  hipStream_t stream = mshadow::Stream<gpu>::GetStream(s);
 
   // assume all the data and gradient have the same type
   MSHADOW_REAL_TYPE_SWITCH(out_grad[0].type_flag_, DType, {
@@ -436,11 +433,7 @@ void ROIAlignBackwardCompute(const nnvm::NodeAttrs& attrs,
     if (kWriteTo == req[roialign::kData]) {
       Fill<false>(s, outputs[0], kWriteTo, static_cast<DType>(0));
     }
-    RoIAlignBackwardKernel<DType>
-    <<<ROI_GET_BLOCKS(count),
-       kMaxThreadsPerBlock,
-       0,
-       stream>>>(
+    hipLaunchKernelGGL((RoIAlignBackwardKernel<DType>), dim3(ROI_GET_BLOCKS(count)), dim3(kMaxThreadsPerBlock), 0, stream,
         count,
         top_diff,
         num_rois,

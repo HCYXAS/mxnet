@@ -46,8 +46,8 @@
 /*!
  *\brief whether to use cuda support
  */
-#ifndef MXNET_USE_CUDA
-#define MXNET_USE_CUDA MSHADOW_USE_CUDA
+#ifndef MXNET_USE_GPU
+#define MXNET_USE_GPU MSHADOW_USE_GPU
 #endif
 
 /*!
@@ -61,10 +61,10 @@
  *\brief whether to use cusolver library
  */
 #ifndef MXNET_USE_CUSOLVER
-#define MXNET_USE_CUSOLVER MSHADOW_USE_CUSOLVER
+//#define MXNET_USE_CUSOLVER MSHADOW_USE_CUSOLVER
 #endif
 
-/*! \brief Error message for using gpu when MXNET_USE_CUDA==0 */
+/*! \brief Error message for using gpu when MXNET_USE_GPU==0 */
 #define MXNET_GPU_NOT_ENABLED_ERROR  "GPU is not enabled"
 
 /*!
@@ -293,8 +293,8 @@ inline Context Context::Create(DeviceType dev_type, int32_t dev_id) {
   if (dev_id < 0) {
     ctx.dev_id = 0;
     if (dev_type & kGPU) {
-#if MXNET_USE_CUDA
-      CHECK_EQ(cudaGetDevice(&ctx.dev_id), cudaSuccess);
+#if MXNET_USE_GPU
+      CHECK_EQ(hipGetDevice(&ctx.dev_id), hipSuccess);
 #else
       LOG(FATAL) << "Please compile with CUDA enabled for cuda features";
 #endif
@@ -321,13 +321,13 @@ inline Context Context::GPU(int32_t dev_id) {
 }
 
 inline int32_t Context::GetGPUCount() {
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
   int32_t count;
-  cudaError_t e = cudaGetDeviceCount(&count);
-  if (e == cudaErrorNoDevice) {
+  hipError_t e = hipGetDeviceCount(&count);
+  if (e == hipErrorNoDevice) {
     return 0;
   }
-  CHECK_EQ(e, cudaSuccess) << " CUDA: " << cudaGetErrorString(e);
+  CHECK_EQ(e, hipSuccess) << " CUDA: " << hipGetErrorString(e);
   return count;
 #else
   return 0;
@@ -336,23 +336,23 @@ inline int32_t Context::GetGPUCount() {
 
 inline void Context::GetGPUMemoryInformation(int dev, uint64_t *free_mem,
                                              uint64_t *total_mem) {
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
 
   size_t memF, memT;
-  cudaError_t e;
+  hipError_t e;
 
   int curDevice;
-  e = cudaGetDevice(&curDevice);
-  CHECK_EQ(e, cudaSuccess) << " CUDA: " << cudaGetErrorString(e);
+  e = hipGetDevice(&curDevice);
+  CHECK_EQ(e, hipSuccess) << " CUDA: " << hipGetErrorString(e);
 
-  e = cudaSetDevice(dev);
-  CHECK_EQ(e, cudaSuccess) << " CUDA: " << cudaGetErrorString(e);
+  e = hipSetDevice(dev);
+  CHECK_EQ(e, hipSuccess) << " CUDA: " << hipGetErrorString(e);
 
-  e = cudaMemGetInfo(&memF, &memT);
-  CHECK_EQ(e, cudaSuccess) << " CUDA: " << cudaGetErrorString(e);
+  e = hipMemGetInfo(&memF, &memT);
+  CHECK_EQ(e, hipSuccess) << " CUDA: " << hipGetErrorString(e);
 
-  e = cudaSetDevice(curDevice);
-  CHECK_EQ(e, cudaSuccess) << " CUDA: " << cudaGetErrorString(e);
+  e = hipSetDevice(curDevice);
+  CHECK_EQ(e, hipSuccess) << " CUDA: " << hipGetErrorString(e);
 
   *free_mem = static_cast<uint64_t>(memF);
   *total_mem = static_cast<uint64_t>(memT);

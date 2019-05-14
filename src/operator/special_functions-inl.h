@@ -149,7 +149,7 @@ struct cephes {
     if ( x <= 0.0 ) {
       negative = 1;
       q = x;
-      p = std::floor(q);
+      p = floor(q);
       if ( p == q ) {
         return helper_numeric_limits<double>::max();
       }
@@ -162,7 +162,7 @@ struct cephes {
           p += 1.0;
           nz = q - p;
         }
-        nz = PI/std::tan(PI*nz);
+        nz = PI/tan(PI*nz);
       } else {
         nz = 0.0;
       }
@@ -170,7 +170,7 @@ struct cephes {
     }
 
     /* check for positive integer up to 10 */
-    if ( (x <= 10.0) && (x == std::floor(x)) ) {
+    if ( (x <= 10.0) && (x == floor(x)) ) {
       y = 0.0;
       n = x;
       for ( i = 1; i < n; i++ ) {

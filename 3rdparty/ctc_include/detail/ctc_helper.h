@@ -44,7 +44,8 @@ static const float threshold = 1e-1;
 
 template<typename T>
 HOSTDEVICE
-T neg_inf() { return -T(INFINITY); }
+//T neg_inf() { return -T(INFINITY); } //compilation error
+T neg_inf() { return -T(0); }
 
 inline int div_up(int x, int y) {
     return (x + y - 1) / y;
@@ -73,7 +74,7 @@ template <typename Arg, typename Res = Arg> struct negate {
 };
 
 template <typename Arg, typename Res = Arg> struct exponential {
-    HOSTDEVICE Res operator()(const Arg& x) const {return std::exp(x);}
+    HOSTDEVICE Res operator()(const Arg& x) const {return exp(x);} //recheck std
 };
 
 template<typename Arg1, typename Arg2 = Arg1, typename Res=Arg1>

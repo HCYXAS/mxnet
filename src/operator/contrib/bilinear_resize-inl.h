@@ -72,7 +72,7 @@ void SpatialUpSamplingBilinearUpdateGradInput(mshadow::Stream<cpu> *s,
                                               const std::vector<TBlob> &input,
                                               const std::vector<TBlob> &output);
 
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
 template<typename xpu, typename DType, typename AccReal>
 void SpatialUpSamplingBilinearUpdateOutput(mshadow::Stream<gpu> *s,
                                            const std::vector<TBlob> &input,
@@ -82,7 +82,7 @@ template<typename xpu, typename DType, typename AccReal>
 void SpatialUpSamplingBilinearUpdateGradInput(mshadow::Stream<gpu> *s,
                                               const std::vector<TBlob> &input,
                                               const std::vector<TBlob> &output);
-#endif  // MXNET_USE_CUDA
+#endif  // MXNET_USE_GPU
 
 template <typename xpu>
 inline void BilinearSampleOpForward(const nnvm::NodeAttrs& attrs,

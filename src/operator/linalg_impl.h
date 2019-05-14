@@ -1,3 +1,4 @@
+#include "hip/hip_runtime.h"
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -24,13 +25,13 @@
  */
 #ifndef MXNET_OPERATOR_LINALG_IMPL_H_
 #define MXNET_OPERATOR_LINALG_IMPL_H_
-
+#include "../../hip-wrappers.h"
 #include <mxnet/op_attr_types.h>
 
 #include <algorithm>
 
 #include "../common/cuda_utils.h"
-
+#include <hipblas.h>
 // Convenience functions.
 inline void linalg_check_batch_size(int A, int B, int C) {
   CHECK_EQ(A, B) << "Inconsistent batch size between arguments to linear algebra operator";
@@ -165,9 +166,9 @@ void linalg_gemm<cpu, mshadow::half::half_t>(const Tensor<cpu, 2, mshadow::half:
   LOG(FATAL) << "FP16 gemm on cpu not implemented!";
 }
 
-#ifdef __CUDACC__
+#ifdef __HIPCC__
 
-// cublas col-major processing accounted for by switching first two operands
+//hiplas col-major processing accounted for by switching first two operands
 
 #define LINALG_GPU_GEMM(fname, DType)                                      \
   template <>                                                              \
@@ -179,9 +180,9 @@ void linalg_gemm<cpu, mshadow::half::half_t>(const Tensor<cpu, 2, mshadow::half:
     using mshadow::gpu;                                                    \
     CHECK_NOTNULL(s);                                                      \
     check_gemm(A, B, C, alpha, beta, tA, tB);                              \
-    CUBLAS_CALL(cublas##fname(                                             \
-        Stream<gpu>::GetBlasHandle(s), (tB ? CUBLAS_OP_T : CUBLAS_OP_N),   \
-        (tA ? CUBLAS_OP_T : CUBLAS_OP_N), C.size(1), C.size(0),            \
+    HIPBLAS_CALL(hipblas##fname(                                             \
+        Stream<gpu>::GetBlasHandle(s), (tB ? HIPBLAS_OP_T : HIPBLAS_OP_N),   \
+        (tA ? HIPBLAS_OP_T : HIPBLAS_OP_N), C.size(1), C.size(0),            \
         (tB ? B.size(1) : B.size(0)), &alpha, B.dptr_, B.stride_, A.dptr_, \
         A.stride_, &beta, C.dptr_, C.stride_))                             \
   }
@@ -202,11 +203,11 @@ inline void linalg_gemm<gpu, float>(const Tensor<gpu, 2, float>& A,
 #if CUDA_VERSION >= 8000
   cudaDataType_t full_datatype = CUDA_R_32F;
 #else
-  cublasDataType_t full_datatype = CUBLAS_DATA_FULL;
+  hipblasDataType_t full_datatype = HIpBLAS_DATA_FULL;
 #endif
-  CUBLAS_CALL(cublasSgemmEx(
-      Stream<gpu>::GetBlasHandle(s), (tB ? CUBLAS_OP_T : CUBLAS_OP_N),
-      (tA ? CUBLAS_OP_T : CUBLAS_OP_N), C.size(1), C.size(0),
+  HIPBLAS_CALL(hipblasSgemmEx(
+      Stream<gpu>::GetBlasHandle(s), (tB ? HIPBLAS_OP_T : HIPBLAS_OP_N),
+      (tA ? HIPBLAS_OP_T : HIPBLAS_OP_N), C.size(1), C.size(0),
       (tB ? B.size(1) : B.size(0)), &alpha, B.dptr_, full_datatype, B.stride_,
       A.dptr_, full_datatype, A.stride_, &beta, C.dptr_, full_datatype,
       C.stride_))
@@ -227,9 +228,9 @@ void linalg_gemm_axis<gpu, DType>(const Tensor<gpu, 3, DType>& A, const Tensor<g
   using mshadow::gpu; \
   CHECK_NOTNULL(s); \
   linalg_check_batch_size(A.size(1), B.size(1), C.size(1)); \
-  CUBLAS_CALL(cublas##fname(Stream<gpu>::GetBlasHandle(s), \
-                            (tB ? CUBLAS_OP_T : CUBLAS_OP_N), \
-                            (tA ? CUBLAS_OP_T : CUBLAS_OP_N), \
+  HIPBLAS_CALL(hipblas##fname(Stream<gpu>::GetBlasHandle(s), \
+                            (tB ? HIPBLAS_OP_T : HIPBLAS_OP_N), \
+                            (tA ? HIPBLAS_OP_T : HIPBLAS_OP_N), \
                             C.size(2), C.size(0), (tB ? B.size(2) : B.size(0)), &alpha, \
                             B.dptr_, B.size(1)*B.stride_, B.stride_, \
                             A.dptr_, A.size(1)*A.stride_, A.stride_, &beta, \
@@ -252,12 +253,12 @@ void linalg_gemm<gpu, mshadow::half::half_t>(const Tensor<gpu, 2, mshadow::half:
   CHECK_NOTNULL(s);
   check_gemm(A, B, C, alpha, beta, tA, tB);
 
-#if CUDA_VERSION >= 7050
+#if defined(__HIP_PLATFORM_HCC__) || (defined(__HIP_PLATFORM_NVCC__) && CUDA_VERSION >= 7050)
   auto blas_handle = Stream<gpu>::GetBlasHandle(s);
-#if CUDA_VERSION >= 9000
-  auto cublas_math_mode = GetEnvAllowTensorCore() ? CUBLAS_TENSOR_OP_MATH
+#if defined(__HIP_PLATFORM_HCC__) || (defined(__HIP_PLATFORM_NVCC__) && CUDA_VERSION >= 9000)
+  /*auto cublas_math_mode = GetEnvAllowTensorCore() ? CUBLAS_TENSOR_OP_MATH
                                                   : CUBLAS_DEFAULT_MATH;
-  auto previous_math_mode = SetCublasMathMode(blas_handle, cublas_math_mode);
+  auto previous_math_mode = SetCublasMathMode(blas_handle, cublas_math_mode);*/ // hip porting for the cublas apis not supported
 #endif
 
   // pseudo-fp16 (fp32 math with fp16 I/O)
@@ -265,14 +266,14 @@ void linalg_gemm<gpu, mshadow::half::half_t>(const Tensor<gpu, 2, mshadow::half:
   float beta_f = float(beta);  // NOLINT(*)
 
   // As of cuda8, cublas adopted the cuda datatype, rather than maintaining its own datatype.
-#if CUDA_VERSION >= 8000
-  cudaDataType_t half_datatype = CUDA_R_16F;
+#if defined(__HIP_PLATFORM_HCC__) || (defined(__HIP_PLATFORM_NVCC__) && CUDA_VERSION >= 8000)
+  hipDataType_t half_datatype = HIP_R_16F;
 #else
-  cublasDataType_t half_datatype = CUBLAS_DATA_HALF;
+  hipblasDataType_t half_datatype = HIPBLAS_DATA_HALF;
 #endif
-  CUBLAS_CALL(cublasSgemmEx(blas_handle,
-                            (tB ? CUBLAS_OP_T : CUBLAS_OP_N),
-                            (tA ? CUBLAS_OP_T : CUBLAS_OP_N),
+  HIPBLAS_CALL(hipblasSgemmEx(blas_handle,
+                            (tB ? HIPBLAS_OP_T : HIPBLAS_OP_N),
+                            (tA ? HIPBLAS_OP_T : HIPBLAS_OP_N),
                             C.size(1), C.size(0), (tB ? B.size(1) : B.size(0)),
                             &alpha_f,
                             B.dptr_, half_datatype, B.stride_,
@@ -287,8 +288,8 @@ void linalg_gemm<gpu, mshadow::half::half_t>(const Tensor<gpu, 2, mshadow::half:
 #endif  // CUDA_VERSION >= 7050
 }
 
-// As of cuda8, cublas has implemented a strided version of batch gemm.
-#if CUDA_VERSION < 8000
+// As of cuda8, hipblas has implemented a strided version of batch gemm.
+#if defined(__HIP_PLATFORM_HCC__) || (defined(__HIP_PLATFORM_NVCC__) && CUDA_VERSION < 8000)
   LINALG_XPU_BATCH_GEMM(gpu, float)
   LINALG_XPU_BATCH_GEMM(gpu, double)
   LINALG_XPU_BATCH_GEMM_AXIS(gpu, float)
@@ -306,9 +307,9 @@ void linalg_gemm<gpu, mshadow::half::half_t>(const Tensor<gpu, 2, mshadow::half:
     linalg_check_batch_size(A.size(0), B.size(0), C.size(0)); \
     check_gemm(A[0], B[0], C[0], alpha, beta, tA, tB); \
     using namespace mshadow::cuda; \
-    CUBLAS_CALL(cublas##fname(Stream<gpu>::GetBlasHandle(s), \
-                              (tB ? CUBLAS_OP_T : CUBLAS_OP_N), \
-                              (tA ? CUBLAS_OP_T : CUBLAS_OP_N), \
+    HIPBLAS_CALL(hipblas##fname(Stream<gpu>::GetBlasHandle(s), \
+                              (tB ? HIPBLAS_OP_T : HIPBLAS_OP_N), \
+                              (tA ? HIPBLAS_OP_T : HIPBLAS_OP_N), \
                               C.size(2), C.size(1), (tB ? B.size(2) : B.size(1)), \
                               &alpha, B.dptr_, B.stride_, B.size(1) * B.stride_, \
                               A.dptr_,  A.stride_, A.size(1) * A.stride_, \
@@ -336,33 +337,33 @@ void linalg_gemm<gpu, mshadow::half::half_t>(const Tensor<gpu, 2, mshadow::half:
           GetEnvAllowTensorCore() && GetEnvAllowTensorCoreConversion();
 
       using namespace mshadow::cuda;
-      auto cublas_math_mode =
-          use_tensor_ops ? CUBLAS_TENSOR_OP_MATH : CUBLAS_DEFAULT_MATH;
-      auto previous_math_mode = SetCublasMathMode(blas_handle, cublas_math_mode);
+      auto hipblas_math_mode =
+          use_tensor_ops ? HIPBLAS_TENSOR_OP_MATH : HIPBLAS_DEFAULT_MATH;
+      auto previous_math_mode = SetCublasMathMode(blas_handle, hipblas_math_mode);
 
-      // cublasGemmStridedBatchedEx is only supported for GPU with architecture
+      // hipblasGemmStridedBatchedEx is only supported for GPU with architecture
       // capabilities equal or greater than 5.0. Fall back to
-      // cublasSgemmStridedBatched, which doesn't support implicit conversion
+      // hipblasSgemmStridedBatched, which doesn't support implicit conversion
       // to half-precision to use TensorCores
       auto cc_major = (s->prop).major;
       if ((cc_major >= 5) && use_tensor_ops) {
-        CUBLAS_CALL(cublasGemmStridedBatchedEx(
-            blas_handle, (tB ? CUBLAS_OP_T : CUBLAS_OP_N),
-            (tA ? CUBLAS_OP_T : CUBLAS_OP_N), C.size(2), C.size(1),
+        HIPBLAS_CALL(hipblasGemmStridedBatchedEx(
+            blas_handle, (tB ? HIPBLAS_OP_T : HIPBLAS_OP_N),
+            (tA ? HIPBLAS_OP_T : HIPBLAS_OP_N), C.size(2), C.size(1),
             (tB ? B.size(2) : B.size(1)), &alpha, B.dptr_, CUDA_R_32F,
             B.stride_, B.size(1) * B.stride_, A.dptr_, CUDA_R_32F, A.stride_,
             A.size(1) * A.stride_, &beta, C.dptr_, CUDA_R_32F, C.stride_,
             C.size(1) * C.stride_, A.size(0), CUDA_R_32F,
-            CUBLAS_GEMM_DEFAULT_TENSOR_OP));
+            HIPBLAS_GEMM_DEFAULT_TENSOR_OP));
       } else {
-        CUBLAS_CALL(cublasSgemmStridedBatched(
-            blas_handle, (tB ? CUBLAS_OP_T : CUBLAS_OP_N),
-            (tA ? CUBLAS_OP_T : CUBLAS_OP_N), C.size(2), C.size(1),
+        HIPBLAS_CALL(hipblasSgemmStridedBatched(
+            blas_handle, (tB ? HIPBLAS_OP_T : HIPBLAS_OP_N),
+            (tA ? HIPBLAS_OP_T : HIPBLAS_OP_N), C.size(2), C.size(1),
             (tB ? B.size(2) : B.size(1)), &alpha, B.dptr_, B.stride_,
             B.size(1) * B.stride_, A.dptr_, A.stride_, A.size(1) * A.stride_,
             &beta, C.dptr_, C.stride_, C.size(1) * C.stride_, A.size(0)));
       }
-      SetCublasMathMode(blas_handle, previous_math_mode);
+      SetHipblasMathMode(blas_handle, previous_math_mode);
     }
   #endif  // CUDA_VERSION < 9010
 
@@ -379,9 +380,9 @@ void linalg_gemm<gpu, mshadow::half::half_t>(const Tensor<gpu, 2, mshadow::half:
     linalg_check_batch_size(A.size(0), B.size(0), C.size(0)); \
     linalg_check_batch_size(A.size(2), B.size(2), C.size(2)); \
     for (index_t i = 0; i < A.size(2); ++i) { \
-      CUBLAS_CALL(cublas##fname(Stream<gpu>::GetBlasHandle(s), \
-          (tB ? CUBLAS_OP_T : CUBLAS_OP_N), \
-          (tA ? CUBLAS_OP_T : CUBLAS_OP_N), \
+      HIPBLAS_CALL(hipblas##fname(Stream<gpu>::GetBlasHandle(s), \
+          (tB ? HIPBLAS_OP_T : HIPBLAS_OP_N), \
+          (tA ? HIPBLAS_OP_T : HIPBLAS_OP_N), \
           C.size(3), C.size(1), (tB ? B.size(3) : B.size(1)), &alpha, \
           B.dptr_+i*B.stride_, B.size(2) * B.stride_, B.size(1)*B.size(2)*B.stride_, \
           A.dptr_+i*A.stride_, A.size(2) * A.stride_, A.size(1)*A.size(2)*A.stride_, &beta, \
@@ -394,7 +395,7 @@ void linalg_gemm<gpu, mshadow::half::half_t>(const Tensor<gpu, 2, mshadow::half:
 
 #endif  // CUDA < 8000
 
-#endif  // __CUDACC__
+#endif  // __HIPCC__
 
 /*!
  * \brief Performs gemm, setting alpha and beta as appropriate for `req`.
@@ -550,7 +551,7 @@ LINALG_CPU_TRSM(dtrsm, double)
 LINALG_XPU_BATCH_TRSM(cpu, float)
 LINALG_XPU_BATCH_TRSM(cpu, double)
 
-#ifdef __CUDACC__
+#ifdef __HIPCC__
 
 // cublas col-major processing accounted for by switching sides and fill mode
 
@@ -562,11 +563,11 @@ void linalg_trsm<gpu, DType>(const Tensor<gpu, 2, DType>& A, const Tensor<gpu, 2
   using mshadow::gpu; \
   CHECK_NOTNULL(s); \
   check_trsm(A, B, alpha, rightside, lower, transpose); \
-  CUBLAS_CALL(cublas##fname(Stream<gpu>::GetBlasHandle(s), \
-                            (rightside ? CUBLAS_SIDE_LEFT : CUBLAS_SIDE_RIGHT), \
-                            (lower ? CUBLAS_FILL_MODE_UPPER : CUBLAS_FILL_MODE_LOWER), \
-                            (transpose ? CUBLAS_OP_T : CUBLAS_OP_N), \
-                            CUBLAS_DIAG_NON_UNIT, B.size(1), B.size(0), &alpha, \
+  HIPBLAS_CALL(hipblas##fname(Stream<gpu>::GetBlasHandle(s), \
+                            (rightside ? HIPBLAS_SIDE_LEFT : HIPBLAS_SIDE_RIGHT), \
+                            (lower ? HIPBLAS_FILL_MODE_UPPER : HIPBLAS_FILL_MODE_LOWER), \
+                            (transpose ? HIPBLAS_OP_T : HIPBLAS_OP_N), \
+                            HIPBLAS_DIAG_NON_UNIT, B.size(1), B.size(0), &alpha, \
                             A.dptr_, A.stride_, B.dptr_, B.stride_)); \
 }
 LINALG_GPU_TRSM(Strsm, float)
@@ -575,7 +576,7 @@ LINALG_GPU_TRSM(Dtrsm, double)
 LINALG_XPU_BATCH_TRSM(gpu, float)
 LINALG_XPU_BATCH_TRSM(gpu, double)
 
-#endif  // __CUDACC__
+#endif  // __HIPCC__
 
 //////////////////////////////// TRMM ////////////////////////////////////////////
 
@@ -635,7 +636,7 @@ LINALG_CPU_TRMM(dtrmm, double)
 LINALG_XPU_BATCH_TRMM(cpu, float)
 LINALG_XPU_BATCH_TRMM(cpu, double)
 
-#ifdef __CUDACC__
+#ifdef __HIPCC__
 
 // cublas col-major processing accounted for by switching sides and fill mode
 // doing in-place computation by supplying B as second and third matrix
@@ -647,11 +648,11 @@ void linalg_trmm<gpu, DType>(const Tensor<gpu, 2, DType>& A, const Tensor<gpu, 2
   using mshadow::gpu; \
   CHECK_NOTNULL(s); \
   check_trmm(A, B, alpha, rightside, lower, transpose); \
-  CUBLAS_CALL(cublas##fname(Stream<gpu>::GetBlasHandle(s), \
-                            (rightside ? CUBLAS_SIDE_LEFT : CUBLAS_SIDE_RIGHT), \
-                            (lower ? CUBLAS_FILL_MODE_UPPER : CUBLAS_FILL_MODE_LOWER), \
-                            (transpose ? CUBLAS_OP_T : CUBLAS_OP_N), \
-                            CUBLAS_DIAG_NON_UNIT, B.size(1), B.size(0), &alpha, \
+  HIPBLAS_CALL(hipblas##fname(Stream<gpu>::GetBlasHandle(s), \
+                            (rightside ? HIPBLAS_SIDE_LEFT : HIPBLAS_SIDE_RIGHT), \
+                            (lower ? HIPBLAS_FILL_MODE_UPPER : HIPBLAS_FILL_MODE_LOWER), \
+                            (transpose ? HIPBLAS_OP_T : HIPBLAS_OP_N), \
+                            HIPBLAS_DIAG_NON_UNIT, B.size(1), B.size(0), &alpha, \
                             A.dptr_, A.stride_, B.dptr_, B.stride_, \
                             B.dptr_, B.stride_)); \
 }
@@ -661,7 +662,7 @@ LINALG_GPU_TRMM(Dtrmm, double)
 LINALG_XPU_BATCH_TRMM(gpu, float)
 LINALG_XPU_BATCH_TRMM(gpu, double)
 
-#endif  // __CUDACC__
+#endif  // __HIPCC__
 
 //////////////////////////////// POTRF ////////////////////////////////////////////
 
@@ -700,7 +701,7 @@ void linalg_batch_potrf<cpu, DType>(const Tensor<cpu, 3, DType>& A, bool lower, 
 LINALG_CPU_BATCH_POTRF(float)
 LINALG_CPU_BATCH_POTRF(double)
 
-#if defined(__CUDACC__) && MXNET_USE_CUSOLVER == 1
+#if defined(__HIPCC__) && MXNET_USE_CUSOLVER == 1
 
 #define LINALG_GPU_BUFFSIZE_POTRF(fname, DType) \
 inline int linalg_potrf_buffsize(const Tensor<gpu, 2, DType>& A, bool lower, Stream<gpu> *s) { \
@@ -709,7 +710,7 @@ inline int linalg_potrf_buffsize(const Tensor<gpu, 2, DType>& A, bool lower, Str
   CHECK_NOTNULL(s); \
   int buffsize(0); \
   CUSOLVER_CALL(cusolver##fname(Stream<gpu>::GetSolverHandle(s), \
-                                (lower ? CUBLAS_FILL_MODE_UPPER : CUBLAS_FILL_MODE_LOWER), \
+                                (lower ? HIPBLAS_FILL_MODE_UPPER : HIPBLAS_FILL_MODE_LOWER), \
                                  A.size(0), A.dptr_, A.stride_, &buffsize)); \
   return buffsize;  \
 }
@@ -727,7 +728,7 @@ void linalg_potrf<gpu, DType>(const Tensor<gpu, 2, DType>& A, bool lower, Stream
   Storage::Handle buffer = Storage::Get()->Alloc(sizeof(DType)*buffsize, Context::GPU()); \
   Storage::Handle info = Storage::Get()->Alloc(sizeof(int), Context::GPU()); \
   CUSOLVER_CALL(cusolver##fname(Stream<gpu>::GetSolverHandle(s), \
-                (lower ? CUBLAS_FILL_MODE_UPPER : CUBLAS_FILL_MODE_LOWER), \
+                (lower ? HIPBLAS_FILL_MODE_UPPER : HIPBLAS_FILL_MODE_LOWER), \
                 A.size(0), A.dptr_, A.stride_, static_cast<DType *>(buffer.dptr), buffsize, \
                 static_cast<int *>(info.dptr))); \
   Storage::Get()->Free(buffer); \
@@ -749,7 +750,7 @@ void linalg_batch_potrf<gpu, DType>(const Tensor<gpu, 3, DType>& A, bool lower, 
   Storage::Handle info = Storage::Get()->Alloc(sizeof(int), Context::GPU()); \
   for (mshadow::index_t i = 0; i < A.size(0); ++i) { \
     CUSOLVER_CALL(cusolver##fname(Stream<gpu>::GetSolverHandle(s), \
-                 (lower ? CUBLAS_FILL_MODE_UPPER : CUBLAS_FILL_MODE_LOWER), \
+                 (lower ? HIPBLAS_FILL_MODE_UPPER : HIPBLAS_FILL_MODE_LOWER), \
                  A[i].size(0), A[i].dptr_, A[i].stride_, \
                  static_cast<DType *>(buffer.dptr), buffsize, static_cast<int *>(info.dptr))); \
   } \
@@ -798,7 +799,7 @@ void linalg_batch_potri<cpu, DType>(const Tensor<cpu, 3, DType>& A, bool lower, 
 LINALG_CPU_BATCH_POTRI(float)
 LINALG_CPU_BATCH_POTRI(double)
 
-#ifdef __CUDACC__
+#ifdef __HIPCC__
 
 // Initializes multiple identity matrices on the same vector.
 template<typename DType>
@@ -821,8 +822,7 @@ void linalg_potri<gpu, DType>(const Tensor<gpu, 2, DType>& A, bool lower, Stream
   using namespace mshadow::cuda; \
   int ngrid = std::min(kMaxGridNum, \
                        static_cast<int>((A.MSize() + kBaseThreadNum - 1) / kBaseThreadNum)); \
-  linalgInitIdentityGPU<<<ngrid, kBaseThreadNum, 0, mshadow::Stream<gpu>::GetStream(s)>>> \
-    (static_cast<DType *>(buffer.dptr), A.MSize(), A.stride_, A.MSize());  \
+  hipLaunchKernelGGL((linalgInitIdentityGPU<DType>), dim3(ngrid), dim3(kBaseThreadNum), 0, mshadow::Stream<gpu>::GetStream(s), static_cast<DType *>(buffer.dptr), A.MSize(), A.stride_, A.MSize());  \
   MSHADOW_CUDA_POST_KERNEL_CHECK(linalgInitIdentityGPU); \
   Tensor<gpu, 2, DType> B((DType *)buffer.dptr, A.shape_, A.stride_, s); \
   linalg_trsm(A, B, DType(1.0), false, lower, !lower, s); \
@@ -845,8 +845,7 @@ void linalg_batch_potri<gpu, DType>(const Tensor<gpu, 3, DType>& A, bool lower, 
   using namespace mshadow::cuda; \
   int ngrid = std::min(kMaxGridNum, \
                        static_cast<int>((A.MSize() + kBaseThreadNum - 1) / kBaseThreadNum)); \
-  linalgInitIdentityGPU<<<ngrid, kBaseThreadNum, 0, mshadow::Stream<gpu>::GetStream(s)>>> \
-    (static_cast<DType *>(buffer.dptr), A.size(1)*A.stride_, A.stride_, A.MSize()); \
+  hipLaunchKernelGGL((linalgInitIdentityGPU<DType>), dim3(ngrid), dim3(kBaseThreadNum), 0, mshadow::Stream<gpu>::GetStream(s), static_cast<DType *>(buffer.dptr), A.size(1)*A.stride_, A.stride_, A.MSize()); \
   MSHADOW_CUDA_POST_KERNEL_CHECK(linalgInitIdentityGPU); \
   Tensor<gpu, 3, DType> B((DType *)buffer.dptr, A.shape_, A.stride_, s); \
   linalg_batch_trsm(A, B, DType(1.0), false, lower, !lower, s); \
@@ -917,7 +916,7 @@ LINALG_CPU_SYRK(dsyrk, double)
 LINALG_XPU_BATCH_SYRK(cpu, float)
 LINALG_XPU_BATCH_SYRK(cpu, double)
 
-#ifdef __CUDACC__
+#ifdef __HIPCC__
 
 // cublas col-major processing accounted for by switching transpose and fill mode
 #define LINALG_GPU_SYRK(fname, DType) \
@@ -929,8 +928,8 @@ void linalg_syrk<gpu, DType>(const Tensor<gpu, 2, DType>& A, \
   using mshadow::gpu; \
   CHECK_NOTNULL(s); \
   check_syrk(A, B, alpha, beta, tA); \
-  CUBLAS_CALL(cublas##fname(Stream<gpu>::GetBlasHandle(s), \
-              CUBLAS_FILL_MODE_UPPER, (tA ? CUBLAS_OP_N : CUBLAS_OP_T), \
+  HIPBLAS_CALL(hipblas##fname(Stream<gpu>::GetBlasHandle(s), \
+              HIPBLAS_FILL_MODE_UPPER, (tA ? HIPBLAS_OP_N : HIPBLAS_OP_T), \
               B.size(1), (tA ? A.size(0) : A.size(1)), &alpha, \
               A.dptr_, A.stride_, &beta, B.dptr_, B.stride_)); \
 }
@@ -940,7 +939,7 @@ LINALG_GPU_SYRK(Dsyrk, double)
 LINALG_XPU_BATCH_SYRK(gpu, float)
 LINALG_XPU_BATCH_SYRK(gpu, double)
 
-#endif  // __CUDACC__
+#endif  // __HIPCC__
 
 //////////////////////////////// GELQF ////////////////////////////////////////////
 
@@ -1010,7 +1009,7 @@ int linalg_gelqf_workspace_query<cpu, DType>(const Tensor<cpu, 2, DType>& A, \
 LINALG_CPU_GELQF_WORKSPACE_QUERY(s, float)
 LINALG_CPU_GELQF_WORKSPACE_QUERY(d, double)
 
-#ifdef __CUDACC__
+#ifdef __HIPCC__
 
 #define LINALG_GPU_GELQF(fname, DType) \
 template<> inline \
@@ -1030,11 +1029,11 @@ void linalg_gelqf<gpu, DType>(const Tensor<gpu, 2, DType>& A, \
   Storage::Get()->Free(info); \
 }
 // Col-major QR-decomposition results in row-major LQ decomposition.
-LINALG_GPU_GELQF(DnSgeqrf, float)
-LINALG_GPU_GELQF(DnDgeqrf, double)
+//LINALG_GPU_GELQF(DnSgeqrf, float) //not ported
+//LINALG_GPU_GELQF(DnDgeqrf, double) // not ported
 
 // ORGLQ only available with cuda8 or higher.
-#if CUDA_VERSION >= 8000
+#if defined(__HIP_PLATFORM_NVCC__) && CUDA_VERSION >= 8000
 
 #define LINALG_GPU_ORGLQ(fname, DType) \
 template<> inline \
@@ -1066,11 +1065,11 @@ void linalg_orglq<gpu, DType>(const Tensor<gpu, 2, DType>& A, \
 
 #endif  // CUDA_VERSION >= 8000
 
-LINALG_GPU_ORGLQ(DnSorgqr, float)
-LINALG_GPU_ORGLQ(DnDorgqr, double)
+//LINALG_GPU_ORGLQ(DnSorgqr, float) //not ported
+//LINALG_GPU_ORGLQ(DnDorgqr, double) // not ported
 
 // ORGLQ only available with cuda8 or higher.
-#if CUDA_VERSION >= 8000
+#if defined(__HIP_PLATFORM_NVCC__) && CUDA_VERSION >= 8000
 
 #define LINALG_GPU_GELQF_WORKSPACE_QUERY(prefix, DType) \
 template<> inline \
@@ -1102,10 +1101,10 @@ int linalg_gelqf_workspace_query<gpu, DType>(const Tensor<gpu, 2, DType>& A, \
 
 #endif  // CUDA_VERSION >= 8000
 
-LINALG_GPU_GELQF_WORKSPACE_QUERY(S, float)
-LINALG_GPU_GELQF_WORKSPACE_QUERY(D, double)
+//LINALG_GPU_GELQF_WORKSPACE_QUERY(S, float) //not ported
+//LINALG_GPU_GELQF_WORKSPACE_QUERY(D, double) //not ported
 
-#endif  // __CUDACC__
+#endif  // __HIPCC__
 
 //////////////////////////////// SYEVD ////////////////////////////////////////////
 
@@ -1164,10 +1163,10 @@ int linalg_syevd_workspace_query<cpu, DType>(const Tensor<cpu, 2, DType>& A, \
 LINALG_CPU_SYEVD_WORKSPACE_QUERY(ssyevd, float)
 LINALG_CPU_SYEVD_WORKSPACE_QUERY(dsyevd, double)
 
-#ifdef __CUDACC__
+#ifdef __HIPCC__
 
 // SYEVD only available with cuda8 or higher.
-#if CUDA_VERSION >= 8000
+#if defined(__HIP_PLATFORM_NVCC__) && CUDA_VERSION >= 8000
 
 // Row-major vs. col-major handled by using upper triangular
 // in cusolver-call.
@@ -1183,7 +1182,7 @@ void linalg_syevd<gpu, DType>(const Tensor<gpu, 2, DType>& A, \
   check_syevd(A, L); \
   Storage::Handle info = Storage::Get()->Alloc(sizeof(int), Context::GPU()); \
   CUSOLVER_CALL(cusolver##fname(Stream<gpu>::GetSolverHandle(s), \
-                CUSOLVER_EIG_MODE_VECTOR, CUBLAS_FILL_MODE_UPPER, \
+                CUSOLVER_EIG_MODE_VECTOR, HIPBLAS_FILL_MODE_UPPER, \
                 A.size(0), A.dptr_ , A.stride_, L.dptr_, work.dptr_, \
                 work.size(0), static_cast<int *>(info.dptr))); \
   Storage::Get()->Free(info); \
@@ -1198,7 +1197,7 @@ int linalg_syevd_workspace_query<gpu, DType>(const Tensor<gpu, 2, DType>& A, \
   using mshadow::gpu; \
   int lwork(0); \
   CUSOLVER_CALL(cusolver##fname##_bufferSize(Stream<gpu>::GetSolverHandle(s), \
-                CUSOLVER_EIG_MODE_VECTOR, CUBLAS_FILL_MODE_UPPER, \
+                CUSOLVER_EIG_MODE_VECTOR, HIPBLAS_FILL_MODE_UPPER, \
                 A.size(0), A.dptr_ , A.stride_, L.dptr_, &lwork)); \
   return lwork; \
 }
@@ -1228,9 +1227,9 @@ int linalg_syevd_workspace_query<gpu, DType>(const Tensor<gpu, 2, DType>& A, \
 LINALG_GPU_SYEVD(DnSsyevd, float)
 LINALG_GPU_SYEVD(DnDsyevd, double)
 
-LINALG_GPU_SYEVD_WORKSPACE_QUERY(DnSsyevd, float)
-LINALG_GPU_SYEVD_WORKSPACE_QUERY(DnDsyevd, double)
+//LINALG_GPU_SYEVD_WORKSPACE_QUERY(DnSsyevd, float) // not ported
+//LINALG_GPU_SYEVD_WORKSPACE_QUERY(DnDsyevd, double) // not ported
 
-#endif  // __CUDACC__
+#endif  // __HIPCC__
 
 #endif  // MXNET_OPERATOR_LINALG_IMPL_H_

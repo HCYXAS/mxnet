@@ -32,10 +32,10 @@ namespace mxnet {
 namespace op {
 
 #define CHECK_CUDART(x) do { \
-  cudaError_t res = (x); \
-  if (res != cudaSuccess) { \
+  hipError_t res = (x); \
+  if (res != hipSuccess) { \
     fprintf(stderr, "CUDART: %s = %d (%s) at (%s:%d)\n", \
-      #x, res, cudaGetErrorString(res), __FILE__, __LINE__); \
+      #x, res, hipGetErrorString(res), __FILE__, __LINE__); \
     exit(1); \
   } \
 } while (0)
@@ -47,7 +47,7 @@ void TRTCompute(const OpStatePtr& state, const OpContext& ctx,
   using namespace mshadow::expr;
 
   Stream<gpu>* s = ctx.get_stream<gpu>();
-  cudaStream_t cuda_s = Stream<gpu>::GetStream(s);
+  hipStream_t cuda_s = Stream<gpu>::GetStream(s);
   const auto& param = state.get_state<TRTEngineParam>();
   std::vector<void*> bindings;
   bindings.reserve(param.binding_map.size());
@@ -61,7 +61,7 @@ void TRTCompute(const OpStatePtr& state, const OpContext& ctx,
 
   const int batch_size = static_cast<int>(inputs[0].shape_[0]);
   param.trt_executor->enqueue(batch_size, bindings.data(), cuda_s, nullptr);
-  CHECK_CUDART(cudaStreamSynchronize(cuda_s));
+  CHECK_CUDART(hipStreamSynchronize(cuda_s));
 }
 
 NNVM_REGISTER_OP(_trt_op)

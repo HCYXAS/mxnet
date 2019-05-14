@@ -150,7 +150,7 @@ inline void deformable_col2im_coord(mshadow::Stream<cpu>* s,
 
 }  // namespace op
 }  // namespace mxnet
-#ifdef __CUDACC__
+#ifdef __HIPCC__
 #include "./deformable_im2col.cuh"
 #endif
 #endif  // MXNET_OPERATOR_CONTRIB_NN_DEFORMABLE_IM2COL_H_

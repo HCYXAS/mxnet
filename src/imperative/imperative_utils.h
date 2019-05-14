@@ -85,12 +85,12 @@ inline Context GetContext(const nnvm::NodeAttrs& attrs,
   if (ctx.dev_mask() != ctx.dev_type && inputs.size() != 0U) {
     ctx = Context::Create(ctx.dev_mask(), ctx.dev_id);
   }
-#if !MXNET_USE_CUDA
+#if !MXNET_USE_GPU
   if (ctx.dev_mask() == gpu::kDevMask) {
     LOG(INFO) << "GPU support is disabled. Compile MXNet with "
-              << "USE_CUDA=1 to enable GPU support.";
+              << "USE_GPU=1 to enable GPU support.";
   }
-#endif  // MXNET_USE_CUDA
+#endif  // MXNET_USE_GPU
   return ctx;
 }
 
@@ -907,7 +907,7 @@ inline Engine::OprHandle CreateEngineOp(
     // call on complete only if it is async op
     if (!is_async) {
       if (is_gpu) {
-      #if MXNET_USE_CUDA
+      #if MXNET_USE_GPU
         // Wait GPU kernel to finish.
         ctx.get_stream<gpu>()->Wait();
       #else

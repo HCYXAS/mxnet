@@ -332,7 +332,7 @@ inline void col2im(mshadow::Stream<cpu>* s,
 
 }  // namespace op
 }  // namespace mxnet
-#ifdef __CUDACC__
+#ifdef __HIPCC__
 #include "./im2col.cuh"
 #endif
 #endif  // MXNET_OPERATOR_NN_IM2COL_H_

@@ -2300,11 +2300,11 @@ JNIEXPORT jint JNICALL Java_org_apache_mxnet_LibInfo_mxCustomOpRegister
                 jlongArray ptrsArr = env->NewLongArray(size);
                 env->SetLongArrayRegion(
                   ptrsArr, (jsize)0, (jsize)size, reinterpret_cast<jlong*>(ptrs));
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
                 mxnet::NDArray* tmp = reinterpret_cast<mxnet::NDArray*>(ptrs[0]);
                 if (tmp->ctx().dev_type == mxnet::Context::kGPU
                   || tmp->ctx().dev_type == mxnet::Context::kCPUPinned) {
-                  CUDA_CALL(cudaSetDevice(tmp->ctx().dev_id));
+                  CUDA_CALL(hipSetDevice(tmp->ctx().dev_id));
                 }
 #endif
                 bool is_train =  true;

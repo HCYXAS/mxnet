@@ -627,12 +627,12 @@ struct gelqf_backward {
 template<typename DType>
 DType syevd_back_helper_eps(DType* X);
 
-template<>
+//template<> //no function template matches- recheck
 MSHADOW_XINLINE float syevd_back_helper_eps(float* X) {
   return 1e-30;
 }
 
-template<>
+//template<> //no function template matches- recheck
 MSHADOW_XINLINE double syevd_back_helper_eps(double* X) {
   return 1e-100;
 }

@@ -20,7 +20,7 @@
 
 #pragma once
 
-#ifdef __CUDACC__
+#ifdef __HIPCC__
     #define HOSTDEVICE __host__ __device__
 #else
     #define HOSTDEVICE

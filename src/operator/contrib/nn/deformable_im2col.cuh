@@ -1,3 +1,4 @@
+#include "hip/hip_runtime.h"
 /*!
  ******************* BEGIN Caffe Copyright Notice and Disclaimer ****************
  *
@@ -294,12 +295,10 @@ inline void deformable_im2col(mshadow::Stream<gpu>* s,
   using namespace mxnet_op;
   switch (num_spatial_axes) {
   case 2:
-    deformable_im2col_gpu_kernel<DType> // NOLINT_NEXT_LINE(whitespace/operators)
-        <<<cuda_get_num_blocks(num_kernels), mshadow::cuda::kBaseThreadNum,
-           0, mshadow::Stream<gpu>::GetStream(s)>>>(
-        num_kernels, data_im, data_offset, im_shape[2], im_shape[3], kernel_shape[0], kernel_shape[1],
-        pad[0], pad[1], stride[0], stride[1], dilation[0], dilation[1], channel_per_deformable_group,
-        col_shape[1], col_shape[2], data_col);
+    hipLaunchKernelGGL(HIP_KERNEL_NAME(deformable_im2col_gpu_kernel<DType>), dim3(num_kernels), dim3(mshadow::cuda::kBaseThreadNum), 0, mshadow::Stream<gpu>::GetStream(s),
+    num_kernels, data_im, data_offset, im_shape[2], im_shape[3], kernel_shape[0], kernel_shape[1],
+    pad[0], pad[1], stride[0], stride[1], dilation[0], dilation[1], channel_per_deformable_group,
+    col_shape[1], col_shape[2], data_col);
     MSHADOW_CUDA_POST_KERNEL_CHECK(deformable_im2col_gpu_kernel);
     break;
   default:
@@ -397,8 +396,7 @@ inline void deformable_col2im(mshadow::Stream<gpu>* s,
     // To avoid involving atomic operations, we will launch one kernel per
     // bottom dimension, and then in the kernel add up the top dimensions.
     // NOLINT_NEXT_LINE(whitespace/operators)
-    deformable_col2im_gpu_kernel<DType><<<cuda_get_num_blocks(num_kernels), mshadow::cuda::kBaseThreadNum,
-                               0, mshadow::Stream<gpu>::GetStream(s)>>>(
+    hipLaunchKernelGGL((deformable_col2im_gpu_kernel<DType>), dim3(cuda_get_num_blocks(num_kernels)), dim3(mshadow::cuda::kBaseThreadNum), 0, mshadow::Stream<gpu>::GetStream(s),
         num_kernels, data_col, data_offset, im_shape[1], im_shape[2], im_shape[3],
         kernel_shape[0], kernel_shape[1], pad[0], pad[1], stride[0], stride[1],
         dilation[0], dilation[1], channel_per_deformable_group, col_shape[1], col_shape[2], grad_im, req);
@@ -504,13 +502,11 @@ inline void deformable_col2im_coord(mshadow::Stream<gpu>* s,
     // To avoid involving atomic operations, we will launch one kernel per
     // bottom dimension, and then in the kernel add up the top dimensions.
     // NOLINT_NEXT_LINE(whitespace/operators)
-
-    deformable_col2im_coord_gpu_kernel<DType> << <cuda_get_num_blocks(num_kernels), mshadow::cuda::kBaseThreadNum,
-      0, mshadow::Stream<gpu>::GetStream(s) >> >(
-        num_kernels, data_col, data_im, data_offset, im_shape[1], im_shape[2], im_shape[3],
-        kernel_shape[0], kernel_shape[1], pad[0], pad[1], stride[0], stride[1],
-        dilation[0], dilation[1], channel_per_deformable_group, col_shape[1], col_shape[2], grad_offset, req);
-    MSHADOW_CUDA_POST_KERNEL_CHECK(deformable_col2im_coord_gpu_kernel);
+    hipLaunchKernelGGL(HIP_KERNEL_NAME(deformable_col2im_coord_gpu_kernel<DType>), dim3(num_kernels), dim3(mshadow::cuda::kBaseThreadNum), 0,
+    mshadow::Stream<gpu>::GetStream(s),num_kernels, data_col, data_im, data_offset, im_shape[1], im_shape[2], im_shape[3],
+    kernel_shape[0], kernel_shape[1], pad[0], pad[1], stride[0], stride[1],
+    dilation[0], dilation[1], channel_per_deformable_group, col_shape[1], col_shape[2], grad_offset, req);
+    MSHADOW_CUDA_POST_KERNEL_CHECK(deformable_col2im_gpu_kernel);
     break;
   default:
     LOG(FATAL) << "col2im_nd_gpu does not support computation with "

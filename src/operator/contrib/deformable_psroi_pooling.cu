@@ -1,3 +1,4 @@
+#include "hip/hip_runtime.h"
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -33,10 +34,10 @@
 #include "../mxnet_op.h"
 
 #define DeformablePSROIPOOLING_CUDA_CHECK(condition) \
-  /* Code block avoids redefinition of cudaError_t error */ \
+  /* Code block avoids redefinition of hipError_t error */ \
   do { \
-    cudaError_t error = condition; \
-    CHECK_EQ(error, cudaSuccess) << " " << cudaGetErrorString(error); \
+    hipError_t error = condition; \
+    CHECK_EQ(error, hipSuccess) << " " << hipGetErrorString(error); \
   } while (0)
 #define CUDA_KERNEL_LOOP(i, n) \
 for (int i = blockIdx.x * blockDim.x + threadIdx.x; \
@@ -102,8 +103,8 @@ namespace cuda {
       DType roi_end_h = static_cast<DType>(round(offset_bottom_rois[4]) + 1.) * spatial_scale - 0.5;
 
       // Force too small ROIs to be 1x1
-      DType roi_width = max(roi_end_w - roi_start_w, 0.1);  // avoid 0
-      DType roi_height = max(roi_end_h - roi_start_h, 0.1);
+      DType roi_width = max(roi_end_w - roi_start_w, static_cast<DType>(0.1));  // avoid 0
+      DType roi_height = max(roi_end_h - roi_start_h,static_cast<DType>(0.1));
 
       // Compute w and h at bottom
       DType bin_size_h = roi_height / static_cast<DType>(pooled_height);
@@ -147,8 +148,8 @@ namespace cuda {
           if (w<-0.5 || w>width - 0.5 || h<-0.5 || h>height - 0.5) {
             continue;
           }
-          w = min(max(w, 0.), width - 1.);
-          h = min(max(h, 0.), height - 1.);
+          w = min(max(w,static_cast<DType>(0.)), width - 1.);
+          h = min(max(h,static_cast<DType>(0.)), height - 1.);
           int c = (ctop*group_size + gh)*group_size + gw;
           DType val = bilinear_interp(offset_bottom_data + c*height*width, w, h, width, height);
           sum += val;
@@ -189,13 +190,13 @@ namespace cuda {
     const int num_classes = no_trans ? 1 : trans.size(1) / 2;
     const int channels_each_class = no_trans ? output_dim : output_dim / num_classes;
 
-    cudaStream_t stream = Stream<gpu>::GetStream(out.stream_);
-    DeformablePSROIPoolForwardKernel<DType> << <mxnet::op::mxnet_op::cuda_get_num_blocks(count),
-      kBaseThreadNum, 0, stream >> >(
+    hipStream_t stream = Stream<gpu>::GetStream(out.stream_);
+    hipLaunchKernelGGL(HIP_KERNEL_NAME(DeformablePSROIPoolForwardKernel<DType>), dim3(count),
+      dim3(kBaseThreadNum), 0, stream,
       count, bottom_data, spatial_scale, channels, height, width, pooled_height, pooled_width,
       bottom_rois, bottom_trans, no_trans, trans_std, sample_per_part, output_dim,
       group_size, part_size, num_classes, channels_each_class, top_data, top_count_data);
-    DeformablePSROIPOOLING_CUDA_CHECK(cudaPeekAtLastError());
+    DeformablePSROIPOOLING_CUDA_CHECK(hipPeekAtLastError());
   }
 
 
@@ -237,8 +238,8 @@ namespace cuda {
       DType roi_end_h = static_cast<DType>(round(offset_bottom_rois[4]) + 1.) * spatial_scale - 0.5;
 
       // Force too small ROIs to be 1x1
-      DType roi_width = max(roi_end_w - roi_start_w, 0.1);  // avoid 0
-      DType roi_height = max(roi_end_h - roi_start_h, 0.1);
+      DType roi_width = max(roi_end_w - roi_start_w,static_cast<DType>(0.1));  // avoid 0
+      DType roi_height = max(roi_end_h - roi_start_h,static_cast<DType>(0.1));
 
       // Compute w and h at bottom
       DType bin_size_h = roi_height / static_cast<DType>(pooled_height);
@@ -285,8 +286,8 @@ namespace cuda {
           if (w<-0.5 || w>width - 0.5 || h<-0.5 || h>height - 0.5) {
             continue;
           }
-          w = min(max(w, 0.), width - 1.);
-          h = min(max(h, 0.), height - 1.);
+          w = min(max(w,static_cast<DType>(0.)), width - 1.);
+          h = min(max(h,static_cast<DType>(0.)), height - 1.);
           int c = (ctop*group_size + gh)*group_size + gw;
           // backward on feature
           int x0 = floor(w);
@@ -364,14 +365,14 @@ namespace cuda {
     const int num_classes = no_trans ? 1 : trans_grad.size(1) / 2;
     const int channels_each_class = no_trans ? output_dim : output_dim / num_classes;
 
-    cudaStream_t stream = Stream<gpu>::GetStream(in_grad.stream_);
-    DeformablePSROIPoolBackwardAccKernel<DType> << <mxnet::op::mxnet_op::cuda_get_num_blocks(count),
-      kBaseThreadNum, 0, stream >> >(
+    hipStream_t stream = Stream<gpu>::GetStream(in_grad.stream_);
+    hipLaunchKernelGGL(HIP_KERNEL_NAME(DeformablePSROIPoolBackwardAccKernel<DType>), dim3(count),
+      dim3(kBaseThreadNum), 0, stream,
       count, top_diff, top_count_data, num_rois, spatial_scale, channels, height, width,
       pooled_height, pooled_width, output_dim, bottom_data_diff, bottom_trans_diff,
       bottom_data, bottom_rois, bottom_trans, no_trans, trans_std, sample_per_part,
       group_size, part_size, num_classes, channels_each_class);
-    DeformablePSROIPOOLING_CUDA_CHECK(cudaPeekAtLastError());
+    DeformablePSROIPOOLING_CUDA_CHECK(hipPeekAtLastError());
   }
 
 }  // namespace cuda

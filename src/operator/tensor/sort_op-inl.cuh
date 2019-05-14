@@ -32,10 +32,10 @@
 #pragma warning("Potential crash on CUDA compiler detected. Switching sorting from CUB to Thrust")
 #define SORT_WITH_THRUST
 #else
-#include <cub/device/device_radix_sort.cuh>
+#include <hipcub/hipcub.hpp>
 #undef SORT_WITH_THRUST
 #endif
-#if CUDA_VERSION >= 7000
+#if defined(__HIP_PLATFORM_HCC__) || (defined(__HIP_PLATFORM_NVCC__) && CUDA_VERSION >= 7000)
 #include <thrust/system/cuda/execution_policy.h>
 #endif
 
@@ -72,7 +72,7 @@ SortByKeyWorkspaceSize(const size_t num_keys) {
   return 0;
 #else
   size_t sortpairs_bytes = 0;
-  cub::DeviceRadixSort::SortPairs<KDType, VDType>(NULL, sortpairs_bytes,
+ hipcub::DeviceRadixSort::SortPairs<KDType, VDType>(NULL, sortpairs_bytes,
       NULL, NULL, NULL, NULL, num_keys);
   size_t alignment = std::max(sizeof(KDType), sizeof(VDType));
   size_t keys_bytes = PadBytes(num_keys*sizeof(KDType), alignment);
@@ -90,8 +90,8 @@ SortByKeyImpl(mshadow::Tensor<gpu, 1, KDType> keys,
               const int begin_bit, const int end_bit) {
   CHECK_EQ(keys.CheckContiguous(), true);
   CHECK_EQ(values.CheckContiguous(), true);
-#if CUDA_VERSION >= 7000
-  cudaStream_t stream = mshadow::Stream<gpu>::GetStream(keys.stream_);
+#if defined(__HIP_PLATFORM_HCC__) || (defined(__HIP_PLATFORM_NVCC__) && CUDA_VERSION >= 7000)
+  hipStream_t stream = mshadow::Stream<gpu>::GetStream(keys.stream_);
 #ifndef SORT_WITH_THRUST
   if (workspace != NULL) {
     // Workspace given, sort using CUB
@@ -103,11 +103,11 @@ SortByKeyImpl(mshadow::Tensor<gpu, 1, KDType> keys,
     // Get the size of internal storage (for checking purposes only)
     size_t sortpairs_bytes = 0;
     if (is_ascend) {
-      cub::DeviceRadixSort::SortPairs<KDType, VDType>(NULL, sortpairs_bytes,
+      hipcub::DeviceRadixSort::SortPairs<KDType, VDType>(NULL, sortpairs_bytes,
           NULL, NULL, NULL, NULL,
           keys.size(0), begin_bit, end_bit, stream);
     } else {
-      cub::DeviceRadixSort::SortPairsDescending<KDType, VDType>(NULL, sortpairs_bytes,
+      hipcub::DeviceRadixSort::SortPairsDescending<KDType, VDType>(NULL, sortpairs_bytes,
           NULL, NULL, NULL, NULL,
           keys.size(0), begin_bit, end_bit, stream);
     }
@@ -119,11 +119,11 @@ SortByKeyImpl(mshadow::Tensor<gpu, 1, KDType> keys,
     void* temp_storage = reinterpret_cast<void *>(workspace->dptr_ + keys_bytes + values_bytes);
     // Sort
     if (is_ascend) {
-      cub::DeviceRadixSort::SortPairs(temp_storage, sortpairs_bytes,
+      hipcub::DeviceRadixSort::SortPairs(temp_storage, sortpairs_bytes,
         keys.dptr_, keys_out_ptr, values.dptr_, values_out_ptr,
         keys.size(0), begin_bit, end_bit, stream);
     } else {
-      cub::DeviceRadixSort::SortPairsDescending(temp_storage, sortpairs_bytes,
+      hipcub::DeviceRadixSort::SortPairsDescending(temp_storage, sortpairs_bytes,
         keys.dptr_, keys_out_ptr, values.dptr_, values_out_ptr,
         keys.size(0), begin_bit, end_bit, stream);
     }
@@ -166,8 +166,8 @@ SortByKeyImpl(mshadow::Tensor<gpu, 1, KDType> keys,
               const int begin_bit, const int end_bit) {
   CHECK_EQ(keys.CheckContiguous(), true);
   CHECK_EQ(values.CheckContiguous(), true);
-#if CUDA_VERSION >= 9000
-  cudaStream_t stream = mshadow::Stream<gpu>::GetStream(keys.stream_);
+#if defined(__HIP_PLATFORM_HCC__) || (defined(__HIP_PLATFORM_NVCC__) && CUDA_VERSION >= 9000)
+  hipStream_t stream = mshadow::Stream<gpu>::GetStream(keys.stream_);
   thrust::device_ptr<KDType> key_iter = thrust::device_pointer_cast(keys.dptr_);
   thrust::device_ptr<half> value_iter = thrust::device_pointer_cast(
     reinterpret_cast<half*>(values.dptr_));
@@ -195,8 +195,8 @@ SortByKeyImpl(mshadow::Tensor<gpu, 1, KDType> keys,
               const int begin_bit, const int end_bit) {
   CHECK_EQ(keys.CheckContiguous(), true);
   CHECK_EQ(values.CheckContiguous(), true);
-#if CUDA_VERSION >= 9000
-  cudaStream_t stream = mshadow::Stream<gpu>::GetStream(keys.stream_);
+#if defined(__HIP_PLATFORM_HCC__) || (defined(__HIP_PLATFORM_NVCC__) && CUDA_VERSION >= 9000)
+  hipStream_t stream = mshadow::Stream<gpu>::GetStream(keys.stream_);
   thrust::device_ptr<half> key_iter = thrust::device_pointer_cast(
     reinterpret_cast<half*>(keys.dptr_));
   thrust::device_ptr<VDType> value_iter = thrust::device_pointer_cast(values.dptr_);
@@ -225,8 +225,8 @@ SortByKeyImpl(mshadow::Tensor<gpu, 1, KDType> keys,
               const int begin_bit, const int end_bit) {
   CHECK_EQ(keys.CheckContiguous(), true);
   CHECK_EQ(values.CheckContiguous(), true);
-#if CUDA_VERSION >= 9000
-  cudaStream_t stream = mshadow::Stream<gpu>::GetStream(keys.stream_);
+#if defined(__HIP_PLATFORM_HCC__) || (defined(__HIP_PLATFORM_NVCC__) && CUDA_VERSION >= 9000)
+  hipStream_t stream = mshadow::Stream<gpu>::GetStream(keys.stream_);
   thrust::device_ptr<half> key_iter = thrust::device_pointer_cast(
     reinterpret_cast<half*>(keys.dptr_));
   thrust::device_ptr<half> value_iter = thrust::device_pointer_cast(

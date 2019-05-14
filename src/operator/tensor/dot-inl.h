@@ -35,9 +35,9 @@
 #include "../elemwise_op_common.h"
 #include "./init_op.h"
 #include "../mxnet_op.h"
-#ifdef __CUDACC__
+#ifdef __HIPCC__
 #include "./dot-inl.cuh"
-#endif  // __CUDACC__
+#endif  // __HIPCC__
 
 namespace mxnet {
 namespace op {

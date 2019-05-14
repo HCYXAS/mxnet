@@ -22,7 +22,7 @@
  * \file matrix_op.cu
  * \brief GPU Implementation of matrix operations
  */
-#include <cub/cub.cuh>
+#include <hipcub/hipcub.hpp>
 #include "./matrix_op-inl.h"
 #include "./elemwise_unary_op.h"
 
@@ -96,7 +96,7 @@ void SliceDimTwoCsrImpl<gpu>(const TShape &begin, const TShape &end, const OpCon
                                                 begin_col, end_col);
         void* d_temp_storage = NULL;
         size_t temp_storage_bytes = 0;
-        cub::DeviceScan::InclusiveSum(d_temp_storage,
+        hipcub::DeviceScan::InclusiveSum(d_temp_storage,
                                       temp_storage_bytes,
                                       out_indptr,
                                       out_indptr,
@@ -106,7 +106,7 @@ void SliceDimTwoCsrImpl<gpu>(const TShape &begin, const TShape &end, const OpCon
             .get_space_typed<gpu, 1, char>(Shape1(temp_storage_bytes), s);
         d_temp_storage = workspace.dptr_;
 
-        cub::DeviceScan::InclusiveSum(d_temp_storage,
+        hipcub::DeviceScan::InclusiveSum(d_temp_storage,
                                       temp_storage_bytes,
                                       out_indptr,
                                       out_indptr,
@@ -114,8 +114,8 @@ void SliceDimTwoCsrImpl<gpu>(const TShape &begin, const TShape &end, const OpCon
                                       Stream<gpu>::GetStream(s));
         // retrieve nnr
         RType nnr = 0;
-        CUDA_CALL(cudaMemcpy(&nnr, &out_indptr[indptr_len-1], sizeof(RType),
-            cudaMemcpyDeviceToHost));
+        CUDA_CALL(hipMemcpy(&nnr, &out_indptr[indptr_len-1], sizeof(RType),
+            hipMemcpyDeviceToHost));
 
         // returns zeros in csr format if nnr = 0
         if (nnr == 0) {

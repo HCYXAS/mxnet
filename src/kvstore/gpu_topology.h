@@ -22,9 +22,9 @@
  */
 #ifndef MXNET_KVSTORE_GPU_TOPOLOGY_H_
 #define MXNET_KVSTORE_GPU_TOPOLOGY_H_
-#if MXNET_USE_CUDA
-  #include <cuda_runtime_api.h>
-  #include <cuda.h>
+#if MXNET_USE_GPU
+  #include <hip/hip_runtime_api.h>
+  #include <hip/hip_runtime.h>
 #endif
 #include <iostream>
 #include <vector>
@@ -140,8 +140,8 @@ inline void GetP2PWeight(const std::vector<Context>& devs, std::vector<T>* matri
     count++;
   }
 
-#if MXNET_USE_CUDA
-  cudaDeviceP2PAttr attr;
+#if MXNET_USE_GPU
+  /*cudaDeviceP2PAttr attr;
   attr = cudaDevP2PAttrPerformanceRank;
   std::vector<int> max(num_gpus, 0);
 
@@ -166,7 +166,7 @@ inline void GetP2PWeight(const std::vector<Context>& devs, std::vector<T>* matri
   for (unsigned int i = 0; i < max.size(); ++i) {
     if (max[i] > max_value)
       max_value = max[i];
-  }
+  }*/
 
   // If all GPUs are connected by NVLink, then we can use NVLink only
   // to communicate instead of going over PCI-E, so we set PCI-E links to 0

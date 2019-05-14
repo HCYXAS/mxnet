@@ -44,20 +44,20 @@ class StorageImpl : public Storage {
 
  private:
   static constexpr size_t kMaxNumberOfDevices = Context::kMaxDevType + 1;
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
   static int num_gpu_device;
-#endif  // MXNET_USE_CUDA
+#endif  // MXNET_USE_GPU
 
   static void ActivateDevice(Context ctx) {
     switch (ctx.dev_type) {
       case Context::kCPU:
         break;
       case Context::kCPUPinned:
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
         if (num_gpu_device > 0) {
-          CUDA_CALL(cudaSetDevice(ctx.real_dev_id()));
+          CUDA_CALL(hipSetDevice(ctx.real_dev_id()));
         }
-#endif  // MXNET_USE_CUDA
+#endif  // MXNET_USE_GPU
         break;
       case Context::kCPUShared: {
 #if defined(ANDROID) || defined(__ANDROID__)
@@ -66,11 +66,11 @@ class StorageImpl : public Storage {
       }
         break;
       case Context::kGPU: {
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
           if (num_gpu_device > 0) {
-            CUDA_CALL(cudaSetDevice(ctx.real_dev_id()));
+            CUDA_CALL(hipSetDevice(ctx.real_dev_id()));
           }
-#endif  // MXNET_USE_CUDA
+#endif  // MXNET_USE_GPU
           break;
         }
       default:
@@ -82,9 +82,9 @@ class StorageImpl : public Storage {
              kMaxNumberOfDevices> storage_managers_;
   storage::DeviceStorageProfiler profiler_;
 };  // struct Storage::Impl
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
 int StorageImpl::num_gpu_device = 0;
-#endif  // MXNET_USE_CUDA
+#endif  // MXNET_USE_GPU
 
 void StorageImpl::Alloc(Storage::Handle* handle) {
   // space already recycled, ignore request
@@ -104,10 +104,10 @@ void StorageImpl::Alloc(Storage::Handle* handle) {
             break;
           }
           case Context::kCPUPinned: {
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
             num_gpu_device = 0;
-            cudaError_t e = cudaGetDeviceCount(&num_gpu_device);
-            if (e != cudaSuccess) {
+            hipError_t e = hipGetDeviceCount(&num_gpu_device);
+            if (e != hipSuccess) {
               num_gpu_device = 0;
             }
             if (num_gpu_device > 0) {
@@ -117,12 +117,12 @@ void StorageImpl::Alloc(Storage::Handle* handle) {
             }
 #else
             ptr = new storage::NaiveStorageManager<storage::CPUDeviceStorage>();
-#endif  // MXNET_USE_CUDA
+#endif  // MXNET_USE_GPU
             break;
           }
           case Context::kGPU: {
-#if MXNET_USE_CUDA
-            CUDA_CALL(cudaGetDeviceCount(&num_gpu_device));
+#if MXNET_USE_GPU
+            CUDA_CALL(hipGetDeviceCount(&num_gpu_device));
             CHECK_GT(num_gpu_device, 0) << "GPU usage requires at least 1 GPU";
 
             const char *type = getenv("MXNET_GPU_MEM_POOL_TYPE");
@@ -140,8 +140,8 @@ void StorageImpl::Alloc(Storage::Handle* handle) {
               ptr = new storage::GPUPooledStorageManager();
             }
 #else
-            LOG(FATAL) << "Compile with USE_CUDA=1 to enable GPU usage";
-#endif  // MXNET_USE_CUDA
+            LOG(FATAL) << "Compile with USE_GPU=1 to enable GPU usage";
+#endif  // MXNET_USE_GPU
             break;
           }
           default: LOG(FATAL) <<  "Unimplemented device " << handle->ctx.dev_type;
@@ -149,7 +149,7 @@ void StorageImpl::Alloc(Storage::Handle* handle) {
         return ptr;
       });
 
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
   // Will restore gpu device to before ActivateDevice if necessary
   bool restore = handle->ctx.dev_type == Context::kCPUPinned ||
                  handle->ctx.dev_type == Context::kGPU;
@@ -169,7 +169,7 @@ void StorageImpl::Free(Storage::Handle handle) {
         return nullptr;
       });
 
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
   // Will restore gpu device to before ActivateDevice if necessary
   bool restore = ctx.dev_type == Context::kCPUPinned || ctx.dev_type == Context::kGPU;
   mxnet::common::cuda::DeviceStore device_store(restore);
@@ -188,7 +188,7 @@ void StorageImpl::DirectFree(Storage::Handle handle) {
         return nullptr;
       });
 
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
   // Will restore gpu device to before ActivateDevice if necessary
   bool restore = ctx.dev_type == Context::kCPUPinned || ctx.dev_type == Context::kGPU;
   mxnet::common::cuda::DeviceStore device_store(restore);

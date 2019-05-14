@@ -45,7 +45,7 @@
 #include "./init_op.h"
 #include "../../engine/openmp.h"
 #include "../../common/utils.h"
-#ifdef __CUDACC__
+#ifdef __HIPCC__
 #include "./indexing_op-inl.cuh"
 #endif
 
@@ -898,7 +898,7 @@ void TakeOpBackwardImpl(mshadow::Stream<cpu>* s,
   });
 }
 
-#ifdef __CUDACC__
+#ifdef __HIPCC__
 template<bool clip = true>
 void TakeOpBackwardImpl(mshadow::Stream<gpu>* s,
                         const OpContext& ctx,
@@ -917,7 +917,7 @@ void TakeOpBackwardImpl(mshadow::Stream<gpu>* s,
     char* temp_storage_ptr = nullptr;
     size_t scan_temp_storage_bytes = 0;
     int* src_indptr_ptr = nullptr;
-    cub::DeviceScan::ExclusiveSum(temp_storage_ptr,
+    hipcub::DeviceScan::ExclusiveSum(temp_storage_ptr,
                                   scan_temp_storage_bytes,
                                   src_indptr_ptr,
                                   src_indptr_ptr,
@@ -926,7 +926,7 @@ void TakeOpBackwardImpl(mshadow::Stream<gpu>* s,
     size_t sort_temp_storage_bytes = SortByKeyWorkspaceSize<int, int, gpu>(idxshape.Size());
     size_t histo_temp_storage_bytes = 0;
     int* sorted_idx_ptr = nullptr;
-    cub::DeviceHistogram::HistogramEven(temp_storage_ptr,
+    hipcub::DeviceHistogram::HistogramEven(temp_storage_ptr,
                                         histo_temp_storage_bytes,
                                         sorted_idx_ptr,
                                         src_indptr_ptr,
@@ -967,7 +967,7 @@ void TakeOpBackwardImpl(mshadow::Stream<gpu>* s,
     int num_bits = common::ilog2ui(static_cast<unsigned int>(idxshape.Size()) - 1);
     Tensor<gpu, 1, int> sorted_idx(sorted_idx_ptr, Shape1(idxshape.Size()), s);
     SortByKey(sorted_idx, original_idx, true, &temp_storage, 0, num_bits);
-    cub::DeviceScan::ExclusiveSum(temp_storage_ptr,
+    hipcub::DeviceScan::ExclusiveSum(temp_storage_ptr,
                                   temp_storage_bytes,
                                   src_indptr_ptr,
                                   src_indptr_ptr,

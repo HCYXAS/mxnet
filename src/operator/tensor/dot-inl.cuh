@@ -1,3 +1,4 @@
+#include "hip/hip_runtime.h"
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -449,7 +450,7 @@ inline void DotCsrDnsDnsImpl(const OpContext& ctx,
           size_t scan_temp_storage_bytes = 0;
           size_t temp_storage_bytes = SortByKeyWorkspaceSize<IType, IType, gpu>(nnz);
           IType* csr_indices_ptr = col_idx_l.dptr<IType>();
-          cub::DeviceScan::ExclusiveSum(temp_storage_ptr,
+          hipcub::DeviceScan::ExclusiveSum(temp_storage_ptr,
                                         scan_temp_storage_bytes,
                                         csc_indptr_ptr,
                                         csc_indptr_ptr,
@@ -500,7 +501,7 @@ inline void DotCsrDnsDnsImpl(const OpContext& ctx,
           mxnet_op::Kernel<HistogramKernel, gpu>::Launch(
             s, nnz, csc_indptr_ptr, csc_cols_ptr, nnz);
           // Scan the bin counts for every column to get csc_indptr
-          cub::DeviceScan::ExclusiveSum(temp_storage_ptr,
+          hipcub::DeviceScan::ExclusiveSum(temp_storage_ptr,
                                         temp_storage_bytes,
                                         csc_indptr_ptr,
                                         csc_indptr_ptr,
@@ -648,8 +649,8 @@ inline void DotCsrDnsRspImpl(const OpContext& ctx,
           size_t unique_temp_bytes = 0;
           size_t *null_ptr = nullptr;
           size_t *null_dptr = nullptr;
-          cudaStream_t stream = mshadow::Stream<gpu>::GetStream(s);
-          cub::DeviceSelect::Unique(NULL, unique_temp_bytes, null_dptr, null_dptr,
+          hipStream_t stream = mshadow::Stream<gpu>::GetStream(s);
+          hipcub::DeviceSelect::Unique(NULL, unique_temp_bytes, null_dptr, null_dptr,
                                     null_ptr, nnz, stream);
           // the temp storage for sort and unique
           size_t original_idx_bytes = nnz * sizeof(IType);
@@ -698,11 +699,11 @@ inline void DotCsrDnsRspImpl(const OpContext& ctx,
           ret->CheckAndAllocAuxData(rowsparse::kIdx, Shape1(nnz));
           // compute unique indices
           IType* ret_idx_ptr = ret->aux_data(rowsparse::kIdx).dptr<IType>();
-          cub::DeviceSelect::Unique(temp_storage_ptr, unique_temp_bytes, col_idx_copy_ptr, ret_idx_ptr,
+          hipcub::DeviceSelect::Unique(temp_storage_ptr, unique_temp_bytes, col_idx_copy_ptr, ret_idx_ptr,
                                     nnr_ptr, nnz, stream);
           // retrieve num non-zero rows
           size_t nnr = 0;
-          CUDA_CALL(cudaMemcpy(&nnr, nnr_ptr, nnr_bytes, cudaMemcpyDeviceToHost));
+          CUDA_CALL(hipMemcpy(&nnr, nnr_ptr, nnr_bytes, hipMemcpyDeviceToHost));
           // allocate data
           ret->CheckAndAllocData(mshadow::Shape2(nnz, num_cols_r));
           // generate lookup table
@@ -793,7 +794,7 @@ inline void DotCsrRspRspImpl(const OpContext& ctx,
             dim_t* row_flg_out = NULL;
             void* d_temp_storage = NULL;
             size_t temp_storage_bytes = 0;
-            cub::DeviceScan::InclusiveSum(d_temp_storage,
+            hipcub::DeviceScan::InclusiveSum(d_temp_storage,
                                           temp_storage_bytes,
                                           row_flg_out,
                                           row_flg_out,
@@ -810,15 +811,15 @@ inline void DotCsrRspRspImpl(const OpContext& ctx,
             Kernel<MarkCsrColWarpKernel, gpu>::Launch(s, num_threads,
                 row_flg_out, col_idx_l.dptr<CType>(), indptr_l.dptr<IType>(),
                 num_rows_l, num_cols_l);
-            cub::DeviceScan::InclusiveSum(d_temp_storage,
+            hipcub::DeviceScan::InclusiveSum(d_temp_storage,
                                           temp_storage_bytes,
                                           row_flg_out,
                                           row_flg_out,
                                           num_cols_l,
                                           mshadow::Stream<gpu>::GetStream(s));
             dim_t nnr_out = 0;
-            CUDA_CALL(cudaMemcpy(&nnr_out, &row_flg_out[num_cols_l-1], sizeof(dim_t),
-                                 cudaMemcpyDeviceToHost));
+            CUDA_CALL(hipMemcpy(&nnr_out, &row_flg_out[num_cols_l-1], sizeof(dim_t),
+                                 hipMemcpyDeviceToHost));
             if (0 == nnr_out) {
               FillZerosRspImpl(s, *ret);
               return;
@@ -999,7 +1000,7 @@ inline void DotDnsCsrDnsImpl(const OpContext& ctx, const gpu& gpu_dev,
           size_t scan_temp_storage_bytes = 0;
           size_t temp_storage_bytes = SortByKeyWorkspaceSize<IType, IType, gpu>(nnz);
           IType* csr_indices_ptr = csr_indices.dptr<IType>();
-          cub::DeviceScan::ExclusiveSum(temp_storage_ptr,
+          hipcub::DeviceScan::ExclusiveSum(temp_storage_ptr,
                                         scan_temp_storage_bytes,
                                         csc_indptr_ptr,
                                         csc_indptr_ptr,
@@ -1050,7 +1051,7 @@ inline void DotDnsCsrDnsImpl(const OpContext& ctx, const gpu& gpu_dev,
           mxnet_op::Kernel<HistogramKernel, gpu>::Launch(
             s, nnz, csc_indptr_ptr, csc_cols_ptr, nnz);
           // Scan the bin counts for every column to get csc_indptr
-          cub::DeviceScan::ExclusiveSum(temp_storage_ptr,
+          hipcub::DeviceScan::ExclusiveSum(temp_storage_ptr,
                                         temp_storage_bytes,
                                         csc_indptr_ptr,
                                         csc_indptr_ptr,

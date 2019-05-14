@@ -170,7 +170,7 @@ MSHADOW_XINLINE void seq_reduce_assign(const int idx, const int M, const bool ad
   assign(&small[idx], addto, val);
 }
 
-#ifdef __CUDACC__
+#ifdef __HIPCC__
 #include "broadcast_reduce-inl.cuh"
 
 #else

@@ -57,6 +57,9 @@ ifneq ($(USE_OPENMP), 1)
 	export NO_OPENMP = 1
 endif
 
+HIP_PLATFORM := $(shell hipconfig -P)
+HIPFLAGS = $(shell hipconfig -C)
+
 # use customized config file
 include $(config)
 
@@ -89,8 +92,20 @@ ifeq ($(DEBUG), 1)
 else
 	CFLAGS += -O3 -DNDEBUG=1
 endif
-CFLAGS += -I$(TPARTYDIR)/mshadow/ -I$(TPARTYDIR)/dmlc-core/include -fPIC -I$(NNVM_PATH)/include -I$(DLPACK_PATH)/include -I$(TPARTYDIR)/tvm/include -Iinclude $(MSHADOW_CFLAGS)
+HIPINCLUDE += -I. -I/opt/rocm/include -I/opt/rocm/hipblas/include -I/opt/rocm/hiprand/include -I/opt/rocm/rocfft/include -I/opt/rocm/hipcub/include/
+CFLAGS += $(HIPINCLUDE) -I$(TPARTYDIR)/mshadow/ -I$(TPARTYDIR)/dmlc-core/include -fPIC -I$(NNVM_PATH)/include -I$(DLPACK_PATH)/include -I$(TPARTYDIR)/tvm/include -Iinclude $(MSHADOW_CFLAGS)
 LDFLAGS = -pthread $(MSHADOW_LDFLAGS) $(DMLC_LDFLAGS)
+
+ifeq ($(HIP_PLATFORM), nvcc)
+	CCBINCLUDES = -ccbin $(CXX)
+	CXXFLAGS    = -std=c++11
+	HIPCCFLAGS  = \"$(CFLAGS)\"
+	LINKER      = $(CXX)
+else ifeq ($(HIP_PLATFORM), hcc)
+	CXXFLAGS    = -std=c++11
+	HIPCCFLAGS  = $(CFLAGS)
+	LINKER      = $(NVCC)
+endif
 
 ifeq ($(ENABLE_TESTCOVERAGE), 1)
         CFLAGS += --coverage
@@ -104,9 +119,9 @@ endif
 # -L/usr/local/lib
 
 ifeq ($(DEBUG), 1)
-	NVCCFLAGS += -std=c++11 -Xcompiler -D_FORCE_INLINES -g -G -O0 -ccbin $(CXX) $(MSHADOW_NVCCFLAGS)
+	NVCCFLAGS = $(CXXFLAGS) -Xcompiler -D_FORCE_INLINES -g -G -O0 $(CCBINCLUDES) $(MSHADOW_NVCCFLAGS)
 else
-	NVCCFLAGS += -std=c++11 -Xcompiler -D_FORCE_INLINES -O3 -ccbin $(CXX) $(MSHADOW_NVCCFLAGS)
+	NVCCFLAGS = $(CXXFLAGS) -Xcompiler -D_FORCE_INLINES -g -O3 $(CCBINCLUDES) $(MSHADOW_NVCCFLAGS)
 endif
 
 # CFLAGS for segfault logger
@@ -200,7 +215,7 @@ endif
 
 ifeq ($(USE_CUDNN), 1)
 	CFLAGS += -DMSHADOW_USE_CUDNN=1
-	LDFLAGS += -lcudnn
+	LDFLAGS += -L/opt/rocm/miopen/lib -lMIOpen #-lcudnn
 endif
 
 # whether to use F16C instruction set extension for fast fp16 compute on CPU
@@ -316,7 +331,7 @@ ifeq ($(NVCC), NONE)
 endif
 
 # Guard against displaying nvcc info messages to users not using CUDA.
-ifeq ($(USE_CUDA), 1)
+ifeq ($(USE_GPU), 1)
 	# If NVCC is not at the location specified, use CUDA_PATH instead.
 	ifeq ("$(wildcard $(NVCC))","")
 		ifneq ($(USE_CUDA_PATH), NONE)
@@ -339,8 +354,8 @@ endif
 # of the cuda toolkit, plus the assembly (PTX) for the most recent such architecture.
 # If these kernels are then run on a newer-architecture GPU, the binary will
 # be JIT-compiled by the updated driver from the included PTX.
-ifeq ($(USE_CUDA), 1)
-ifeq ($(CUDA_ARCH),)
+ifeq ($(USE_GPU), 1)
+ifeq ($(HIP_PLATFORM), nvcc)
 	KNOWN_CUDA_ARCHS := 30 35 50 52 60 61 70 75
 	# Run nvcc on a zero-length file to check architecture-level support.
 	# Create args to include SASS in the fat binary for supported levels.
@@ -355,8 +370,17 @@ ifeq ($(CUDA_ARCH),)
 	COMPRESS := --fatbin-options -compress-all
 	CUDA_ARCH += $(shell $(NVCC) -cuda $(COMPRESS) --x cu /dev/null -o /dev/null >/dev/null 2>&1 && \
 						 echo $(COMPRESS))
+else ifeq ($(HIP_PLATFORM),hcc)
+         CUDA_ARCH :=	--amdgpu-target=gfx801 \
+			--amdgpu-target=gfx802 \
+			--amdgpu-target=gfx803 \
+			--amdgpu-target=gfx900
 endif
 $(info Running CUDA_ARCH: $(CUDA_ARCH))
+endif
+
+ifeq ($(HIP_PLATFORM), hcc)
+	LINKER  += $(CUDA_ARCH)
 endif
 
 # ps-lite
@@ -376,7 +400,7 @@ all: lib/libmxnet.a lib/libmxnet.so $(BIN) extra-packages
 
 SRC = $(wildcard src/*/*/*/*.cc src/*/*/*.cc src/*/*.cc src/*.cc)
 OBJ = $(patsubst %.cc, build/%.o, $(SRC))
-CUSRC = $(wildcard src/*/*/*/*.cu src/*/*/*.cu src/*/*.cu src/*.cu)
+CUSRC = $(wildcard src/*/*/*/*.cu src/*/*/*.cu src/*/*.cu src/*.cu *.cu)
 CUOBJ = $(patsubst %.cu, build/%_gpu.o, $(CUSRC))
 
 # extra operators
@@ -416,17 +440,29 @@ endif
 LIB_DEP += $(DMLC_CORE)/libdmlc.a $(NNVM_PATH)/lib/libnnvm.a
 ALL_DEP = $(OBJ) $(EXTRA_OBJ) $(PLUGIN_OBJ) $(LIB_DEP)
 
-ifeq ($(USE_CUDA), 1)
-	CFLAGS += -I$(ROOTDIR)/3rdparty/cub
+ifeq ($(USE_GPU), 1)
 	ALL_DEP += $(CUOBJ) $(EXTRA_CUOBJ) $(PLUGIN_CUOBJ)
-	LDFLAGS += -lcufft
+	LDFLAGS += -L/opt/rocm/hip/lib -lhip_hcc
+	LDFLAGS += -L/opt/rocm/hipblas/lib  -lhipblas
+	LDFLAGS += -L/opt/rocm/hiprand/lib  -lhiprand
+	ifneq (, $(findstring nvcc, $(HIP_PLATFORM)))
+		CFLAGS  += -I$(ROOTDIR)/3rdparty/cub -I/opt/rocm/hipcub/include/hipcub/cub
+		LDFLAGS += -L/opt/rocm/rocfft/lib -lrocfft
+		LDFLAGS += -lcudart -lcuda -lcufft -lcublas
+		LDFLAGS += -L/usr/local/cuda/lib64/stubs
+	else
+		HIPINCLUDE += -I/opt/rocm/rocblas/include -I/opt/rocm/rocrand/include
+		CFLAGS  += -I/opt/rocm/hipcub/include/hipcub/rocprim
+		LDFLAGS += -L/opt/rocm/rocfft/lib    -lrocfft
+		LDFLAGS += -L/opt/rocm/rocblas/lib  -lrocblas
+		LDFLAGS += -L/opt/rocm/rocrand/lib  -lrocrand
+        endif
 	ifeq ($(ENABLE_CUDA_RTC), 1)
 		LDFLAGS += -lcuda -lnvrtc
 		CFLAGS += -DMXNET_ENABLE_CUDA_RTC=1
 	endif
 	# Make sure to add stubs as fallback in order to be able to build
 	# without full CUDA install (especially if run without nvidia-docker)
-	LDFLAGS += -L/usr/local/cuda/lib64/stubs
 	SCALA_PKG_PROFILE := $(SCALA_PKG_PROFILE)-gpu
 	ifeq ($(USE_NCCL), 1)
 		ifneq ($(USE_NCCL_PATH), NONE)
@@ -459,32 +495,33 @@ ALLX_DEP= $(ALL_DEP)
 
 build/src/%.o: src/%.cc | mkldnn
 	@mkdir -p $(@D)
-	$(CXX) -std=c++11 -c $(CFLAGS) -MMD -c $< -o $@
+	$(CXX) -std=c++11 -c $(HIPFLAGS) $(CFLAGS) -MMD -c $< -o $@
 
-build/src/%_gpu.o: src/%.cu | mkldnn
+#build/src/%_gpu.o: src/%.cu | mkldnn
+build/%_gpu.o: %.cu | mkldnn
 	@mkdir -p $(@D)
-	$(NVCC) $(NVCCFLAGS) $(CUDA_ARCH) -Xcompiler "$(CFLAGS)" -M -MT build/src/$*_gpu.o $< >build/src/$*_gpu.d
-	$(NVCC) -c -o $@ $(NVCCFLAGS) $(CUDA_ARCH) -Xcompiler "$(CFLAGS)" $<
+	$(NVCC) $(NVCCFLAGS) $(CUDA_ARCH) -Xcompiler "$(HIPCCFLAGS)" -M -MT build/$*_gpu.o $< >build/$*_gpu.d
+	$(NVCC) -c -o $@ $(NVCCFLAGS) $(CUDA_ARCH) -Xcompiler "$(HIPCCFLAGS)" $<
 
 # A nvcc bug cause it to generate "generic/xxx.h" dependencies from torch headers.
 # Use CXX to generate dependency instead.
 build/plugin/%_gpu.o: plugin/%.cu
 	@mkdir -p $(@D)
-	$(CXX) -std=c++11 $(CFLAGS) -MM -MT build/plugin/$*_gpu.o $< >build/plugin/$*_gpu.d
-	$(NVCC) -c -o $@ $(NVCCFLAGS) $(CUDA_ARCH) -Xcompiler "$(CFLAGS)" $<
+	$(CXX) -std=c++11 $(HIPFLAGS) $(CFLAGS) -MM -MT build/plugin/$*_gpu.o $< >build/plugin/$*_gpu.d
+	$(NVCC) -c -o $@ $(NVCCFLAGS) $(CUDA_ARCH) -Xcompiler "$(HIPCCFLAGS)" $<
 
 build/plugin/%.o: plugin/%.cc
 	@mkdir -p $(@D)
-	$(CXX) -std=c++11 -c $(CFLAGS) -MMD -c $< -o $@
+	$(CXX) -std=c++11 -c $(HIPFLAGS) $(CFLAGS) -MMD -c $< -o $@
 
 %_gpu.o: %.cu
 	@mkdir -p $(@D)
-	$(NVCC) $(NVCCFLAGS) $(CUDA_ARCH) -Xcompiler "$(CFLAGS) -Isrc/operator" -M -MT $*_gpu.o $< >$*_gpu.d
-	$(NVCC) -c -o $@ $(NVCCFLAGS) $(CUDA_ARCH) -Xcompiler "$(CFLAGS) -Isrc/operator" $<
+	$(NVCC) $(NVCCFLAGS) $(CUDA_ARCH) -Xcompiler "$(HIPCCFLAGS) -Isrc/operator" -M -MT $*_gpu.o $< >$*_gpu.d
+	$(NVCC) -c -o $@ $(NVCCFLAGS) $(CUDA_ARCH) -Xcompiler "$(HIPCFLAGS) -Isrc/operator" $<
 
 %.o: %.cc $(CORE_INC)
 	@mkdir -p $(@D)
-	$(CXX) -std=c++11 -c $(CFLAGS) -MMD -Isrc/operator -c $< -o $@
+	$(CXX) -std=c++11 -c $(HIPFLAGS) $(CFLAGS) -MMD -Isrc/operator -c $< -o $@
 
 # NOTE: to statically link libmxnet.a we need the option
 # --Wl,--whole-archive -lmxnet --Wl,--no-whole-archive
@@ -494,7 +531,7 @@ lib/libmxnet.a: $(ALLX_DEP)
 
 lib/libmxnet.so: $(ALLX_DEP)
 	@mkdir -p $(@D)
-	$(CXX) $(CFLAGS) -shared -o $@ $(filter-out %libnnvm.a, $(filter %.o %.a, $^)) $(LDFLAGS) \
+	$(LINKER) $(HIPFLAGS) $(CFLAGS) -shared -o $@ $(filter-out %libnnvm.a, $(filter %.o %.a, $^)) $(LDFLAGS) \
 	-Wl,${WHOLE_ARCH} $(filter %libnnvm.a, $^) -Wl,${NO_WHOLE_ARCH}
 ifeq ($(USE_MKLDNN), 1)
 ifeq ($(UNAME_S), Darwin)
@@ -523,7 +560,7 @@ bin/im2rec: tools/im2rec.cc $(ALLX_DEP)
 
 $(BIN) :
 	@mkdir -p $(@D)
-	$(CXX) $(CFLAGS) -std=c++11  -o $@ $(filter %.cpp %.o %.c %.a %.cc, $^) $(LDFLAGS)
+	$(LINKER) $(HIPFLAGS) $(CFLAGS) -std=c++11  -o $@ $(filter %.cpp %.o %.c %.a %.cc, $^) $(LDFLAGS)
 
 # CPP Package
 ifeq ($(USE_CPP_PACKAGE), 1)
