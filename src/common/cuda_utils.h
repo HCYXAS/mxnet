@@ -371,9 +371,8 @@ inline cublasMath_t SetCublasMathMode(hipblasHandle_t blas_handle, cublasMath_t 
 
 #endif  // MXNET_USE_GPU
 
-#if MXNET_USE_CUDNN
+#if MXNET_USE_MIOPEN 
 
-//#include <cudnn.h>
 #include <miopen/miopen.h>
 
 #define CUDNN_CALL(func)                                                      \
@@ -383,6 +382,17 @@ inline cublasMath_t SetCublasMathMode(hipblasHandle_t blas_handle, cublasMath_t 
     /*CHECK_EQ(e, miopenStatusSuccess) << "cuDNN: " << cudnnGetErrorString(e);*/ \
   }
 
+#endif
+
+#if MXNET_USE_CUDNN 
+#include <cudnn.h>
+
+#define CUDNN_CALL(func)                                                      \
+  {                                                                           \
+    cudnnStatus_t e = (func);                                                 \
+    CHECK_EQ(e, CUDNN_STATUS_SUCCESS) << "cuDNN: " << cudnnGetErrorString(e); \
+  }
+#endif
 /*!
  * \brief Return max number of perf structs cudnnFindConvolutionForwardAlgorithm()
  *        may want to populate.
@@ -390,6 +400,18 @@ inline cublasMath_t SetCublasMathMode(hipblasHandle_t blas_handle, cublasMath_t 
  * \return max number of perf structs cudnnFindConvolutionForwardAlgorithm() may
  *         want to populate.
  */
+#if MXNET_USE_CUDNN == 1
+inline int MaxForwardAlgos(cudnnHandle_t cudnn_handle) {
+#if CUDNN_MAJOR >= 7
+  int max_algos = 0;
+  CUDNN_CALL(cudnnGetConvolutionForwardAlgorithmMaxCount(cudnn_handle, &max_algos));
+  return max_algos;
+#else
+  return 10;
+#endif
+}
+#endif
+#if MXNET_USE_MIOPEN == 1
 inline int MaxForwardAlgos(miopenHandle_t cudnn_handle) {
 /*#if CUDNN_MAJOR >= 7 && defined( __HIP_PLATFORM_NVCC__)  //TODO cudnnGetConvolutionForwardAlgorithmMaxCount() no supported API in MIOpen
   int max_algos = 0;
@@ -399,7 +421,7 @@ inline int MaxForwardAlgos(miopenHandle_t cudnn_handle) {
   return 10;
 //#endif
 }
-
+#endif
 /*!
  * \brief Return max number of perf structs cudnnFindConvolutionBackwardFilterAlgorithm()
  *        may want to populate.
@@ -407,6 +429,18 @@ inline int MaxForwardAlgos(miopenHandle_t cudnn_handle) {
  * \return max number of perf structs cudnnFindConvolutionBackwardFilterAlgorithm() may
  *         want to populate.
  */
+#if MXNET_USE_CUDNN == 1
+inline int MaxBackwardFilterAlgos(cudnnHandle_t cudnn_handle) {
+#if CUDNN_MAJOR >= 7
+  int max_algos = 0;
+  CUDNN_CALL(cudnnGetConvolutionBackwardFilterAlgorithmMaxCount(cudnn_handle, &max_algos));
+  return max_algos;
+#else
+  return 10;
+#endif
+}
+#endif
+#if MXNET_USE_MIOPEN == 1
 inline int MaxBackwardFilterAlgos(miopenHandle_t cudnn_handle) {
 /*#if CUDNN_MAJOR >= 7 && defined( __HIP_PLATFORM_NVCC__)
   int max_algos = 0;
@@ -417,7 +451,7 @@ inline int MaxBackwardFilterAlgos(miopenHandle_t cudnn_handle) {
   return 10;
 //#endif
 }
-
+#endif
 /*!
  * \brief Return max number of perf structs cudnnFindConvolutionBackwardDataAlgorithm()
  *        may want to populate.
@@ -425,6 +459,19 @@ inline int MaxBackwardFilterAlgos(miopenHandle_t cudnn_handle) {
  * \return max number of perf structs cudnnFindConvolutionBackwardDataAlgorithm() may
  *         want to populate.
  */
+#if MXNET_USE_CUDNN == 1
+inline int MaxBackwardDataAlgos(cudnnHandle_t cudnn_handle) {
+#if CUDNN_MAJOR >= 7
+  int max_algos = 0;
+  CUDNN_CALL(cudnnGetConvolutionBackwardDataAlgorithmMaxCount(cudnn_handle, &max_algos));
+  return max_algos;
+#else
+  return 10;
+#endif
+}
+#endif 
+
+#if MXNET_USE_MIOPEN == 1
 inline int MaxBackwardDataAlgos(miopenHandle_t cudnn_handle) {
 /*#if CUDNN_MAJOR >= 7 && defined( __HIP_PLATFORM_NVCC__)
   int max_algos = 0;
@@ -436,8 +483,7 @@ inline int MaxBackwardDataAlgos(miopenHandle_t cudnn_handle) {
 //#endif
 }
 
-#endif  // MXNET_USE_CUDNN
-
+#endif  
 // Overload atomicAdd to work for floats on all architectures
 #if (__HIP_DEVICE_COMPILE__ && (__CUDA_ARCH__ < 600) && defined(__HIP_PLATFORM_NVCC__))
 static inline __device__  void atomicAdd(double *address, double val) {

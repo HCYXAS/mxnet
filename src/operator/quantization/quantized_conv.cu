@@ -49,15 +49,23 @@ struct QuantizedBiasAddKernel {
   }
 };
 
-#if MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 6
+#if (MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 6) || MXNET_USE_MIOPEN == 1
 template<typename SrcType, typename DstType, typename CmpType>
 class QuantizedCuDNNConvOp {
  public:
   QuantizedCuDNNConvOp() {
+#if MXNET_USE_CUDNN == 1
+    CUDNN_CALL(cudnnCreateConvolutionDescriptor(&conv_desc_));
+    CUDNN_CALL(cudnnCreateTensorDescriptor(&data_desc_));
+    CUDNN_CALL(cudnnCreateTensorDescriptor(&out_desc_));
+    CUDNN_CALL(cudnnCreateFilterDescriptor(&filter_desc_));
+#endif
+#if MXNET_USE_MIOPEN == 1
     CUDNN_CALL(miopenCreateConvolutionDescriptor(&conv_desc_));
     CUDNN_CALL(miopenCreateTensorDescriptor(&data_desc_));
     CUDNN_CALL(miopenCreateTensorDescriptor(&out_desc_));
     CUDNN_CALL(miopenCreateTensorDescriptor(&filter_desc_));
+#endif
   }
 
   void Init(const ConvolutionParam& param,
@@ -78,17 +86,31 @@ class QuantizedCuDNNConvOp {
     src_type_ = mshadow::DataType<SrcType>::kCudnnFlag;
     dst_type_ = mshadow::DataType<DstType>::kCudnnFlag;
     cmp_type_ = mshadow::DataType<CmpType>::kCudnnFlag;
+#if MXNET_USE_CUDNN == 1
+    algo_ = CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_PRECOMP_GEMM;
+    format_ = CUDNN_TENSOR_NHWC;
+#endif
+#if MXNET_USE_MIOPEN == 1
     algo_ = miopenConvolutionFwdAlgoGEMM;//CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_PRECOMP_GEMM;
     //format_ = CUDNN_TENSOR_NHWC;
+#endif
     InitDescriptors(in_shape, out_shape);
     GetTempSize(ctx);
   }
 
   ~QuantizedCuDNNConvOp() {
+#if MXNET_USE_CUDNN == 1
+    CUDNN_CALL(cudnnDestroyFilterDescriptor(filter_desc_));
+    CUDNN_CALL(cudnnDestroyTensorDescriptor(data_desc_));
+    CUDNN_CALL(cudnnDestroyTensorDescriptor(out_desc_));
+    CUDNN_CALL(cudnnDestroyConvolutionDescriptor(conv_desc_));
+#endif
+#if MXNET_USE_MIOPEN == 1
     CUDNN_CALL(miopenDestroyTensorDescriptor(filter_desc_));
     CUDNN_CALL(miopenDestroyTensorDescriptor(data_desc_));
     CUDNN_CALL(miopenDestroyTensorDescriptor(out_desc_));
     CUDNN_CALL(miopenDestroyConvolutionDescriptor(conv_desc_));
+#endif
   }
 
   void Forward(const OpContext &ctx,
@@ -147,6 +169,22 @@ class QuantizedCuDNNConvOp {
       // filter: [HWNC](out_channels, filter_height, filter_width, in_channels)
       // output: [NHWC](batch, out_height, out_width, out_channels)
 
+#if MXNET_USE_CUDNN == 1
+      CUDNN_CALL(cudnnConvolutionForward(s->dnn_handle_,
+                                         &alpha_,
+                                         data_desc_,
+                                         data_.dptr_,
+                                         filter_desc_,
+                                         filter_.dptr_,
+                                         conv_desc_,
+                                         algo_,
+                                         temp_dptr,
+                                         workspace_byte_,
+                                         &beta_,
+                                         out_desc_,
+                                         out_.dptr_));
+#endif
+#if MXNET_USE_MIOPEN == 1
     int req_algo_count = 0;
       miopenConvAlgoPerf_t fwd_algo_pref;
 
@@ -184,20 +222,7 @@ class QuantizedCuDNNConvOp {
                                        out_.dptr_,
                                        temp_dptr,
                                        workspace_byte_));
-
-/*      CUDNN_CALL(cudnnConvolutionForward(s->dnn_handle_,
-                                         &alpha_,
-                                         data_desc_,
-                                         data_.dptr_,
-                                         filter_desc_,
-                                         filter_.dptr_,
-                                         conv_desc_,
-                                         algo_,
-                                         temp_dptr,
-                                         workspace_byte_,
-                                         &beta_,
-                                         out_desc_,
-                                         out_.dptr_));*/
+#endif
 
       Tensor<gpu, 1, DstType> out_tensor = out_.FlatTo1D<gpu, DstType>(s);
       Tensor<gpu, 1, int32_t> out_tcast_tensor = out_tcast.FlatTo1D<gpu, int32_t>(s);
@@ -236,6 +261,40 @@ class QuantizedCuDNNConvOp {
     const TShape& dshape =  in_shape[0];
     const TShape& kshape =  in_shape[1];
     const TShape& oshape = out_shape[0];
+#if MXNET_USE_CUDNN == 1
+    CUDNN_CALL(cudnnSetConvolution2dDescriptor(conv_desc_,
+                                               param_.pad[0],
+                                               param_.pad[1],
+                                               param_.stride[0],
+                                               param_.stride[1],
+                                               1,
+                                               1,
+                                               CUDNN_CROSS_CORRELATION,
+                                               cmp_type_));
+
+    CUDNN_CALL(cudnnSetTensor4dDescriptor(data_desc_,
+                                          format_,
+                                          src_type_,
+                                          dshape[N],
+                                          dshape[C],
+                                          dshape[H],
+                                          dshape[W]));
+    CUDNN_CALL(cudnnSetTensor4dDescriptor(out_desc_,
+                                          format_,
+                                          dst_type_,
+                                          oshape[N],
+                                          oshape[C],
+                                          oshape[H],
+                                          oshape[W]));
+    CUDNN_CALL(cudnnSetFilter4dDescriptor(filter_desc_,
+                                          src_type_,
+                                          format_,
+                                          kshape[N],
+                                          kshape[C],
+                                          kshape[H],
+                                          kshape[W]));
+#endif
+#if MXNET_USE_MIOPEN == 1
     CUDNN_CALL(miopenInitConvolutionDescriptor(conv_desc_,
                                                miopenConvolution,
                                                param_.pad[0],
@@ -268,24 +327,28 @@ class QuantizedCuDNNConvOp {
                                           kshape[C],
                                           kshape[H],
                                           kshape[W]));
+#endif
   }
 
   void GetTempSize(const OpContext& ctx) {
     mshadow::Stream<gpu> *s = ctx.get_stream<gpu>();
-    /*CUDNN_CALL(cudnnGetConvolutionForwardWorkspaceSize(s->dnn_handle_,
+#if MXNET_USE_CUDNN == 1
+    CUDNN_CALL(cudnnGetConvolutionForwardWorkspaceSize(s->dnn_handle_,
                                                        data_desc_,
                                                        filter_desc_,
                                                        conv_desc_,
                                                        out_desc_,
                                                        algo_,
-                                                       &workspace_byte_));*/
+                                                       &workspace_byte_));
+#endif
+#if MXNET_USE_MIOPEN == 1
     CUDNN_CALL(miopenConvolutionForwardGetWorkSpaceSize(s->dnn_handle_,
                filter_desc_,
                data_desc_,
                conv_desc_,
                out_desc_,
                &workspace_byte_));
-
+#endif
     workspace_ = workspace_byte_ / sizeof(SrcType) + 1;
   }
 
@@ -293,6 +356,18 @@ class QuantizedCuDNNConvOp {
   ConvolutionParam param_;
   size_t workspace_;
   size_t workspace_byte_;
+#if MXNET_USE_CUDNN == 1
+  cudnnDataType_t src_type_;
+  cudnnDataType_t dst_type_;
+  cudnnDataType_t cmp_type_;
+  cudnnTensorFormat_t format_;
+  cudnnConvolutionDescriptor_t conv_desc_;
+  cudnnTensorDescriptor_t data_desc_;
+  cudnnFilterDescriptor_t filter_desc_;
+  cudnnTensorDescriptor_t out_desc_;
+  cudnnConvolutionFwdAlgo_t algo_;
+#endif
+#if MXNET_USE_MIOPEN == 1
   miopenDataType_t src_type_;
   miopenDataType_t dst_type_;
   miopenDataType_t cmp_type_;
@@ -302,6 +377,7 @@ class QuantizedCuDNNConvOp {
   miopenTensorDescriptor_t filter_desc_;
   miopenTensorDescriptor_t out_desc_;
   miopenConvFwdAlgorithm_t algo_;
+#endif
   uint32_t N, H, W, C;
   float alpha_ = 1.0f;
   float beta_ = 0.0f;

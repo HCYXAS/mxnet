@@ -214,7 +214,12 @@ endif
 
 ifeq ($(USE_CUDNN), 1)
 	CFLAGS += -DMSHADOW_USE_CUDNN=1
-	LDFLAGS += -L/opt/rocm/miopen/lib -lMIOpen #-lcudnn
+	LDFLAGS += -lcudnn
+endif
+
+ifeq ($(USE_MIOPEN), 1)
+	CFLAGS += -DMSHADOW_USE_MIOPEN=1
+	LDFLAGS += -L/opt/rocm/miopen/lib -lMIOpen
 endif
 
 # gperftools malloc library (tcmalloc)
@@ -391,7 +396,6 @@ ifeq ($(USE_GPU), 1)
         LDFLAGS += -L/opt/rocm/hipblas/lib  -lhipblas
 	LDFLAGS += -L/opt/rocm/hiprand/lib  -lhiprand
 	ifneq (, $(findstring nvcc, $(HIP_PLATFORM)))
-		LDFLAGS += -L/opt/rocm/rocfft/lib -lrocfft
 		LDFLAGS += -lcudart -lcuda -lcufft -lcublas
 		LDFLAGS += -L/usr/local/cuda/lib64/stubs
 	else

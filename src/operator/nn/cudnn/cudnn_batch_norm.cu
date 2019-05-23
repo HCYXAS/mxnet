@@ -29,7 +29,7 @@
 
 namespace mxnet {
 namespace op {
-#if CUDNN_MAJOR == 4
+#if MXNET_USE_MIOPEN == 1 || (MXNET_USE_CUDNN==1 &&  CUDNN_MAJOR == 4)
 
 template<typename DType>
 static CuDNNBatchNormOp<DType> &GetCuDNNOp(const BatchNormParam& param) {
@@ -46,12 +46,12 @@ static void BatchNormCompute_CuDNNv4(const nnvm::NodeAttrs& attrs,
     const OpContext& ctx, const std::vector<TBlob>& inputs,
     const std::vector<OpReqType>& req,
     const std::vector<TBlob>& outputs) {
-#if CUDNN_MAJOR >= 5
+#if MXNET_USE_MIOPEN == 1 || (MXNET_USE_CUDNN==1 && CUDNN_MAJOR >= 5)
   LOG(FATAL) << "CuDNNBatchNorm is merged into BatchNorm for cudnn version above v5."
     "Use the later instead.";
 #else
   const BatchNormParam& param = nnvm::get<BatchNormParam>(attrs.parsed);
-  CHECK_EQ(inputs.size(), 5U);
+ CHECK_EQ(inputs.size(), 5U);
   std::vector<TBlob> in_data(inputs.begin(), inputs.begin() + 3);
   std::vector<TBlob> aux_states(inputs.begin() + 3, inputs.end());
   GetCuDNNOp<float>(param).Forward(ctx, in_data, req, outputs, aux_states);
@@ -62,7 +62,7 @@ static void BatchNormGradCompute_CuDNNv4(const nnvm::NodeAttrs& attrs,
     const OpContext& ctx, const std::vector<TBlob>& inputs,
     const std::vector<OpReqType>& req,
     const std::vector<TBlob>& outputs) {
-#if CUDNN_MAJOR >= 5
+#if MXNET_USE_MIOPEN == 1 || (MXNET_USE_CUDNN==1 && CUDNN_MAJOR >= 5)
   LOG(FATAL) << "CuDNNBatchNorm is merged into BatchNorm for cudnn version above v5."
     "Use the later instead.";
 #else

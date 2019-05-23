@@ -35,7 +35,7 @@
 #define IS_TRAINING_FLAG      16
 #define USE_GLOBAL_STATS_FLAG 32
 
-#if MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 5
+#if MXNET_USE_MIOPEN == 1 && (MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 5)
 #include "./cudnn/cudnn_batch_norm-inl.h"
 #endif
 

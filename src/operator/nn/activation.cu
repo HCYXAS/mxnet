@@ -25,14 +25,14 @@
 */
 #include "./activation-inl.h"
 #include "../mshadow_op.h"
-#if MXNET_USE_CUDNN == 1
+#if MXNET_USE_CUDNN == 1 || MXNET_USE_MIOPEN == 1
 #include "./cudnn/cudnn_activation-inl.h"
 #endif
 
 namespace mxnet {
 namespace op {
 
-#if MXNET_USE_CUDNN == 1
+#if MXNET_USE_CUDNN == 1 || MXNET_USE_MIOPEN == 1
 
 template<typename DType>
 static CuDNNActivationOp<DType> &get_cudnn_op(const ActivationParam& param) {

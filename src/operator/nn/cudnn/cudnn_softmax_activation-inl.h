@@ -35,8 +35,16 @@ namespace op {
 class CuDNNSoftmaxActivationOp {
  public:
   CuDNNSoftmaxActivationOp() {
+#if MXNET_USE_CUDNN == 1
+    dtype_ = CUDNN_DATA_FLOAT;
+    CUDNN_CALL(cudnnCreateTensorDescriptor(&shape_desc_));
+#endif
+
+#if MXNET_USE_MIOPEN == 1
     dtype_ = miopenFloat;
     CUDNN_CALL(miopenCreateTensorDescriptor(&shape_desc_));
+#endif
+
   }
 
   void Init(SoftmaxActivationParam param) {
@@ -44,7 +52,14 @@ class CuDNNSoftmaxActivationOp {
   }
 
   ~CuDNNSoftmaxActivationOp() {
+#if MXNET_USE_CUDNN == 1
+    CUDNN_CALL(cudnnDestroyTensorDescriptor(shape_desc_));
+#endif
+
+#if MXNET_USE_MIOPEN == 1
     CUDNN_CALL(miopenDestroyTensorDescriptor(shape_desc_));
+#endif
+
   }
 
   void Forward(const OpContext &ctx, const TBlob &in_data,
@@ -54,15 +69,18 @@ class CuDNNSoftmaxActivationOp {
     Stream<gpu> *s = ctx.get_stream<gpu>();
     Tensor<gpu, 4> data;
     Tensor<gpu, 4> out;
-    //TODO MIOpen does not support Softmax modes. MIOpen implements the SOFTMAX_MODE_CHANNEL flavor.
-    //cudnnSoftmaxMode_t softmax_mode;
+#if MXNET_USE_CUDNN == 1
+    cudnnSoftmaxMode_t softmax_mode;
+#endif
     if (param_.mode == softmax_activation::kInstance) {
       CHECK_EQ(in_data.ndim(), 2)
         << "Input need to have 2 dimensions when mode=instance.";
       Shape<4> dshape = Shape4(in_data.shape_[0], in_data.shape_[1], 1, 1);
       data = in_data.get_with_shape<gpu, 4, real_t>(dshape, s);
       out = out_data.get_with_shape<gpu, 4, real_t>(dshape, s);
-      //softmax_mode = CUDNN_SOFTMAX_MODE_INSTANCE;  //TODO MIOpen does not support Softmax modes.
+#if MXNET_USE_CUDNN == 1 
+     softmax_mode = CUDNN_SOFTMAX_MODE_INSTANCE;
+#endif
     } else {
       CHECK_GE(in_data.ndim(), 3)
         << "Input need to have a least 3 dimensions when mode=channel";
@@ -79,11 +97,34 @@ class CuDNNSoftmaxActivationOp {
       dshape[3] = size_left;
       data = in_data.get_with_shape<gpu, 4, real_t>(dshape, s);
       out = out_data.get_with_shape<gpu, 4, real_t>(dshape, s);
-      //softmax_mode = CUDNN_SOFTMAX_MODE_CHANNEL; //TODO MIOpen does not support Softmax modes.
+#if MXNET_USE_CUDNN == 1      
+     softmax_mode = CUDNN_SOFTMAX_MODE_CHANNEL;
+#endif
     }
     float alpha = 1.0f;
     float beta = 0.0f;
     CHECK_EQ(s->dnn_handle_ownership_, mshadow::Stream<gpu>::OwnHandle);
+    
+#if MXNET_USE_CUDNN == 1
+    CUDNN_CALL(cudnnSetTensor4dDescriptor(shape_desc_,
+                                          CUDNN_TENSOR_NCHW,
+                                          dtype_,
+                                          data.shape_[0],
+                                          data.shape_[1],
+                                          data.shape_[2],
+                                          data.shape_[3]));
+    CUDNN_CALL(cudnnSoftmaxForward(s->dnn_handle_,
+                                   CUDNN_SOFTMAX_ACCURATE,
+                                   softmax_mode,
+                                   &alpha,
+                                   shape_desc_,
+                                   data.dptr_,
+                                   &beta,
+                                   shape_desc_,
+                                   out.dptr_));
+#endif
+
+#if MXNET_USE_MIOPEN == 1
     CUDNN_CALL(miopenSet4dTensorDescriptor(shape_desc_,
                                           //CUDNN_TENSOR_NCHW,
                                           dtype_,
@@ -100,6 +141,7 @@ class CuDNNSoftmaxActivationOp {
                                    &beta,
                                    shape_desc_,
                                    out.dptr_));
+#endif
   }
 
   void Backward(const OpContext &ctx, const TBlob &out_grad,
@@ -113,8 +155,9 @@ class CuDNNSoftmaxActivationOp {
     Tensor<gpu, 4> data;
     Tensor<gpu, 4> output_data;
     Tensor<gpu, 4> input_grad;
-    //TODO MIOpen does not support Softmax modes. MIOpen implements the SOFTMAX_MODE_CHANNEL flavor.
-    //cudnnSoftmaxMode_t softmax_mode;
+#if MXNET_USE_CUDNN == 1
+    cudnnSoftmaxMode_t softmax_mode;
+#endif
     if (param_.mode == softmax_activation::kInstance) {
       CHECK_EQ(in_grad.ndim(), 2)
         << "Input need to have 2 dimensions when mode=instance.";
@@ -122,7 +165,9 @@ class CuDNNSoftmaxActivationOp {
       grad = out_grad.get_with_shape<gpu, 4, real_t>(dshape, s);
       output_data = out_data.get_with_shape<gpu, 4, real_t>(dshape, s);
       input_grad = in_grad.get_with_shape<gpu, 4, real_t>(dshape, s);
-      //softmax_mode = CUDNN_SOFTMAX_MODE_INSTANCE; //TODO MIOpen does not support Softmax modes.
+#if MXNET_USE_CUDNN == 1
+      softmax_mode = CUDNN_SOFTMAX_MODE_INSTANCE;
+#endif
     } else {
       CHECK_GE(in_grad.ndim(), 3)
         << "Input need to have a least 3 dimensions when mode=channel";
@@ -140,9 +185,25 @@ class CuDNNSoftmaxActivationOp {
       output_data = out_data.get_with_shape<gpu, 4, real_t>(dshape, s);
       grad = out_grad.get_with_shape<gpu, 4, real_t>(dshape, s);
       input_grad = in_grad.get_with_shape<gpu, 4, real_t>(dshape, s);
-      //softmax_mode = CUDNN_SOFTMAX_MODE_CHANNEL; //TODO MIOpen does not support Softmax modes
+#if MXNET_USE_CUDNN == 1
+      softmax_mode = CUDNN_SOFTMAX_MODE_CHANNEL;
+#endif
     }
     CHECK_EQ(s->dnn_handle_ownership_, mshadow::Stream<gpu>::OwnHandle);
+#if MXNET_USE_CUDNN == 1
+    CUDNN_CALL(cudnnSoftmaxBackward(s->dnn_handle_,
+                                    CUDNN_SOFTMAX_ACCURATE,
+                                    softmax_mode,
+                                    &alpha,
+                                    shape_desc_,
+                                    output_data.dptr_,
+                                    shape_desc_,
+                                    grad.dptr_,
+                                    &beta,
+                                    shape_desc_,
+                                    input_grad.dptr_));
+#endif
+#if MXNET_USE_MIOPEN == 1
     CUDNN_CALL(miopenSoftmaxBackward(s->dnn_handle_,
                                     //CUDNN_SOFTMAX_ACCURATE,
                                     //softmax_mode,
@@ -154,11 +215,18 @@ class CuDNNSoftmaxActivationOp {
                                     &beta,
                                     shape_desc_,
                                     input_grad.dptr_));
+#endif
   }
 
  private:
+#if MXNET_USE_CUDNN == 1
+  cudnnDataType_t dtype_;
+  cudnnTensorDescriptor_t shape_desc_;
+#endif
+#if MXNET_USE_MIOPEN == 1
   miopenDataType_t dtype_;
   miopenTensorDescriptor_t shape_desc_;
+#endif
   SoftmaxActivationParam param_;
 };  // class CuDNNSoftmaxActivationOp
 }  // namespace op

@@ -28,7 +28,7 @@
 #include "./bilinear_sampler-inl.h"
 #include <algorithm>
 #include "../common/cuda_utils.h"
-#if MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 5
+#if MXNET_USE_MIOPEN == 1 || (MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 5)
 #include "./cudnn_bilinear_sampler-inl.h"
 #endif  // MXNET_USE_CUDNN && CUDNN_MAJOR
 

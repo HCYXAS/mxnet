@@ -153,9 +153,16 @@ class NaiveEngine final : public Engine {
       if (streams_.size() <= dev_id) {
         streams_.resize(dev_id + 1, nullptr);
       }
+#if defined (__HIP_PLATFORM_HCC__)
       if (streams_[dev_id] == nullptr) {
-        streams_[dev_id] = mshadow::NewStream<gpu>(true, MXNET_USE_CUDNN != 0, dev_id);
+        streams_[dev_id] = mshadow::NewStream<gpu>(true, MXNET_USE_MIOPEN != 0);
       }
+#endif
+#if defined (__HIP_PLATFORM_NVCC__)
+  if (streams_[dev_id] == nullptr) {
+        streams_[dev_id] = mshadow::NewStream<gpu>(true, MXNET_USE_CUDNN != 0);
+      }
+#endif
       exec_fun(RunContext{exec_ctx, streams_[dev_id]}, callback);
 #else
       LOG(FATAL) << "GPU is not enabled";

@@ -32,7 +32,7 @@
 
 namespace mxnet {
 namespace op {
-#if MXNET_USE_CUDNN == 1
+#if MXNET_USE_CUDNN == 1 || MXNET_USE_MIOPEN == 1 
 template<>
 CuDNNAlgoReg<ConvolutionParam> *CuDNNAlgoReg<ConvolutionParam>::Get() {
   static CuDNNAlgoReg<ConvolutionParam> inst;

@@ -35,7 +35,7 @@
 #include "../deconvolution-inl.h"
 namespace mxnet {
 namespace op {
-#if MXNET_USE_CUDNN == 1
+#if MXNET_USE_CUDNN == 1 || MXNET_USE_MIOPEN == 1
 
 /*!
  * \brief A cuDNN algorithm: an algo number and whether it should be run in TENSOR CORE mode.
@@ -52,11 +52,11 @@ class CuDNNAlgo {
   }
   CuDNNAlgoType AlgoNumber() const { return algo_number_; }
   bool IsTensorCoreAlgo() const { return is_tensor_core_algo_; }
-/*  #if CUDNN_MAJOR >= 7
+  #if MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 7
   cudnnMathType_t MathType() {
     return IsTensorCoreAlgo() ? CUDNN_TENSOR_OP_MATH : CUDNN_DEFAULT_MATH;
   }
-  #endif*/ //TODO Commented as cudnnMathType_t is unsupported in MIOpen
+  #endif
  private:
   CuDNNAlgoType algo_number_;
   bool is_tensor_core_algo_;
@@ -65,19 +65,17 @@ class CuDNNAlgo {
 template<typename ParamType>
 class CuDNNAlgoReg {
  public:
+#if MXNET_USE_CUDNN == 1
   bool Find(const ParamType &param,
             const std::vector<TShape> &in_shape,
             const std::vector<TShape> &out_shape,
-            miopenDataType_t cudnn_data_type,
-            miopenDataType_t cudnn_forward_compute_type,
-            miopenDataType_t cudnn_backward_compute_type,
+            cudnnDataType_t cudnn_data_type,
+            cudnnDataType_t cudnn_forward_compute_type,
+            cudnnDataType_t cudnn_backward_compute_type,
             int sm_arch,
-            CuDNNAlgo<miopenConvFwdAlgorithm_t> *fwd,
-            CuDNNAlgo<miopenConvBwdDataAlgorithm_t> *bwd,
-            CuDNNAlgo<miopenConvBwdWeightsAlgorithm_t> *flt) {
-            /*CuDNNAlgo<cudnnConvolutionFwdAlgo_t> *fwd,
+            CuDNNAlgo<cudnnConvolutionFwdAlgo_t> *fwd,
             CuDNNAlgo<cudnnConvolutionBwdDataAlgo_t> *bwd,
-            CuDNNAlgo<cudnnConvolutionBwdFilterAlgo_t> *flt) {*/
+            CuDNNAlgo<cudnnConvolutionBwdFilterAlgo_t> *flt) {
     CHECK(in_shape.size() == 2 || in_shape.size() == 3);
     ParamKey key{param, in_shape[0], in_shape[1], out_shape[0], cudnn_data_type,
                  cudnn_forward_compute_type, cudnn_backward_compute_type, sm_arch};
@@ -91,20 +89,46 @@ class CuDNNAlgoReg {
     }
     return false;
   }
+#endif 
 
+#if MXNET_USE_MIOPEN == 1
+  bool Find(const ParamType &param,
+            const std::vector<TShape> &in_shape,
+            const std::vector<TShape> &out_shape,
+            miopenDataType_t cudnn_data_type,
+            miopenDataType_t cudnn_forward_compute_type,
+            miopenDataType_t cudnn_backward_compute_type,
+            int sm_arch,
+            CuDNNAlgo<miopenConvFwdAlgorithm_t> *fwd,
+            CuDNNAlgo<miopenConvBwdDataAlgorithm_t> *bwd,
+            CuDNNAlgo<miopenConvBwdWeightsAlgorithm_t> *flt) {
+    CHECK(in_shape.size() == 2 || in_shape.size() == 3);
+    ParamKey key{param, in_shape[0], in_shape[1], out_shape[0], cudnn_data_type,
+                 cudnn_forward_compute_type, cudnn_backward_compute_type, sm_arch};
+    std::lock_guard<std::mutex> guard(lock_);
+    auto i = reg_.find(key);
+    if (i != reg_.end()) {
+      *fwd = i->second.fwd;
+      *bwd = i->second.bwd;
+      *flt = i->second.flt;
+      return true;
+    }
+    return false;
+  }
+#endif
+
+
+#if MXNET_USE_CUDNN == 1
   void Register(const ParamType &param,
                 const std::vector<TShape> &in_shape,
                 const std::vector<TShape> &out_shape,
-                miopenDataType_t cudnn_data_type,
-                miopenDataType_t cudnn_forward_compute_type,
-                miopenDataType_t cudnn_backward_compute_type,
+                cudnnDataType_t cudnn_data_type,
+                cudnnDataType_t cudnn_forward_compute_type,
+                cudnnDataType_t cudnn_backward_compute_type,
                 int sm_arch,
-                const CuDNNAlgo<miopenConvFwdAlgorithm_t> &fwd,
-                const CuDNNAlgo<miopenConvBwdDataAlgorithm_t> &bwd,
-                const CuDNNAlgo<miopenConvBwdWeightsAlgorithm_t> &flt) {
-                /*const CuDNNAlgo<cudnnConvolutionFwdAlgo_t> &fwd,
+                const CuDNNAlgo<cudnnConvolutionFwdAlgo_t> &fwd,
                 const CuDNNAlgo<cudnnConvolutionBwdDataAlgo_t> &bwd,
-                const CuDNNAlgo<cudnnConvolutionBwdFilterAlgo_t> &flt) {*/
+                const CuDNNAlgo<cudnnConvolutionBwdFilterAlgo_t> &flt) {
     CHECK(in_shape.size() == 2 || in_shape.size() == 3);
     ParamKey key{param, in_shape[0], in_shape[1], out_shape[0], cudnn_data_type,
                  cudnn_forward_compute_type, cudnn_backward_compute_type, sm_arch};
@@ -129,26 +153,71 @@ class CuDNNAlgoReg {
     reg_[key].bwd = bwd;
     reg_[key].flt = flt;
   }
+#endif
 
+#if MXNET_USE_MIOPEN == 1
+  void Register(const ParamType &param,
+                const std::vector<TShape> &in_shape,
+                const std::vector<TShape> &out_shape,
+                miopenDataType_t cudnn_data_type,
+                miopenDataType_t cudnn_forward_compute_type,
+                miopenDataType_t cudnn_backward_compute_type,
+                int sm_arch,
+                const CuDNNAlgo<miopenConvFwdAlgorithm_t> &fwd,
+                const CuDNNAlgo<miopenConvBwdDataAlgorithm_t> &bwd,
+                const CuDNNAlgo<miopenConvBwdWeightsAlgorithm_t> &flt) {
+    CHECK(in_shape.size() == 2 || in_shape.size() == 3);
+    ParamKey key{param, in_shape[0], in_shape[1], out_shape[0], cudnn_data_type,
+                 cudnn_forward_compute_type, cudnn_backward_compute_type, sm_arch};
+    std::lock_guard<std::mutex> guard(lock_);
+    if (param.cudnn_tune.value() && reg_.size() % 50 == 0) {
+      LOG(INFO) << "Running performance tests to find the best convolution "
+                   "algorithm, "
+                   "this can take a while... (setting env variable "
+                   "MXNET_CUDNN_AUTOTUNE_DEFAULT to 0 to disable)";
+      if (reg_.size() >= 1000) {
+        // Many people are very concerned about this warning, so change the warning once.
+        if (!is_warning_autotune_) {
+          LOG(INFO)
+            << "If you see this message in the middle of training, you are "
+            "probably using bucketing. Consider setting env variable "
+            "MXNET_CUDNN_AUTOTUNE_DEFAULT to 0 to disable cudnn tuning.";
+          is_warning_autotune_ = true;
+        }
+      }
+    }
+    reg_[key].fwd = fwd;
+    reg_[key].bwd = bwd;
+    reg_[key].flt = flt;
+  }
+#endif
   static CuDNNAlgoReg *Get();
 
  private:
   struct CudnnAlgorithms {
-    /*CuDNNAlgo<cudnnConvolutionFwdAlgo_t> fwd;
+#if MXNET_USE_CUDNN == 1
+    CuDNNAlgo<cudnnConvolutionFwdAlgo_t> fwd;
     CuDNNAlgo<cudnnConvolutionBwdDataAlgo_t> bwd;
-    CuDNNAlgo<cudnnConvolutionBwdFilterAlgo_t> flt;*/
-
+    CuDNNAlgo<cudnnConvolutionBwdFilterAlgo_t> flt;
+#elif MXNET_USE_MIOPEN == 1
     CuDNNAlgo<miopenConvFwdAlgorithm_t> fwd;
     CuDNNAlgo<miopenConvBwdDataAlgorithm_t> bwd;
     CuDNNAlgo<miopenConvBwdWeightsAlgorithm_t> flt;
+#endif 
   };
 
   struct ParamKey {
     ParamType param;
     TShape data_shape, weight_shape, out_shape;
+#if MXNET_USE_CUDNN == 1
+    cudnnDataType_t cudnn_data_type;
+    cudnnDataType_t cudnn_forward_compute_type;
+    cudnnDataType_t cudnn_backward_compute_type;
+#elif MXNET_USE_MIOPEN == 1
     miopenDataType_t cudnn_data_type;
     miopenDataType_t cudnn_forward_compute_type;
     miopenDataType_t cudnn_backward_compute_type;
+#endif
     int sm_arch;
 
     bool operator==(const ParamKey& other) const {

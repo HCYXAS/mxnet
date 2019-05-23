@@ -58,7 +58,7 @@ ADD_CFLAGS =
 #---------------------------------------------
 
 # whether use CUDA during compile
-USE_CUDA = 0
+USE_GPU = 0
 
 # add the path to CUDA library to link and compile flag
 # if you have already add them to environment variable, leave it as NONE
@@ -69,7 +69,7 @@ USE_CUDA_PATH = NONE
 ENABLE_CUDA_RTC = 1
 
 # whether use CUDNN R3 library
-USE_CUDNN = 0
+USE_ACCMI = 0
 
 # whether use opencv during compilation
 # you can disable it, however, you will not able to use

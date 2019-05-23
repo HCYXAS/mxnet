@@ -27,14 +27,14 @@
 #include "./convolution-inl.h"
 #include <vector>
 #include "./depthwise_convolution-inl.h"
-#if MXNET_USE_CUDNN == 1
+#if MXNET_USE_CUDNN == 1 || MXNET_USE_MIOPEN == 1
 #include "./cudnn/cudnn_convolution-inl.h"
 #endif  // MXNET_USE_CUDNN
 
 namespace mxnet {
 namespace op {
 
-#if MXNET_USE_CUDNN == 1
+#if MXNET_USE_CUDNN == 1 || MXNET_USE_MIOPEN == 1
 template<typename DType>
 static CuDNNConvolutionOp<DType> &GetCuDNNConvOp(const ConvolutionParam& param,
     int forward_compute_type, int backward_compute_type,
@@ -110,7 +110,7 @@ void ConvolutionCompute<gpu>(const nnvm::NodeAttrs& attrs,
     return;
   }
 
-#if MXNET_USE_CUDNN == 1
+#if MXNET_USE_CUDNN == 1 || MXNET_USE_MIOPEN == 1
   // On fp16-I/O instances, use fp32 compute (i.e. pseudo-fp16).
   int compute_type = (dtype == mshadow::kFloat16) ? mshadow::kFloat32 : dtype;
 
@@ -180,7 +180,7 @@ void ConvolutionGradCompute<gpu>(const nnvm::NodeAttrs& attrs,
     return;
   }
 
-#if MXNET_USE_CUDNN == 1
+#if MXNET_USE_CUDNN == 1 || MXNET_USE_MIOPEN == 1
   // On fp16-I/O instances, use fp32 compute (i.e. pseudo-fp16).
   int compute_type = (dtype == mshadow::kFloat16) ? mshadow::kFloat32 : dtype;
 

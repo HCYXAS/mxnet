@@ -56,7 +56,9 @@
 #ifndef MXNET_USE_CUDNN
 #define MXNET_USE_CUDNN MSHADOW_USE_CUDNN
 #endif
-
+#ifndef MXNET_USE_MIOPEN
+#define MXNET_USE_MIOPEN MSHADOW_USE_MIOPEN
+#endif
 /*!
  *\brief whether to use cusolver library
  */

@@ -100,7 +100,7 @@ class IFFTOp : public Operator {
                 Shape1(param_.compute_size*dim_*2), s);
     Tensor<xpu, 2, DType> complex_data = Tensor<xpu, 2, DType>(workspace.dptr_,
                                               Shape2(param_.compute_size, dim_*2), s);
-    #if MSHADOW_USE_CUDNN
+    #if MSHADOW_USE_MIOPEN || MSHADOW_USE_CUDNN
     // start ifft
     hipfftHandle plan;
     hipfftPlanMany(&plan, 1, &dim_, nullptr, 0, 0, nullptr, 0, 0, HIPFFT_C2C, param_.compute_size);
@@ -164,7 +164,7 @@ class IFFTOp : public Operator {
                 Shape1(param_.compute_size*dim_*2), s);
     Tensor<xpu, 2, DType> complex_data = Tensor<xpu, 2, DType>(workspace.dptr_,
                                               Shape2(param_.compute_size, dim_*2), s);
-    #if MSHADOW_USE_CUDNN
+    #if MSHADOW_USE_MIOPEN || MSHADOW_USE_CUDNN
     // start fft
     hipfftHandle plan;
     hipfftPlanMany(&plan, 1, &dim_, nullptr, 0, 0, nullptr, 0, 0, HIPFFT_C2C, param_.compute_size);

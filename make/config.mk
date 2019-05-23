@@ -77,8 +77,22 @@ endif
 # whether to enable CUDA runtime compilation
 ENABLE_CUDA_RTC = 1
 
-# whether use CuDNN R3 library
-USE_CUDNN = 0
+#ENABLE USE_ACCMI for Deep learning Acceleraion
+
+USE_ACCMI = 1
+
+ifeq ($(USE_ACCMI), 1)
+    ifeq ($(HIP_PLATFORM),hcc)
+         USE_MIOPEN=1
+    else  ifeq ($(HIP_PLATFORM),nvcc)
+         USE_CUDNN=1
+    endif
+else
+     USE_MIOPEN=0
+     USE_CUDNN=0
+endif
+
+
 
 #whether to use NCCL library
 USE_NCCL = 0
