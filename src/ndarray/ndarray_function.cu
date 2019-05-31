@@ -23,7 +23,7 @@
  */
 
 // this will be invoked by nvcc and compile GPU version
-#include <cub/cub.cuh>
+#include <hipcub/hipcub.hpp>
 #include <dmlc/logging.h>
 #include "../operator/mxnet_op.h"
 #include "../operator/tensor/init_op.h"
@@ -127,7 +127,7 @@ void ElementwiseSumRspImpl(mshadow::Stream<gpu>* s,
       IType* row_flg = NULL;
       void* d_temp_storage = NULL;
       size_t temp_storage_bytes = 0;
-      cub::DeviceScan::InclusiveSum(d_temp_storage,
+      hipcub::DeviceScan::InclusiveSum(d_temp_storage,
                                     temp_storage_bytes,
                                     row_flg,
                                     row_flg,
@@ -151,7 +151,7 @@ void ElementwiseSumRspImpl(mshadow::Stream<gpu>* s,
         }
       }
       // Compute inclusive prefix sum over row_flg
-      cub::DeviceScan::InclusiveSum(d_temp_storage,
+      hipcub::DeviceScan::InclusiveSum(d_temp_storage,
                                     temp_storage_bytes,
                                     row_flg,
                                     row_flg,

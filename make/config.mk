@@ -78,7 +78,7 @@ endif
 ENABLE_CUDA_RTC = 1
 
 # whether use CuDNN R3 library
-USE_CUDNN = 0
+USE_CUDNN = 1
 
 #whether to use NCCL library
 USE_NCCL = 0

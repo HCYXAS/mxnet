@@ -26,8 +26,10 @@
 */
 #ifndef MXNET_OPERATOR_TENSOR_INDEXING_OP_CUH_
 #define MXNET_OPERATOR_TENSOR_INDEXING_OP_CUH_
-#include <cub/device/device_run_length_encode.cuh>
-#include <cub/device/device_scan.cuh>
+//#include <cub/device/device_run_length_encode.cuh>
+//#include <cub/device/device_scan.cuh>
+
+#include <hipcub/hipcub.hpp>
 
 #if defined(__HIP_PLATFORM_NVCC__) && CUDA_VERSION >= 9000
 #define FULLMASK 0xFFFFFFFF
@@ -188,10 +190,10 @@ template <typename IndexType, typename xpu>
 inline typename std::enable_if<std::is_same<xpu, gpu>::value, size_t>::type
 AddTakeGradLargeBatchWorkspaceSize(size_t num_keys) {
   size_t encode_bytes = 0;
-  cub::DeviceRunLengthEncode::Encode<IndexType*, IndexType*, IndexType*, int*>
+  hipcub::DeviceRunLengthEncode::Encode<IndexType*, IndexType*, IndexType*, int*>
     (NULL, encode_bytes, NULL, NULL, NULL, NULL, num_keys);
   size_t exclusivesum_bytes = 0;
-  cub::DeviceScan::ExclusiveSum<IndexType*, IndexType*>(NULL, exclusivesum_bytes,
+  hipcub::DeviceScan::ExclusiveSum<IndexType*, IndexType*>(NULL, exclusivesum_bytes,
     NULL, NULL, num_keys);
   size_t temporary_bytes = std::max(encode_bytes, exclusivesum_bytes);
   size_t unique_bytes = num_keys*sizeof(IndexType);
@@ -286,10 +288,10 @@ inline void AddTakeGradLargeBatch(mshadow::Tensor<gpu, 2, DType> dst,
     size_t num_runs_bytes = 1*sizeof(int);
 
     size_t encode_bytes = 0;
-    cub::DeviceRunLengthEncode::Encode<IndexType*, IndexType*, IndexType*, int*>
+    hipcub::DeviceRunLengthEncode::Encode<IndexType*, IndexType*, IndexType*, int*>
       (NULL, encode_bytes, NULL, NULL, NULL, NULL, sorted.size(0), stream);
     size_t exclusivesum_bytes = 0;
-    cub::DeviceScan::ExclusiveSum<IndexType*, IndexType*>
+    hipcub::DeviceScan::ExclusiveSum<IndexType*, IndexType*>
       (NULL, exclusivesum_bytes, NULL, NULL, sorted.size(0), stream);
     size_t temporary_bytes = std::max(encode_bytes, exclusivesum_bytes);
 
@@ -304,12 +306,12 @@ inline void AddTakeGradLargeBatch(mshadow::Tensor<gpu, 2, DType> dst,
     void* temporary_storage = reinterpret_cast<void *>(workspace->dptr_ + unique_bytes +
       counts_bytes + num_runs_bytes);
 
-    cub::DeviceRunLengthEncode::Encode<IndexType*, IndexType*, IndexType*, int*>
+    hipcub::DeviceRunLengthEncode::Encode<IndexType*, IndexType*, IndexType*, int*>
     (temporary_storage, temporary_bytes, sorted.dptr_, unique_out_ptr, counts_out_ptr,
       num_runs_ptr, sorted.size(0), stream);
 
     sum_counts_ptr = unique_out_ptr;
-    cub::DeviceScan::ExclusiveSum<IndexType*, IndexType*>
+    hipcub::DeviceScan::ExclusiveSum<IndexType*, IndexType*>
     (temporary_storage, temporary_bytes, counts_out_ptr, sum_counts_ptr,
       sorted.size(0), stream);
   }

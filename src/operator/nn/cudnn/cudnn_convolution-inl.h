@@ -137,6 +137,19 @@ class CuDNNConvolutionOp {
     DType *wmat_ptr = GetNdPtr(in_data[conv::kWeight], param_.kernel.ndim() + 2, s);
     DType *out_ptr = GetNdPtr(out_data[conv::kOut], param_.kernel.ndim() + 2, s);
 
+    const int kMaxAlgos = 10;
+    int nalgo = kMaxAlgos;
+
+    hipdnnConvolutionFwdAlgoPerf_t fwd_algo[kMaxAlgos];
+    CUDNN_CALL(hipdnnFindConvolutionForwardAlgorithm(s->dnn_handle_,
+                                                            in_desc_,
+                                                            filter_desc_,
+                                                            forward_conv_desc_,
+                                                            out_desc_,
+                                                            kMaxAlgos,
+                                                            &nalgo,
+                                                            fwd_algo));
+
     for (uint32_t g = 0; g < param_.num_group; ++g) {
       typename DataType<DType>::ScaleType alpha = 1.0f;
       typename DataType<DType>::ScaleType beta = 0.0f;
@@ -232,6 +245,19 @@ class CuDNNConvolutionOp {
                filter_desc_,
                gwmat_ptr + weight_offset_ * g));
         #elif CUDNN_MAJOR >= 5
+         const int kMaxAlgos = 10;
+         int nalgo = kMaxAlgos;
+
+            hipdnnConvolutionBwdFilterAlgoPerf_t bwd_filter_algo[kMaxAlgos];
+            CUDNN_CALL(hipdnnFindConvolutionBackwardFilterAlgorithm(s->dnn_handle_,
+                                                                   in_desc_,
+                                                                   out_desc_,
+                                                                   back_conv_desc_w_,
+                                                                   filter_desc_,
+                                                                   kMaxAlgos,
+                                                                   &nalgo,
+                                                                   bwd_filter_algo));
+
           CUDNN_CALL(hipdnnConvolutionBackwardFilter(s->dnn_handle_,
                &alpha,
                in_desc_,
@@ -348,8 +374,8 @@ class CuDNNConvolutionOp {
       // As of cuDNN_v6, the unsuffixed version of cudnnSetConvolution2dDescriptor()
       // takes an additional 'computeType' parameter to set the precision of the
       // convolution calculation.  Supply this method signature for cuDNN versions < 6.
-#define cudnnSetConvolution2dDescriptor(cdesc, p0, p1, s0, s1, d0, d1, m, ct) \
-        cudnnSetConvolution2dDescriptor(cdesc, p0, p1, s0, s1, d0, d1, m)
+#define hipdnnSetConvolution2dDescriptor(cdesc, p0, p1, s0, s1, d0, d1, m, ct) \
+        hipdnnSetConvolution2dDescriptor(cdesc, p0, p1, s0, s1, d0, d1, m)
 #endif
     if (param_.kernel.ndim() == 1 || param_.kernel.ndim() == 2) {
       // 1d or 2d conv

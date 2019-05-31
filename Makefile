@@ -58,6 +58,7 @@ ifneq ($(USE_OPENMP), 1)
 endif
 
 HIP_PLATFORM := $(shell hipconfig -P)
+HIPFLAGS = $(shell hipconfig -C)
 
 # use customized config file
 include $(config)
@@ -95,7 +96,7 @@ else
 	CFLAGS += -O3 -DNDEBUG=1
 endif
 
-HIPINCLUDE += -I. -I./3rdparty/Thrust -I/opt/rocm/hipblas/include -I/opt/rocm/hiprand/include -I/opt/rocm/rocfft/include
+HIPINCLUDE += -I. -I/opt/rocm/hipblas/include -I/opt/rocm/hiprand/include -I/opt/rocm/rocfft/include -I/opt/rocm/hipcub/include/
 CFLAGS += $(HIPINCLUDE) -I$(TPARTYDIR)/mshadow/ -I$(TPARTYDIR)/dmlc-core/include -fPIC -I$(NNVM_PATH)/include -I$(DLPACK_PATH)/include -I$(NNVM_PATH)/tvm/include -Iinclude $(MSHADOW_CFLAGS)
 LDFLAGS = -pthread $(MSHADOW_LDFLAGS) $(DMLC_LDFLAGS)
 
@@ -114,16 +115,6 @@ ifeq ($(DEBUG), 1)
 else
 	NVCCFLAGS = $(CXXFLAGS) -Xcompiler -D_FORCE_INLINES -g -O3 $(CCBINCLUDES) $(MSHADOW_NVCCFLAGS)
 endif
-
-ifeq ($(HIP_PLATFORM), hcc)
-	HIPFLAGS = $(shell hipconfig -C)
-endif
-
-ifeq ($(HIP_PLATFORM), nvcc)
-	HIPFLAGS = $(shell hipconfig -C)
-endif
-
-
 
 # CFLAGS for profiler
 ifeq ($(USE_PROFILER), 1)
@@ -391,17 +382,18 @@ LIB_DEP += $(DMLC_CORE)/libdmlc.a $(NNVM_PATH)/lib/libnnvm.a
 ALL_DEP = $(OBJ) $(EXTRA_OBJ) $(PLUGIN_OBJ) $(LIB_DEP)
 
 ifeq ($(USE_GPU), 1)
-	CFLAGS += -I$(ROOTDIR)/3rdparty/cub-hip
 	ALL_DEP += $(CUOBJ) $(EXTRA_CUOBJ) $(PLUGIN_CUOBJ)
 	LDFLAGS += -L/opt/rocm/hip/lib -lhip_hcc
         LDFLAGS += -L/opt/rocm/hipblas/lib  -lhipblas
 	LDFLAGS += -L/opt/rocm/hiprand/lib  -lhiprand
 	ifneq (, $(findstring nvcc, $(HIP_PLATFORM)))
+		CFLAGS  += -I$(ROOTDIR)/3rdparty/cub -I/opt/rocm/hipcub/include/hipcub/cub
 		LDFLAGS += -L/opt/rocm/rocfft/lib -lrocfft
 		LDFLAGS += -lcudart -lcuda -lcufft -lcublas
 		LDFLAGS += -L/usr/local/cuda/lib64/stubs
 	else
 		HIPINCLUDE += -I/opt/rocm/rocblas/include -I/opt/rocm/rocrand/include
+		CFLAGS  += -I/opt/rocm/hipcub/include/hipcub/rocprim
 		LDFLAGS += -L/opt/rocm/rocfft/lib    -lrocfft
 		LDFLAGS += -L/opt/rocm/rocblas/lib  -lrocblas
 		LDFLAGS += -L/opt/rocm/rocrand/lib  -lrocrand
