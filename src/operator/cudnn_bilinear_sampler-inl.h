@@ -39,14 +39,14 @@ class CuDNNBilinearSamplerOp : public Operator {
     this->param_ = param;
     init_cudnn_ = false;
     dtype_ = mshadow::DataType<DType>::kCudnnFlag;
-    sampler_ = CUDNN_SAMPLER_BILINEAR;
+    //sampler_ = CUDNN_SAMPLER_BILINEAR;  //TODO Unsupported in MIOpen
   }
 
   ~CuDNNBilinearSamplerOp() {
     if (init_cudnn_) {
-      CUDNN_CALL(cudnnDestroySpatialTransformerDescriptor(st_desc_));
-      CUDNN_CALL(cudnnDestroyTensorDescriptor(in_desc_));
-      CUDNN_CALL(cudnnDestroyTensorDescriptor(out_desc_));
+      //CUDNN_CALL(cudnnDestroySpatialTransformerDescriptor(st_desc_)); //TODO Unsupported in MIOpen
+      CUDNN_CALL(miopenDestroyTensorDescriptor(in_desc_));
+      CUDNN_CALL(miopenDestroyTensorDescriptor(out_desc_));
     }
   }
 
@@ -75,7 +75,7 @@ class CuDNNBilinearSamplerOp : public Operator {
     CHECK_EQ(grid_tmp.CheckContiguous(), true);
     typename DataType<DType>::ScaleType alpha = 1.0f;
     typename DataType<DType>::ScaleType beta = 0.0f;
-    CUDNN_CALL(cudnnSpatialTfSamplerForward(s->dnn_handle_,
+    /*CUDNN_CALL(cudnnSpatialTfSamplerForward(s->dnn_handle_,  //TODO Unsupported in MIOpen
                                             st_desc_,
                                             &alpha,
                                             in_desc_,
@@ -83,7 +83,7 @@ class CuDNNBilinearSamplerOp : public Operator {
                                             grid_tmp.dptr_,
                                             &beta,
                                             out_desc_,
-                                            out.dptr_));
+                                            out.dptr_));*/
   }
 
   virtual void Backward(const OpContext &ctx,
@@ -110,20 +110,20 @@ class CuDNNBilinearSamplerOp : public Operator {
     typename DataType<DType>::ScaleType beta = (req[bs::kData] == kAddTo) ? 1.0f : 0.0f;
     typename DataType<DType>::ScaleType alpha_dgrid = 1.0f;
     typename DataType<DType>::ScaleType beta_dgrid = 0.0f;
-    CUDNN_CALL(cudnnSpatialTfSamplerBackward(s->dnn_handle_,
+    /*CUDNN_CALL(cudnnSpatialTfSamplerBackward(s->dnn_handle_, //TODO Unsupported in MIOpen
                                              st_desc_,
                                              &alpha,
                                              in_desc_,
                                              data.dptr_,
                                              &beta,
-                                             in_desc_/*reuse in_desc_*/,
-                                             gdata.dptr_/*output*/,
-                                             &alpha_dgrid,
-                                             out_desc_/*reuse out_desc_*/,
-                                             grad.dptr_,
+                                             in_desc_*//*reuse in_desc_*///,
+                                             //gdata.dptr_/*output*/,
+                                             /*&alpha_dgrid,
+                                             out_desc_*//*reuse out_desc_*///,
+                                             /*grad.dptr_,
                                              grid_tmp.dptr_,
                                              &beta_dgrid,
-                                             grid_tmp.dptr_));
+                                             grid_tmp.dptr_));*/
     Assign(ggrid, req[bs::kGrid], transpose(grid_tmp, Shape4(0, 3, 1, 2)));
   }
 
@@ -133,7 +133,7 @@ class CuDNNBilinearSamplerOp : public Operator {
                    const std::vector<TBlob> &out_data) {
     using namespace mshadow;
     #if CUDNN_MAJOR >= 5
-    format_ = CUDNN_TENSOR_NCHW;
+    //format_ = CUDNN_TENSOR_NCHW; //TODO Unsupported in MIOpen
     #endif
     CHECK_EQ(in_data.size(), 2U);
     CHECK_EQ(out_data.size(), 2U);
@@ -141,18 +141,18 @@ class CuDNNBilinearSamplerOp : public Operator {
       init_cudnn_ = true;
       Tensor<gpu, 4, DType> data = in_data[bs::kData].get<gpu, 4, DType>(s);
       Tensor<gpu, 4, DType> out = out_data[bs::kOut].get<gpu, 4, DType>(s);
-      CUDNN_CALL(cudnnCreateSpatialTransformerDescriptor(&st_desc_));
-      CUDNN_CALL(cudnnCreateTensorDescriptor(&in_desc_));
-      CUDNN_CALL(cudnnCreateTensorDescriptor(&out_desc_));
-      CUDNN_CALL(cudnnSetTensor4dDescriptor(in_desc_,
-                                            format_,
+      //CUDNN_CALL(cudnnCreateSpatialTransformerDescriptor(&st_desc_));//TODO Unsupported in MIOpen
+      CUDNN_CALL(miopenCreateTensorDescriptor(&in_desc_));
+      CUDNN_CALL(miopenCreateTensorDescriptor(&out_desc_));
+      CUDNN_CALL(miopenSet4dTensorDescriptor(in_desc_,
+                                            //format_, //TODO cudnnTensorFormat_t unsupported in MIOpen
                                             dtype_,
                                             data.size(0),
                                             data.size(1),
                                             data.size(2),
                                             data.size(3)));
-      CUDNN_CALL(cudnnSetTensor4dDescriptor(out_desc_,
-                                            format_,
+      CUDNN_CALL(miopenSet4dTensorDescriptor(out_desc_,
+                                            //format_, //TODO cudnnTensorFormat_t unsupported in MIOpen
                                             dtype_,
                                             out.size(0),
                                             out.size(1),
@@ -160,22 +160,22 @@ class CuDNNBilinearSamplerOp : public Operator {
                                             out.size(3)));
       int dim[] = {static_cast<int>(out.size(0)), static_cast<int>(out.size(1)),
                    static_cast<int>(out.size(2)), static_cast<int>(out.size(3))};
-      CUDNN_CALL(cudnnSetSpatialTransformerNdDescriptor(st_desc_,
+      /*CUDNN_CALL(cudnnSetSpatialTransformerNdDescriptor(st_desc_, //TODO Unsupported in MIOpen
                                                         sampler_,
                                                         dtype_,
                                                         4,
-                                                        dim));
+                                                        dim));*/
     }
   }
 
   bool init_cudnn_;
-  cudnnDataType_t dtype_;
-  cudnnSpatialTransformerDescriptor_t st_desc_;
-  cudnnTensorDescriptor_t in_desc_;
-  cudnnTensorDescriptor_t out_desc_;
-  cudnnSamplerType_t sampler_;
+  miopenDataType_t dtype_;
+  //cudnnSpatialTransformerDescriptor_t st_desc_;  //TODO Unsupported in MIOpen
+  miopenTensorDescriptor_t in_desc_;
+  miopenTensorDescriptor_t out_desc_;
+  //cudnnSamplerType_t sampler_;
   #if CUDNN_MAJOR >= 5
-  cudnnTensorFormat_t format_;
+  //cudnnTensorFormat_t format_;
   #endif
   BilinearSamplerParam param_;
 };
