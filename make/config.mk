@@ -122,7 +122,7 @@ endif
 USE_LAPACK = 1
 
 # path to lapack library in case of a non-standard installation
-USE_LAPACK_PATH =
+USE_LAPACK_PATH =/usr/lib/x86_64-linux-gnu
 
 # add path to intel library, you may need it for MKL, if you did not add the path
 # to environment variable
@@ -209,7 +209,7 @@ EXTRA_OPERATORS =
 #----------------------------
 
 # Create C++ interface package
-USE_CPP_PACKAGE = 0
+USE_CPP_PACKAGE = 1 
 
 #----------------------------
 # plugins
