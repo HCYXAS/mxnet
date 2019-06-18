@@ -34,7 +34,7 @@ CudaModule::Chunk::Chunk(
     const std::vector<std::string>& exports) {
   NVRTC_CALL(nvrtcCreateProgram(&prog_, source, "source.cu", 0, NULL, NULL));
   for (const auto& i : exports) exports_.insert(i);
-#if CUDA_VERSION >= 8000
+#if defined(__HIP_PLATFORM_HCC__) || (defined(__HIP_PLATFORM_NVCC__) && CUDA_VERSION >= 8000)
   for (const auto& func : exports) {
     NVRTC_CALL(nvrtcAddNameExpression(prog_, func.c_str()));
   }
@@ -102,7 +102,7 @@ CUfunction CudaModule::Chunk::GetFunction(
 std::shared_ptr<CudaModule::Kernel> CudaModule::GetKernel(
     const std::string& name, const std::vector<ArgType>& signature) {
   std::string mangled_name = name;
-#if CUDA_VERSION >= 8000
+#if defined(__HIP_PLATFORM_HCC__) || (defined(__HIP_PLATFORM_NVCC__) && CUDA_VERSION >= 8000)
   if (ptr_->exports_.count(name)) {
     const char * c_mangled_name;
     NVRTC_CALL(nvrtcGetLoweredName(ptr_->prog_, name.c_str(), &c_mangled_name));

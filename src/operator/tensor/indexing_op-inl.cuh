@@ -32,7 +32,8 @@
 #include "../mshadow_op.h"
 #include "./util/tensor_util-inl.cuh"
 #include <hipcub/hipcub.hpp>
-#if CUDA_VERSION >= 9000
+
+#if defined(__HIP_PLATFORM_NVCC__) && CUDA_VERSION >= 9000
 #define FULLMASK 0xFFFFFFFF
 #define __ballot(x) __ballot_sync(FULLMASK, (x))
 #define __all(x) __all_sync(FULLMASK, (x))

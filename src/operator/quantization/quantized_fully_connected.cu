@@ -82,9 +82,9 @@ void QuantizedFullyConnectedForwardGPU(const nnvm::NodeAttrs& attrs,
   CmpType alpha = 1.0f;
   CmpType beta  = 0.0f;
   #if defined(__HIP_PLATFORM_HCC__) || (defined(__HIP_PLATFORM_NVCC__) && (CUDA_VERSION >= 8000))
-  const hipDataType src_type = mshadow::DataType<SrcType>::kCudaFlag;
-  const hipDataType dst_type = mshadow::DataType<DstType>::kCudaFlag;
-  const hipDataType cmp_type = mshadow::DataType<CmpType>::kCudaFlag;
+  const hipblasDatatype_t src_type = mshadow::DataType<SrcType>::kCudaFlag;
+  const hipblasDatatype_t dst_type = mshadow::DataType<DstType>::kCudaFlag;
+  const hipblasDatatype_t cmp_type = mshadow::DataType<CmpType>::kCudaFlag;
   #endif
   /*HIPBLAS_CALL(hipblasGemmEx(s->blas_handle_,
                            HIPBLAS_OP_T,

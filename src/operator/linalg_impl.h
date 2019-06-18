@@ -189,7 +189,7 @@ void linalg_gemm<cpu, mshadow::half::half_t>(const Tensor<cpu, 2, mshadow::half:
 
 // Use cublasSgemmEx when it is available (CUDA >= 7.5). Resolves precision issues with
 // cublasSgemm. Please see https://github.com/apache/incubator-mxnet/pull/11630
-#if CUDA_VERSION >= 7050
+#if defined(__HIP_PLATFORM_HCC__) || (defined(__HIP_PLATFORM_NVCC__) && CUDA_VERSION >= 7050) 
 template <>
 inline void linalg_gemm<gpu, float>(const Tensor<gpu, 2, float>& A,
                                     const Tensor<gpu, 2, float>& B,
@@ -200,16 +200,16 @@ inline void linalg_gemm<gpu, float>(const Tensor<gpu, 2, float>& A,
   using mshadow::gpu;
   CHECK_NOTNULL(s);
   check_gemm(A, B, C, alpha, beta, tA, tB);
-#if CUDA_VERSION >= 8000
-  cudaDataType_t full_datatype = CUDA_R_32F;
+#if defined(__HIP_PLATFORM_HCC__) || (defined(__HIP_PLATFORM_NVCC__) && CUDA_VERSION >= 8000) 
+  hipblasDatatype_t full_datatype = HIPBLAS_R_32F;
 #else
-  hipblasDataType_t full_datatype = HIpBLAS_DATA_FULL;
+  hipblasDatatype_t full_datatype = CUBLAS_DATA_FULL; //not supported
 #endif
-  HIPBLAS_CALL(hipblasSgemmEx(
+  HIPBLAS_CALL(hipblasSgemm(
       Stream<gpu>::GetBlasHandle(s), (tB ? HIPBLAS_OP_T : HIPBLAS_OP_N),
       (tA ? HIPBLAS_OP_T : HIPBLAS_OP_N), C.size(1), C.size(0),
-      (tB ? B.size(1) : B.size(0)), &alpha, B.dptr_, full_datatype, B.stride_,
-      A.dptr_, full_datatype, A.stride_, &beta, C.dptr_, full_datatype,
+      (tB ? B.size(1) : B.size(0)), &alpha, B.dptr_, B.stride_,
+      A.dptr_, A.stride_, &beta, C.dptr_,
       C.stride_))
 }
 
@@ -267,19 +267,19 @@ void linalg_gemm<gpu, mshadow::half::half_t>(const Tensor<gpu, 2, mshadow::half:
 
   // As of cuda8, cublas adopted the cuda datatype, rather than maintaining its own datatype.
 #if defined(__HIP_PLATFORM_HCC__) || (defined(__HIP_PLATFORM_NVCC__) && CUDA_VERSION >= 8000)
-  hipDataType_t half_datatype = HIP_R_16F;
+  hipblasDatatype_t half_datatype = HIPBLAS_R_16F;
 #else
-  hipblasDataType_t half_datatype = HIPBLAS_DATA_HALF;
+  hipblasDatatype_t half_datatype = CUBLAS_DATA_HALF; //not supported
 #endif
-  HIPBLAS_CALL(hipblasSgemmEx(blas_handle,
+  HIPBLAS_CALL(hipblasSgemm(blas_handle,
                             (tB ? HIPBLAS_OP_T : HIPBLAS_OP_N),
                             (tA ? HIPBLAS_OP_T : HIPBLAS_OP_N),
                             C.size(1), C.size(0), (tB ? B.size(1) : B.size(0)),
                             &alpha_f,
-                            B.dptr_, half_datatype, B.stride_,
-                            A.dptr_, half_datatype, A.stride_,
+                            reinterpret_cast<const float *>(B.dptr_), B.stride_,
+                            reinterpret_cast<const float *>(A.dptr_), A.stride_,
                             &beta_f,
-                            C.dptr_, half_datatype, C.stride_));
+                            reinterpret_cast<float *>(C.dptr_), C.stride_));
 #if CUDA_VERSION >= 9000
   SetCublasMathMode(blas_handle, previous_math_mode);
 #endif
@@ -318,7 +318,7 @@ void linalg_gemm<gpu, mshadow::half::half_t>(const Tensor<gpu, 2, mshadow::half:
 
   LINALG_GPU_BATCH_GEMM(DgemmStridedBatched, double)
 
-  #if CUDA_VERSION < 9010
+ #if defined(__HIP_PLATFORM_HCC__) || (defined(__HIP_PLATFORM_NVCC__) && CUDA_VERSION < 9010)
   LINALG_GPU_BATCH_GEMM(SgemmStridedBatched, float)
   #else
     template <>
@@ -339,7 +339,7 @@ void linalg_gemm<gpu, mshadow::half::half_t>(const Tensor<gpu, 2, mshadow::half:
       using namespace mshadow::cuda;
       auto hipblas_math_mode =
           use_tensor_ops ? HIPBLAS_TENSOR_OP_MATH : HIPBLAS_DEFAULT_MATH;
-      auto previous_math_mode = SetCublasMathMode(blas_handle, hipblas_math_mode);
+    /*  auto previous_math_mode = SetCublasMathMode(blas_handle, hipblas_math_mode);*/ //CublasmathMode not supported
 
       // hipblasGemmStridedBatchedEx is only supported for GPU with architecture
       // capabilities equal or greater than 5.0. Fall back to
@@ -350,10 +350,10 @@ void linalg_gemm<gpu, mshadow::half::half_t>(const Tensor<gpu, 2, mshadow::half:
         HIPBLAS_CALL(hipblasGemmStridedBatchedEx(
             blas_handle, (tB ? HIPBLAS_OP_T : HIPBLAS_OP_N),
             (tA ? HIPBLAS_OP_T : HIPBLAS_OP_N), C.size(2), C.size(1),
-            (tB ? B.size(2) : B.size(1)), &alpha, B.dptr_, CUDA_R_32F,
-            B.stride_, B.size(1) * B.stride_, A.dptr_, CUDA_R_32F, A.stride_,
-            A.size(1) * A.stride_, &beta, C.dptr_, CUDA_R_32F, C.stride_,
-            C.size(1) * C.stride_, A.size(0), CUDA_R_32F,
+            (tB ? B.size(2) : B.size(1)), &alpha, B.dptr_, HIPBLAS_R_32F,
+            B.stride_, B.size(1) * B.stride_, A.dptr_, HIPBLAS_R_32F, A.stride_,
+            A.size(1) * A.stride_, &beta, C.dptr_, HIPBLAS_R_32F, C.stride_,
+            C.size(1) * C.stride_, A.size(0), HIPBLAS_R_32F,
             HIPBLAS_GEMM_DEFAULT_TENSOR_OP));
       } else {
         HIPBLAS_CALL(hipblasSgemmStridedBatched(
@@ -363,7 +363,7 @@ void linalg_gemm<gpu, mshadow::half::half_t>(const Tensor<gpu, 2, mshadow::half:
             B.size(1) * B.stride_, A.dptr_, A.stride_, A.size(1) * A.stride_,
             &beta, C.dptr_, C.stride_, C.size(1) * C.stride_, A.size(0)));
       }
-      SetHipblasMathMode(blas_handle, previous_math_mode);
+      /*SetCublasblasMathMode(blas_handle, previous_math_mode);*/ //Not supported
     }
   #endif  // CUDA_VERSION < 9010
 

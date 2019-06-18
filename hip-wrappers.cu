@@ -13,14 +13,14 @@
                                   int k,
 				  const float *alpha,
 				  const void *A,
-				  hipDataType Atype,
+				  hipblasDatatype_t Atype,
                                    int lda,
                                    const void *B,
-                                   hipDataType Btype,
+                                   hipblasDatatype_t Btype,
                                   int ldb,
                                   const float *beta,
 				  void *C,
-                                   hipDataType Ctype,
+                                   hipblasDatatype_t Ctype,
                                    int ldc)
   {
 	return HIPBLAS_STATUS_NOT_SUPPORTED;
