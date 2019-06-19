@@ -177,9 +177,11 @@ ifeq ($(USE_BLAS),$(filter $(USE_BLAS),blas openblas atlas mkl))
 ifeq (,$(wildcard /lib/liblapack.a))
 ifeq (,$(wildcard /usr/lib/liblapack.a))
 ifeq (,$(wildcard /usr/lib64/liblapack.a))
+ifeq (,$(wildcard /usr/lib/x86_64-linux-gnu))
 ifeq (,$(wildcard $(USE_LAPACK_PATH)/liblapack.a))
 	USE_LAPACK = 0
         $(warning "USE_LAPACK disabled because libraries were not found")
+endif
 endif
 endif
 endif

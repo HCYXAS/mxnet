@@ -38,7 +38,7 @@
 #--------------------
 
 export CC = gcc
-export CXX = g++
+export CXX = g++-6
 export NVCC = hipcc
 
 # whether compile with options for MXNet developer
