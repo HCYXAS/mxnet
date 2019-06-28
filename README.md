@@ -23,7 +23,7 @@ Apache MXNet (incubating) for Deep Learning
 =====
 | Master         | Docs          | License  |
 | :-------------:|:-------------:|:--------:|
-| [![Build Status](http://jenkins.mxnet-ci.amazon-ml.com/job/incubator-mxnet/job/v1.4.x/badge/icon)](http://jenkins.mxnet-ci.amazon-ml.com/job/incubator-mxnet/job/v1.4.x/)  | [![Documentation Status](http://jenkins.mxnet-ci.amazon-ml.com/job/restricted-website-build/badge/icon)](https://mxnet.incubator.apache.org/) | [![GitHub license](http://dmlc.github.io/img/apache2.svg)](./LICENSE) |
+| [![Build Status](http://jenkins.mxnet-ci.amazon-ml.com/job/incubator-mxnet/job/master/badge/icon)](http://jenkins.mxnet-ci.amazon-ml.com/job/incubator-mxnet/job/master/)  | [![Documentation Status](http://jenkins.mxnet-ci.amazon-ml.com/job/restricted-website-build/badge/icon)](https://mxnet.incubator.apache.org/) | [![GitHub license](http://dmlc.github.io/img/apache2.svg)](./LICENSE) |
 
 ![banner](https://raw.githubusercontent.com/dmlc/web-data/master/mxnet/image/banner.png)
 
@@ -34,7 +34,7 @@ At its core, MXNet contains a dynamic dependency scheduler that automatically pa
 A graph optimization layer on top of that makes symbolic execution fast and memory efficient.
 MXNet is portable and lightweight, scaling effectively to multiple GPUs and multiple machines.
 
-MXNet is also more than a deep learning project. It is also a collection of
+MXNet is more than a deep learning project. It is a collection of
 [blue prints and guidelines](https://mxnet.incubator.apache.org/architecture/index.html#deep-learning-system-design-concepts) for building
 deep learning systems, and interesting insights of DL systems for hackers.
 
@@ -50,7 +50,8 @@ How to Contribute
 
 What's New
 ----------
-* [Version 1.4.0 Release](to be created - https://github.com/apache/incubator-mxnet/releases/tag/1.4.0) - MXNet 1.4.0 Release.
+* [Version 1.4.1 Release](https://github.com/apache/incubator-mxnet/releases/tag/1.4.1) - MXNet 1.4.1 Patch Release.
+* [Version 1.4.0 Release](https://github.com/apache/incubator-mxnet/releases/tag/1.4.0) - MXNet 1.4.0 Release.
 * [Version 1.3.1 Release](https://github.com/apache/incubator-mxnet/releases/tag/1.3.1) - MXNet 1.3.1 Patch Release.
 * [Version 1.3.0 Release](https://github.com/apache/incubator-mxnet/releases/tag/1.3.0) - MXNet 1.3.0 Release.
 * [Version 1.2.0 Release](https://github.com/apache/incubator-mxnet/releases/tag/1.2.0) - MXNet 1.2.0 Release.
@@ -65,8 +66,8 @@ What's New
 * [Version 0.9.1 Release (NNVM refactor)](./docs/architecture/release_note_0_9.md) - NNVM branch is merged into master now. An official release will be made soon.
 * [Version 0.8.0 Release](https://github.com/dmlc/mxnet/releases/tag/v0.8.0)
 * [Updated Image Classification with new Pre-trained Models](./example/image-classification)
-* [Notebooks How to Use MXNet](https://github.com/zackchase/mxnet-the-straight-dope)
-* [MKLDNN for Faster CPU Performance](./MKLDNN_README.md)
+* [Notebooks How to Use MXNet](https://github.com/d2l-ai/d2l-en)
+* [MKLDNN for Faster CPU Performance](./docs/tutorials/mkldnn/MKLDNN_README.md)
 * [MXNet Memory Monger, Training Deeper Nets with Sublinear Memory Cost](https://github.com/dmlc/mxnet-memonger)
 * [Tutorial for NVidia GTC 2016](https://github.com/dmlc/mxnet-gtc-tutorial)
 * [Embedding Torch layers and functions in MXNet](https://mxnet.incubator.apache.org/faq/torch.html)
@@ -95,7 +96,7 @@ Features
 * Mix and match imperative and symbolic programming to maximize flexibility and efficiency
 * Lightweight, memory efficient and portable to smart devices
 * Scales up to multi GPUs and distributed setting with auto parallelism
-* Support for Python, R, Scala, C++ and Julia
+* Support for [Python](https://github.com/apache/incubator-mxnet/tree/master/python), [Scala](https://github.com/apache/incubator-mxnet/tree/master/scala-package), [C++](https://github.com/apache/incubator-mxnet/tree/master/cpp-package), [Java](https://github.com/apache/incubator-mxnet/tree/master/scala-package), [Clojure](https://github.com/apache/incubator-mxnet/tree/master/contrib/clojure-package), [R](https://github.com/apache/incubator-mxnet/tree/master/R-package), [Go](https://github.com/jdeng/gomxnet/), [Javascript](https://github.com/dmlc/mxnet.js/), [Perl](https://github.com/apache/incubator-mxnet/tree/master/perl-package), [Matlab](https://github.com/apache/incubator-mxnet/tree/master/matlab), and [Julia](https://github.com/apache/incubator-mxnet/tree/master/julia)
 * Cloud-friendly and directly compatible with S3, HDFS, and Azure
 
 License

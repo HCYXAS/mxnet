@@ -25,7 +25,6 @@
 // this will be invoked by nvcc and compile GPU version
 #include <hipcub/hipcub.hpp>
 #include <dmlc/logging.h>
-#include "../operator/mxnet_op.h"
 #include "../operator/tensor/elemwise_binary_op-inl.h"
 #include "../operator/tensor/elemwise_sum.h"
 #include "../operator/tensor/indexing_op.h"

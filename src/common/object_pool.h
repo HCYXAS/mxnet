@@ -132,10 +132,10 @@ struct ObjectPoolAllocatable {
 
 template <typename T>
 ObjectPool<T>::~ObjectPool() {
-  // TODO(hotpxl): mind destruction order
-  // for (auto i : allocated_) {
-  //   free(i);
-  // }
+//TO DO comment
+  for (auto i : allocated_) {
+    free(i);
+  }
 }
 
 template <typename T>

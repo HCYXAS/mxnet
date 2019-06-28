@@ -97,7 +97,7 @@ def test_mlp(args):
     # fit model
     model = mx.mod.Module(
         sym,
-        context=[mx.gpu(i) for i in range(1)],
+        context=[mx.cpu(i) for i in range(2)],
         data_names=['data'],
         label_names=['sm_label'])
     optimizer_params = {

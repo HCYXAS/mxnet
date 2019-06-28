@@ -25,8 +25,6 @@ GTEST_SRCS_ = $(GTEST_DIR)/src/*.cc $(GTEST_DIR)/src/*.h $(GTEST_HEADERS)
 GTEST_HEADERS = $(GTEST_DIR)/include/gtest/*.h \
                 $(GTEST_DIR)/include/gtest/internal/*.h
 
-GTEST_FLAGS=-Wall -Wshadow -DGTEST_HAS_PTHREAD=1 -fexceptions -Wextra -Wno-unused-parameter -Wno-missing-field-initializers -std=c++11
-
 TEST_CFLAGS = -Itests/cpp/include -Isrc $(CFLAGS)
 TEST_LDFLAGS = $(LDFLAGS) -Llib -lmxnet
 
@@ -38,7 +36,7 @@ endif
 .PHONY: runtest testclean
 
 gtest-all.o : $(GTEST_SRCS_)
-	$(CXX) $(CPPFLAGS) $(GTEST_FLAGS) -I$(GTEST_INC) -I$(GTEST_DIR) $(CXXFLAGS) -c $(GTEST_DIR)/src/gtest-all.cc
+	$(CXX) $(CPPFLAGS) -I$(GTEST_INC) -I$(GTEST_DIR) $(CXXFLAGS) -c $(GTEST_DIR)/src/gtest-all.cc
 
 gtest.a : gtest-all.o
 	$(AR) $(ARFLAGS) $@ $^

@@ -102,7 +102,7 @@ inline __device__ bool __is_supported_cuda_architecture() {
   {                                                             \
     hipblasStatus_t e = (func);                                  \
     CHECK_EQ(e, HIPBLAS_STATUS_SUCCESS)                          \
-        << "hipBLAS: " << common::cuda::HipblasGetErrorString(e); \
+        << "hipBLAS: " << mxnet::common::cuda::HipblasGetErrorString(e); \
   }
 
 /*!
@@ -128,7 +128,7 @@ inline __device__ bool __is_supported_cuda_architecture() {
   {                                                             \
     hiprandStatus_t e = (func);                                  \
     CHECK_EQ(e, HIPRAND_STATUS_SUCCESS)                          \
-        << "hipRAND: " << mxnet::common::cuda::HiprandGetErrorString(e); \
+        << "hipRAND: " << common::cuda::HiprandGetErrorString(e); \
   }
 
 /*!
@@ -287,22 +287,35 @@ inline DType __device__ CudaMin(DType a, DType b) {
 class DeviceStore {
  public:
   /*! \brief default constructor- only optionally restores previous device */
-  explicit DeviceStore(bool restore = true) : restore_(restore) {
+  explicit DeviceStore(int requested_device = -1, bool restore = true) :
+    restore_device_(-1),
+    current_device_(requested_device),
+    restore_(restore) {
     if (restore_)
       CUDA_CALL(hipGetDevice(&restore_device_));
+    if (requested_device != restore_device_) {
+      SetDevice(requested_device);
+    }
   }
 
   ~DeviceStore() {
-    if (restore_)
+    if (restore_ &&
+        current_device_ != restore_device_ &&
+        current_device_ != -1 &&
+        restore_device_ != -1)
       CUDA_CALL(hipSetDevice(restore_device_));
   }
 
   void SetDevice(int device) {
-    CUDA_CALL(hipSetDevice(device));
+    if (device != -1) {
+      CUDA_CALL(hipSetDevice(device));
+      current_device_ = device;
+    }
   }
 
  private:
   int restore_device_;
+  int current_device_;
   bool restore_;
 };
 

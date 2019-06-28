@@ -114,7 +114,7 @@ class TVMFunctor {
       func_.CallPacked(args, &rv);
       fset_stream_(dev_type, rctx.ctx.dev_id, nullptr);
 #else
-      LOG(FATAL) << "Please compile with CUDA enabled for cuda features";
+      LOG(FATAL) << "Please compile with GPU enabled for ROCm features";
 #endif
     } else {
       func_.CallPacked(args, &rv);
