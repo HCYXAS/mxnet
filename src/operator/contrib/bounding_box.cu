@@ -23,7 +23,8 @@
   * \brief Bounding box util functions and operators
   * \author Joshua Zhang
   */
-
+#define MSHADOW_USE_THRUST
+/* definde MSHADOW_USE_THRUST as workaround to fix ambiguity error of half + operator*/
 #include "./bounding_box-inl.cuh"
 #include "./bounding_box-inl.h"
 #include "../elemwise_op_common.h"
