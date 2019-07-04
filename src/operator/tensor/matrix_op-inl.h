@@ -40,7 +40,7 @@
 #include "../../common/static_array.h"
 #include "./slice-inl.h"
 
-#if MXNET_USE_GPU
+#if MXNET_USE_GPU && defined(__HIPCC__)
 #include <thrust/device_vector.h>
 #endif
 

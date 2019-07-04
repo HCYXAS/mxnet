@@ -217,7 +217,7 @@ EXTRA_OPERATORS =
 #----------------------------
 
 # Create C++ interface package
-USE_CPP_PACKAGE = 0
+USE_CPP_PACKAGE = 1
 
 # Use int64_t type to represent the total number of elements in a tensor
 # This will cause performance degradation reported in issue #14496

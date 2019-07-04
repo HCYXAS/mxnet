@@ -425,7 +425,8 @@ else ifeq ($(HIP_PLATFORM),hcc)
          CUDA_ARCH :=	--amdgpu-target=gfx801 \
 			--amdgpu-target=gfx802 \
 			--amdgpu-target=gfx803 \
-			--amdgpu-target=gfx900
+			--amdgpu-target=gfx900 \
+			--amdgpu-target=gfx906
 endif
 $(info Running CUDA_ARCH: $(CUDA_ARCH))
 endif

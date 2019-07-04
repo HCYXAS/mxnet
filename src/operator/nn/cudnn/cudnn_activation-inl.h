@@ -65,6 +65,7 @@ class CuDNNActivationOp {
     #if CUDNN_MAJOR >= 5
     double alpha = 1.0f; //TODO temporary fix for arguments
     double beta  = 0.0f; //TODO temporary fix for arguments
+    relu_ceil_   = 1.0f;
     CUDNN_CALL(miopenSetActivationDescriptor(desc_, mode_, alpha, beta, relu_ceil_));//TODO Temporary fix for input parameters
     //CUDNN_CALL(cudnnSetActivationDescriptor(desc_, mode_, nan_prop_, relu_ceil_));
     #endif
