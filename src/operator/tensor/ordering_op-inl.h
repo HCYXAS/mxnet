@@ -272,7 +272,6 @@ template<typename DType>
 __global__ void PartialSortSmallK(int K, int N, DType *val, int *ind, bool is_ascend) {
   // Buffer for pairwise reduction.
   extern __shared__ int buff[];
- // HIP_DYNAMIC_SHARED( int, buff)
   // Start of buffer sections associated with this thread.
   const int offset(threadIdx.x*K);
   int *ind_buff = &buff[offset];
@@ -387,7 +386,7 @@ void TopKImpl(const RunContext &ctx,
   bool is_ascend = false;
   int k = 0;
   size_t alignment = std::max(sizeof(DType), sizeof(int));
-  TShape target_shape;
+  mxnet::TShape target_shape;
   ParseTopKParam(src.shape_, param,
                  &target_shape, &batch_size, &element_num, &axis, &k, &do_transpose, &is_ascend);
   CHECK_LE(element_num, mxnet::common::MaxIntegerValue<IDType>())

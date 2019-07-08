@@ -97,7 +97,7 @@ endif
 
 # CFLAGS for debug
 ifeq ($(DEBUG), 1)
-	CFLAGS += -g -O0
+	CFLAGS += -g -O0 -D_GLIBCXX_ASSERTIONS
 else
 	CFLAGS += -O3 -DNDEBUG=1
 endif
@@ -133,9 +133,9 @@ endif
 # -L/usr/local/lib
 
 ifeq ($(DEBUG), 1)
-	NVCCFLAGS += -std=c++11 -Xcompiler -D_FORCE_INLINES -g -G -O0  $(CCBINCLUDES) $(MSHADOW_NVCCFLAGS)
+	NVCCFLAGS = $(CXXFLAGS) -Xcompiler -D_FORCE_INLINES -g -G -O0 $(CCBINCLUDES) $(MSHADOW_NVCCFLAGS)
 else
-	NVCCFLAGS += -std=c++11 -Xcompiler -D_FORCE_INLINES -O3 $(CCBINCLUDES) $(MSHADOW_NVCCFLAGS)
+	NVCCFLAGS = $(CXXFLAGS) -Xcompiler -D_FORCE_INLINES -g -O3 $(CCBINCLUDES) $(MSHADOW_NVCCFLAGS)
 endif
 
 # CFLAGS for segfault logger
@@ -387,6 +387,22 @@ ifeq ($(USE_GPU), 1)
 	ifeq ("$(wildcard $(NVCC))","")
 		ifneq ($(USE_CUDA_PATH), NONE)
 			NVCC=$(USE_CUDA_PATH)/bin/nvcc
+
+# if larger version is the expected one and larger != smaller
+# this means ar version is less than expected version and user needs to be warned
+ifeq ($(LARGE_VERSION), $(EXPECTED_AR_VERSION))
+ifneq ($(LARGE_VERSION), $(SMALL_VERSION))
+define n
+
+
+endef
+
+$(warning WARNING: Archive utility: ar version being used is less than 2.27.0. $n \
+		   Note that with USE_CUDA=1 flag and USE_CUDNN=1 this is known to cause problems. $n \
+		   For more info see: https://github.com/apache/incubator-mxnet/issues/15084)
+$(shell sleep 5)
+endif
+endif
 $(info INFO: nvcc was not found on your path)
 $(info INFO: Using $(NVCC) as nvcc path)
 		else
@@ -493,7 +509,7 @@ ifeq ($(USE_GPU), 1)
 	LDFLAGS += -L/opt/rocm/hipblas/lib  -lhipblas
 	LDFLAGS += -L/opt/rocm/hiprand/lib  -lhiprand
 	ifneq (, $(findstring nvcc, $(HIP_PLATFORM)))
-		CFLAGS  += -I/home/tcs-amd/mohit/rocm/3rdparty/nvidia_cub -I/opt/rocm/hipcub/include/hipcub/cub
+		CFLAGS  += -I$(ROOTDIR)/3rdparty/cub -I/opt/rocm/hipcub/include/hipcub/cub
 		LDFLAGS += -L/opt/rocm/rocfft/lib -lrocfft
 		LDFLAGS += -lcudart -lcuda -lcufft -lcublas
 		LDFLAGS += -L/usr/local/cuda/lib64/stubs

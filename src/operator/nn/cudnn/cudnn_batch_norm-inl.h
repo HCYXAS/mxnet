@@ -227,9 +227,8 @@ class CuDNNBatchNormOp {
         dgamma.dptr_,
         dbeta.dptr_,
         param_.eps,
-        save_mean.dptr_,
-        save_inv_var.dptr_));
-
+        global_stats ? nullptr : save_mean.dptr_,
+        global_stats ? nullptr : save_inv_var.dptr_));
       if (param_.fix_gamma) dgamma = 0.f;
     })
 #else  // CUDNN_VERSION < 4007
@@ -266,8 +265,8 @@ class CuDNNBatchNormOp {
                                                  dgamma.dptr_,
                                                  dbeta.dptr_,
                                                  param_.eps,
-                                                 save_mean.dptr_,
-                                                 save_inv_var.dptr_));
+                                                 global_stats ? nullptr : save_mean.dptr_,
+                                                 global_stats ? nullptr : save_inv_var.dptr_));
       if (param_.fix_gamma) dgamma = 0.f;
     })
 #endif

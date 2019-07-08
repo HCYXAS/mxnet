@@ -54,7 +54,6 @@ __global__ void CorrelateData(const int nthreads, int num, int topwidth,
   int bottomwidth, int bottomheight, int bottomchannels,
   const Dtype *bottom0, const Dtype *bottom1, Dtype *top) {
   extern __shared__ char patch_data_char[];
-  //HIP_DYNAMIC_SHARED( char, patch_data_char)
   Dtype *patch_data = reinterpret_cast<Dtype *>(patch_data_char);
   //  First (upper left) position of kernel upper-left corner
   //  in current center position of neighborhood in image 1

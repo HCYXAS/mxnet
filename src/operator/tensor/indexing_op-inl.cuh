@@ -54,7 +54,7 @@ __global__ void AddTakeGradLargeBatchKernel(DType* dst,
                                            const DType *src,
                                            int ymax, int xmax) {
   // Size of the shared memory is [blockDim.x*SZ*blockDim.y]*sizeof(DType)
-  HIP_DYNAMIC_SHARED( char, sh_grad_weight_char)
+  extern __shared__ char sh_grad_weight_char[];//  HIP_DYNAMIC_SHARED
   DType* sh_grad_weight = (DType*)sh_grad_weight_char;
 
   int iidx_end = (idx_start == NULL) ? ymax : *idx_start_size_ptr;

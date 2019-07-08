@@ -132,7 +132,6 @@ struct ObjectPoolAllocatable {
 
 template <typename T>
 ObjectPool<T>::~ObjectPool() {
-//TO DO comment
   for (auto i : allocated_) {
     free(i);
   }

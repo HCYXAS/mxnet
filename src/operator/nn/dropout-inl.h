@@ -156,7 +156,6 @@ class DropoutOp {
     for (int i = 0; i < count; ++i) {
       ingradptr[i] = outgradptr[i] * maskptr[i] * pk_1;
     }
-    return false;
   }
 
 #endif  // #if MXNET_USE_MKL_DROPOUT
