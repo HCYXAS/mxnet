@@ -63,7 +63,7 @@
  *\brief whether to use cusolver library
  */
 #ifndef MXNET_USE_CUSOLVER
-#define MXNET_USE_CUSOLVER MSHADOW_USE_CUSOLVER
+//#define MXNET_USE_CUSOLVER MSHADOW_USE_CUSOLVER
 #endif
 
 #ifndef MXNET_ENABLE_CUDA_RTC

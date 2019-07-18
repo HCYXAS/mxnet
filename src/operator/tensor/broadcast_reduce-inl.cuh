@@ -80,7 +80,8 @@ __global__ void reduce_kernel(const int N, const int M, const bool addto,
                               const Shape<ndim> big_shape0, const Shape<ndim> small_shape,
                               const Shape<ndim> big_shape, const Shape<ndim> big_stride,
                               const int Mnext, const bool do_transpose) {
-  extern __shared__ char shTileChar[];
+  HIP_DYNAMIC_SHARED( char, shTileChar)
+  //tern __shared__ char shTileChar[];
   AType* shTile = (AType*)(shTileChar);
   const int tid = threadIdx.x + threadIdx.y*blockDim.x;
   const int bx = (do_transpose) ? blockDim.y : blockDim.x;
@@ -163,7 +164,7 @@ __global__ void reduce_kernel(const int N, const int M, const bool addto,
                               const Shape<ndim> rhs_shape, const Shape<ndim> big_stride,
                               const Shape<ndim> lhs_stride, const Shape<ndim> rhs_stride,
                               const int Mnext, const bool do_transpose) {
-  extern __shared__ char shTileChar[];
+  HIP_DYNAMIC_SHARED( char, shTileChar)
   DType* shTile = (DType*)(shTileChar);
   const int tid = threadIdx.x + threadIdx.y*blockDim.x;
   const int bx = (do_transpose) ? blockDim.y : blockDim.x;

@@ -874,7 +874,7 @@ class CuDNNConvolutionOp {
     bwd_data_results.resize(actual_bwd_data_algos);
     AlgoFinalSelect<cudnnConvolutionBwdDataAlgoPerf_t,
                     cudnnConvolutionBwdDataAlgo_t>(bwd_data_results, "backprop-to-data",
-                                                   workspace_byte, bwd);
+                                                   workspace_byte, bwd, exclude_dgrad_algo_);
 #else
     // CUDNN_MAJOR < 7
     const int kMaxAlgos = 10;

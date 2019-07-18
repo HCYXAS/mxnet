@@ -37,36 +37,6 @@
 #include "libinfo.h"
 #include "tuple.h"
 
-/*!
- *\brief whether to use opencv support
- */
-#ifndef MXNET_USE_OPENCV
-#define MXNET_USE_OPENCV 1
-#endif
-
-/*!
- *\brief whether to use cuda support
- */
-#ifndef MXNET_USE_GPU
-#define MXNET_USE_GPU MSHADOW_USE_GPU
-#endif
-
-/*!
- *\brief whether to use cudnn library for convolution
- */
-#ifndef MXNET_USE_CUDNN
-#define MXNET_USE_CUDNN MSHADOW_USE_CUDNN
-#endif
-
-/*!
- *\brief whether to use cusolver library
- */
-#ifndef MXNET_USE_CUSOLVER
-//#define MXNET_USE_CUSOLVER MSHADOW_USE_CUSOLVER
-#endif
-
-/*! \brief Error message for using gpu when MXNET_USE_GPU==0 */
-#define MXNET_GPU_NOT_ENABLED_ERROR  "GPU is not enabled"
 
 /*!
  * \brief define compatible keywords in g++

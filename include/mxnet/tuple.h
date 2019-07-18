@@ -199,7 +199,7 @@ class Tuple {
    * \return the corresponding dimension size
    */
   inline ValueType& operator[](int i) {
-    CHECK(i >= 0 && i < ndim()) << "index = " << i << " must be in range [0, " << ndim() << ")";
+    //CHECK(i >= 0 && i < ndim()) << "index = " << i << " must be in range [0, " << ndim() << ")";
     return begin()[i];
   }
   /*!

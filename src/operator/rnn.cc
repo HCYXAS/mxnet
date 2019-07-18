@@ -25,7 +25,7 @@
 */
 
 #include <iterator>
-#include "./rnn_impl.h"
+
 #include "./rnn-inl.h"
 
 namespace mxnet {
