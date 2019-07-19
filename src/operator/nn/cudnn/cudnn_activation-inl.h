@@ -58,7 +58,7 @@ class CuDNNActivationOp {
         break;
     }
     double alpha = 1.0f;
-    double beta  = 0.0f;
+    double beta  = 1.0f;
     relu_ceil_   = 1.0f;
     CUDNN_CALL(miopenSetActivationDescriptor(desc_, mode_, alpha, beta, relu_ceil_));//TODO Temporary fix for input parameters
   }
