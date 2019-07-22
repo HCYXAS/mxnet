@@ -62,10 +62,10 @@ class CuDNNPoolingOp {
         break;
       case pool_enum::kAvgPooling:
         if (param_.count_include_pad.has_value() && !param_.count_include_pad.value()) {
-         /* mode_ = CUDNN_POOLING_AVERAGE_COUNT_EXCLUDE_PADDING;
-        } else { */
+		mode_ = miopenPoolingAverage;
+         /* mode_ = CUDNN_POOLING_AVERAGE_COUNT_EXCLUDE_PADDING;*/
+        } else { 
           //mode_ = CUDNN_POOLING_AVERAGE_COUNT_INCLUDE_PADDING;
-           mode_ = miopenPoolingAverage; //TODO only average supported currently .Include is not supported before mxnetv1.4
            mode_= miopenPoolingAverageInclusive;
          }
         break;

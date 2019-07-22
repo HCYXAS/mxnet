@@ -1831,6 +1831,97 @@ def test_batchnorm():
 
 
 @with_seed()
+def test_groupnorm():
+    acc_types = {'float16': 'float32', 'float32': 'float64', 'float64': 'float64'}
+    def x_hat_helper(x, num_groups, eps):
+        dtype = x.dtype
+        dshape = x.shape
+        assert len(dshape) == 4
+        acc_type = acc_types[str(dtype)]
+        new_shape = (dshape[0], num_groups, int(dshape[1] / num_groups), dshape[2], dshape[3])
+        new_moments_shape = (dshape[0], num_groups, 1, 1, 1)
+        data = x.reshape(new_shape)
+        mean = np.mean(data, axis=(2, 3, 4), keepdims=False, dtype=acc_type).astype(dtype)
+        std = np.sqrt(np.var(data, axis=(2, 3, 4), dtype=acc_type, keepdims=False).astype(dtype) + eps)
+        x_hat = (data - mean.reshape(new_moments_shape)) / std.reshape(new_moments_shape)
+        return x_hat, mean, std
+
+    def np_groupnorm(data, gamma, beta, num_groups, eps):
+        new_param_shape = (1, num_groups, 1, 1, 1)
+        x_hat, mean, std = x_hat_helper(data, num_groups, eps)
+        out = x_hat * gamma.reshape(new_param_shape) + beta.reshape(new_param_shape)
+        return out.reshape(dshape), mean, std
+
+    def np_groupnorm_grad(ograd, data, gamma, beta, mean, std, num_groups, eps):
+        x_hat, mean, std = x_hat_helper(data, num_groups, eps)
+        new_shape = x_hat.shape
+        dshape = data.shape
+        dtype = data.dtype
+        new_moments_shape = (new_shape[0], num_groups, 1, 1, 1)
+        new_param_shape = (1, num_groups, 1, 1, 1)
+        acc_type = acc_types[str(dtype)]
+        ograd = ograd.reshape(new_shape)
+        data = data.reshape(new_shape)
+        gamma = gamma.reshape(new_param_shape)
+        beta = beta.reshape(new_param_shape)
+        mean = mean.reshape(new_moments_shape)
+        std = std.reshape(new_moments_shape)
+        beta_grad = np.sum(ograd, axis=(0, 2, 3, 4), dtype=acc_type, keepdims=False).astype(dtype)
+        gamma_grad = np.sum(x_hat * ograd, axis=(0, 2, 3, 4), dtype=acc_type, keepdims=False).astype(dtype)
+        x_hat_grad = ograd * gamma
+        ograd_mult = x_hat_grad / std
+        red_out = np.mean(ograd_mult, axis=(2, 3, 4), dtype=acc_type, keepdims=True).astype(dtype)
+        data_grad = ograd_mult - red_out
+        red_out = np.mean(ograd_mult * x_hat, axis=(2, 3, 4), dtype=acc_type, keepdims=True).astype(dtype)
+        data_grad = data_grad - x_hat * red_out
+        return data_grad.reshape(dshape), gamma_grad, beta_grad
+
+
+    batch_size = random.randint(1, 8)
+    num_groups = random.randint(2, 3)
+    num_channels = random.randint(2, 3) * num_groups
+    height = random.randint(1, 5)
+    width = random.randint(1, 5)
+    dshape = (batch_size, num_channels, height, width)
+    param_shape = (num_groups,)
+    temp_shape = (batch_size, num_groups, int(num_channels / num_groups), height, width)
+    np_data = np.random.uniform(0.2, 1.0, dshape)
+    np_gamma = np.random.uniform(-1.0, 1.0, param_shape)
+    np_beta = np.random.uniform(-1.0, 1.0, param_shape)
+    data_sym = mx.sym.Variable("data")
+    gamma_sym = mx.sym.Variable("gamma")
+    beta_sym = mx.sym.Variable("beta")
+    for dtype in [np.float16, np.float32, np.float64]:
+        eps = 1e-2 if dtype == np.float16 else 1e-5
+        mx_data = mx.nd.array(np_data, dtype=dtype)
+        mx_gamma = mx.nd.array(np_gamma, dtype=dtype)
+        mx_beta = mx.nd.array(np_beta, dtype=dtype)
+        np_out, np_mean, np_std = np_groupnorm(np_data.astype(dtype),
+                                               np_gamma.astype(dtype),
+                                               np_beta.astype(dtype),
+                                               num_groups=num_groups,
+                                               eps=eps)
+        mx_sym = mx.sym.GroupNorm(data=data_sym, gamma=gamma_sym, beta=beta_sym,
+                                  num_groups=num_groups, eps=eps, output_mean_var=True)
+        check_symbolic_forward(mx_sym, [mx_data, mx_gamma, mx_beta], [np_out, np_mean, np_std],
+                               rtol=1e-2 if dtype == np.float16 else 1e-3,
+                               atol=5e-3 if dtype == np.float16 else 1e-5, dtype=dtype)
+        mx_sym = mx.sym.GroupNorm(data=data_sym, gamma=gamma_sym, beta=beta_sym,
+                                  num_groups=num_groups, eps=eps, output_mean_var=False)
+        np_ograd = np.random.uniform(-1.0, 1.0, dshape).astype(dtype)
+        np_data_grad, np_gamma_grad, np_beta_grad = np_groupnorm_grad(np_ograd,
+                                                                      np_data.astype(dtype),
+                                                                      np_gamma.astype(dtype),
+                                                                      np_beta.astype(dtype),
+                                                                      np_mean, np_std,
+                                                                      num_groups, eps)
+        check_symbolic_backward(mx_sym, [mx_data, mx_gamma, mx_beta], [mx.nd.array(np_ograd)],
+                                [np_data_grad, np_gamma_grad, np_beta_grad],
+                                rtol=1e-2 if dtype == np.float16 else 1e-3,
+                                atol=5e-2 if dtype == np.float16 else 1e-5, dtype=dtype)
+
+
+@with_seed()
 def test_convolution_grouping():
     for dim in [1, 2, 3]:
         num_filter = 4
@@ -1906,6 +1997,88 @@ def test_depthwise_convolution():
 
                             for arr1, arr2 in zip(exe1.outputs + exe1.grad_arrays, exe2.outputs + exe2.grad_arrays):
                                 np.testing.assert_allclose(arr1.asnumpy(), arr2.asnumpy(), rtol=1e-3, atol=1e-3)
+
+
+@with_seed()
+def test_convolution_independent_gradients():
+    ctx = default_context()
+    # set a low bar for autotuned cudnn conv
+    atol = 1.0e-1 if ctx.device_type == "gpu" else 1.0e-3
+    rtol = 1.0e-2 if ctx.device_type == "gpu" else 1.0e-3
+    reqs = ["null", "write", "add"]
+    var_names = ["x", "w", "b"]
+    dims = [1, 2]
+    num_bases = [1, 16, 64]
+    kernel_xs = [3, 5]
+    stride_xs = [1, 2]
+    pad_xs = [0, 1]
+    in_sizes = [7, 32]
+    no_biases = [True, False]
+    for dim, num_base, kernel_x, stride_x, pad_x , in_size, no_bias in \
+            itertools.product(dims, num_bases, kernel_xs, stride_xs, pad_xs, in_sizes, no_biases):
+        # Prepare params shape
+        kernel = (kernel_x,) * dim
+        stride = (stride_x,) * dim
+        pad = (pad_x,) * dim
+        num_filter = num_base
+        x_shape = (2, num_base) + (in_size,) * dim
+        w_shape = (num_filter, num_base) + kernel
+
+        # Symbols definition
+        x = mx.sym.Variable('x')
+        w = mx.sym.Variable('w')
+        b = mx.sym.Variable('b') if not no_bias else None
+        conv = mx.sym.Convolution(x, w, b, num_filter=num_filter, 
+            kernel=kernel, stride=stride, pad=pad, no_bias=no_bias)
+        
+        for req_kind in reqs:
+            # Binding args for conv with possible dependent gradients
+            base_args = {
+                'x': mx.nd.random.normal(shape=x_shape),
+                'w': mx.nd.random.normal(shape=w_shape),
+                'b': mx.nd.random.normal(shape=(num_filter, )) if not no_bias else None}
+            args1 = copy.deepcopy(base_args)
+            grad1 = {
+                'x': mx.nd.zeros(shape=x_shape),
+                'w': mx.nd.zeros(shape=w_shape),
+                'b': mx.nd.zeros(shape=(num_filter, )) if not no_bias else None}
+
+            grad_req1 = [req_kind] * 3
+            grad_req1 = dict(zip(var_names, grad_req1))
+
+            exe1 = conv.bind(ctx, args1, args_grad=grad1, grad_req=grad_req1)
+            exe1.forward(is_train=True)
+            exe1.backward(exe1.outputs[0])
+            
+            for x_req, w_req, b_req in itertools.product(reqs, repeat=3):
+                # Binding args for conv with independent gradients
+                args2 = copy.deepcopy(base_args)    # Deepcopy the same params of `exe1`
+                grad2 = {
+                    'x': mx.nd.zeros(shape=x_shape),
+                    'w': mx.nd.zeros(shape=w_shape),
+                    'b': mx.nd.zeros(shape=(num_filter, )) if not no_bias else None}
+                grad_req2 = {"x": x_req, "w": w_req, "b": b_req}
+                exe2 = conv.bind(ctx, args2, args_grad=grad2, grad_req=grad_req2)
+                    
+                exe2.forward(is_train=True)
+                np.testing.assert_allclose(exe1.outputs[0].asnumpy(),
+                    exe2.outputs[0].asnumpy(), rtol=rtol, atol=atol)
+                
+                exe2.backward(exe2.outputs[0])
+                for var_name in var_names:
+                    if var_name == "b" and no_bias:
+                        continue
+                    if grad_req2[var_name] == "null":
+                        exe2_var_grad = grad2[var_name].asnumpy()
+                        np.testing.assert_allclose(exe2_var_grad,
+                            np.zeros_like(exe2_var_grad), rtol=rtol, atol=atol)
+                    if grad_req2[var_name] != grad_req1[var_name]:
+                        continue
+                    np.testing.assert_allclose(args1[var_name].asnumpy(),
+                        args2[var_name].asnumpy(), rtol=rtol, atol=atol)
+                    np.testing.assert_allclose(grad1[var_name].asnumpy(),
+                        grad2[var_name].asnumpy(), rtol=rtol, atol=atol)
+
 
 def gen_broadcast_data(idx):
     # Manually set test cases

@@ -31,7 +31,7 @@ namespace op {
 // accepts row-sparse format ndarrays. It will be registered
 // under mxnet.ndarray.sparse with name retain.
 NNVM_REGISTER_OP(_sparse_retain)
-.describe(R"code(pick rows specified by user input index array from a row sparse matrix
+.describe(R"code(Pick rows specified by user input index array from a row sparse matrix
 and save them in the output sparse matrix.
 
 Example::

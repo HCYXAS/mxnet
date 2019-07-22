@@ -120,10 +120,6 @@ class CuDNNAlgoReg {
 
  private:
   struct CudnnAlgorithms {
-    /*CuDNNAlgo<cudnnConvolutionFwdAlgo_t> fwd;
-    CuDNNAlgo<cudnnConvolutionBwdDataAlgo_t> bwd;
-    CuDNNAlgo<cudnnConvolutionBwdFilterAlgo_t> flt;*/
-
     CuDNNAlgo<miopenConvFwdAlgorithm_t> fwd;
     CuDNNAlgo<miopenConvBwdDataAlgorithm_t> bwd;
     CuDNNAlgo<miopenConvBwdWeightsAlgorithm_t> flt;

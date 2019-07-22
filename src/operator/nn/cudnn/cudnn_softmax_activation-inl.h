@@ -54,15 +54,14 @@ class CuDNNSoftmaxActivationOp {
     Stream<gpu> *s = ctx.get_stream<gpu>();
     Tensor<gpu, 4> data;
     Tensor<gpu, 4> out;
-    //TODO MIOpen does not support Softmax modes. MIOpen implements the SOFTMAX_MODE_CHANNEL flavor.
-    //cudnnSoftmaxMode_t softmax_mode;
+    miopenSoftmaxMode_t softmax_mode;
     if (param_.mode == softmax_activation::kInstance) {
       CHECK_EQ(in_data.ndim(), 2)
         << "Input need to have 2 dimensions when mode=instance.";
       Shape<4> dshape = Shape4(in_data.shape_[0], in_data.shape_[1], 1, 1);
       data = in_data.get_with_shape<gpu, 4, real_t>(dshape, s);
       out = out_data.get_with_shape<gpu, 4, real_t>(dshape, s);
-      //softmax_mode = CUDNN_SOFTMAX_MODE_INSTANCE;  //TODO MIOpen does not support Softmax modes.
+      softmax_mode =  MIOPEN_SOFTMAX_MODE_INSTANCE;
     } else {
       CHECK_GE(in_data.ndim(), 3)
         << "Input need to have a least 3 dimensions when mode=channel";
@@ -79,7 +78,7 @@ class CuDNNSoftmaxActivationOp {
       dshape[3] = size_left;
       data = in_data.get_with_shape<gpu, 4, real_t>(dshape, s);
       out = out_data.get_with_shape<gpu, 4, real_t>(dshape, s);
-      //softmax_mode = CUDNN_SOFTMAX_MODE_CHANNEL; //TODO MIOpen does not support Softmax modes.
+      softmax_mode = MIOPEN_SOFTMAX_MODE_CHANNEL;
     }
     float alpha = 1.0f;
     float beta = 0.0f;
@@ -91,7 +90,7 @@ class CuDNNSoftmaxActivationOp {
                                           data.shape_[1],
                                           data.shape_[2],
                                           data.shape_[3]));
-    CUDNN_CALL(miopenSoftmaxForward(s->dnn_handle_,
+    /*CUDNN_CALL(miopenSoftmaxForward(s->dnn_handle_,
                                    //CUDNN_SOFTMAX_ACCURATE,
                                    //softmax_mode,
                                    &alpha,
@@ -99,7 +98,17 @@ class CuDNNSoftmaxActivationOp {
                                    data.dptr_,
                                    &beta,
                                    shape_desc_,
-                                   out.dptr_));
+                                   out.dptr_));*/
+    CUDNN_CALL(miopenSoftmaxForward_V2(s->dnn_handle_,
+                                   &alpha,
+                                   shape_desc_,
+                                   data.dptr_,
+                                   &beta,
+                                   shape_desc_,
+                                   out.dptr_,
+                                  MIOPEN_SOFTMAX_ACCURATE,
+                                  softmax_mode));
+
   }
 
   void Backward(const OpContext &ctx, const TBlob &out_grad,
@@ -115,6 +124,7 @@ class CuDNNSoftmaxActivationOp {
     Tensor<gpu, 4> input_grad;
     //TODO MIOpen does not support Softmax modes. MIOpen implements the SOFTMAX_MODE_CHANNEL flavor.
     //cudnnSoftmaxMode_t softmax_mode;
+    miopenSoftmaxMode_t softmax_mode;
     if (param_.mode == softmax_activation::kInstance) {
       CHECK_EQ(in_grad.ndim(), 2)
         << "Input need to have 2 dimensions when mode=instance.";
@@ -122,7 +132,7 @@ class CuDNNSoftmaxActivationOp {
       grad = out_grad.get_with_shape<gpu, 4, real_t>(dshape, s);
       output_data = out_data.get_with_shape<gpu, 4, real_t>(dshape, s);
       input_grad = in_grad.get_with_shape<gpu, 4, real_t>(dshape, s);
-      //softmax_mode = CUDNN_SOFTMAX_MODE_INSTANCE; //TODO MIOpen does not support Softmax modes.
+      softmax_mode =  MIOPEN_SOFTMAX_MODE_INSTANCE;
     } else {
       CHECK_GE(in_grad.ndim(), 3)
         << "Input need to have a least 3 dimensions when mode=channel";
@@ -140,7 +150,7 @@ class CuDNNSoftmaxActivationOp {
       output_data = out_data.get_with_shape<gpu, 4, real_t>(dshape, s);
       grad = out_grad.get_with_shape<gpu, 4, real_t>(dshape, s);
       input_grad = in_grad.get_with_shape<gpu, 4, real_t>(dshape, s);
-      //softmax_mode = CUDNN_SOFTMAX_MODE_CHANNEL; //TODO MIOpen does not support Softmax modes
+      softmax_mode = MIOPEN_SOFTMAX_MODE_CHANNEL;
     }
     CHECK_EQ(s->dnn_handle_ownership_, mshadow::Stream<gpu>::OwnHandle);
     CUDNN_CALL(miopenSet4dTensorDescriptor(shape_desc_,
@@ -150,7 +160,7 @@ class CuDNNSoftmaxActivationOp {
                                           input_grad.shape_[1],
                                           input_grad.shape_[2],
                                           input_grad.shape_[3]));
-    CUDNN_CALL(miopenSoftmaxBackward(s->dnn_handle_,
+    /*CUDNN_CALL(miopenSoftmaxBackward(s->dnn_handle_,
                                     //CUDNN_SOFTMAX_ACCURATE,
                                     //softmax_mode,
                                     &alpha,
@@ -160,7 +170,20 @@ class CuDNNSoftmaxActivationOp {
                                     grad.dptr_,
                                     &beta,
                                     shape_desc_,
-                                    input_grad.dptr_));
+                                    input_grad.dptr_)); */
+    CUDNN_CALL(miopenSoftmaxBackward_V2(s->dnn_handle_,
+                                    &alpha,
+                                    shape_desc_,
+                                    output_data.dptr_,
+                                    shape_desc_,
+                                    grad.dptr_,
+                                    &beta,
+                                    shape_desc_,
+                                    input_grad.dptr_,
+                                   MIOPEN_SOFTMAX_ACCURATE,
+                                    softmax_mode));
+
+
   }
 
  private:

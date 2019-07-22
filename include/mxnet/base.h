@@ -192,6 +192,11 @@ struct Context {
    */
   inline static int32_t GetGPUCount();
   /*!
+   * Is the cuda driver installed and visible to the system.
+   * \return Whether the driver is present.
+   */
+  inline static bool GPUDriverPresent();
+  /*!
    * Get the number of streams that a GPU Worker has available to operations.
    * \return The number of streams that are available.
    */
@@ -222,6 +227,14 @@ struct Context {
    * \return Context
    */
   inline static Context FromString(const std::string& str);
+
+ private:
+#if MXNET_USE_GPU
+    static void CudaLibChecks();
+#endif
+#if MXNET_USE_CUDNN
+    static void CuDNNLibChecks();
+#endif
 };
 
 #if MXNET_USE_GPU
@@ -395,8 +408,6 @@ inline Context Context::Create(DeviceType dev_type, int32_t dev_id) {
       LOG(FATAL) << "Please compile with CUDA enabled for cuda features";
 #endif
     }
-  } else {
-    ctx.dev_id = dev_id;
   }
   return ctx;
 }
@@ -414,6 +425,16 @@ inline Context Context::CPUShared(int32_t dev_id) {
 
 inline Context Context::GPU(int32_t dev_id) {
   return Create(kGPU, dev_id);
+}
+
+inline bool Context::GPUDriverPresent() {
+#if MXNET_USE_GPU
+  int cuda_driver_version = 0;
+  CHECK_EQ(hipDriverGetVersion(&cuda_driver_version), hipSuccess);
+  return cuda_driver_version > 0;
+#else
+  return false;
+#endif
 }
 
 inline int32_t Context::GetGPUCount() {

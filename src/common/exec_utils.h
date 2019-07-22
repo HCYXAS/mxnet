@@ -286,7 +286,6 @@ inline void LogMemoryPlan(const nnvm::Graph& g) {
   const auto &idx = g.indexed_graph();
   const auto& vshape = g.GetAttr<mxnet::ShapeVector>("shape");
   const auto& vtype = g.GetAttr<nnvm::DTypeVector>("dtype");
-  //const auto& vstorage = g.GetAttr<nnvm::StorageVector>("storage_id");
   // find node range
   uint32_t node_start = 0, node_end = idx.num_nodes();
   if (g.attrs.count("node_range")) {
