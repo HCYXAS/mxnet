@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  * Copyright (c) 2015 by Contributors
  * \file kvstore.h
@@ -7,16 +26,30 @@
 #define MXNET_KVSTORE_H_
 #include <dmlc/io.h>
 #include <vector>
+#include <utility>
 #include <unordered_map>
 #include <string>
 #include <functional>
 #include <atomic>
+#include "../../src/kvstore/gradient_compression.h"
 #include "./ndarray.h"
 #if MXNET_USE_DIST_KVSTORE
 #include "ps/ps.h"
 #endif  // MXNET_USE_DIST_KVSTORE
 
 namespace mxnet {
+
+/*!
+ * \brief enum to denote types of commands kvstore sends to server regarding profiler
+ * kSetConfig sets profiler configs. Similar to mx.profiler.set_config()
+ * kState allows changing state of profiler to stop or run
+ * kPause allows pausing and resuming of profiler
+ * kDump asks profiler to dump output
+ */
+enum class KVStoreServerProfilerCommand {
+  kSetConfig, kState, kPause, kDump
+};
+
 /*!
  * \brief distributed key-value store
  *
@@ -45,10 +78,18 @@ class KVStore {
    */
   inline const std::string& type() { return type_; }
 
+  /**
+   * \brief Set parameters to use low-bit compressed gradients
+   * \param compression_type type of compression
+   * \param threshold threshold for 2bit compression
+   */
+  virtual void SetGradientCompression(const std::vector<std::pair<std::string, std::string> >
+                                      & kwargs) = 0;
+
   /*!
    * \brief Initialize a list of key-value pair to the store.
    *
-   * One must initalize the key before \ref Push and \ref Pull, and a key
+   * One must initialize the key before \ref Push and \ref Pull, and a key
    * should be only initialized once
    *
    * It returns after data have been initialized successfully.
@@ -62,6 +103,13 @@ class KVStore {
    * \param values a list of values
    */
   virtual void Init(const std::vector<int>& keys,
+                    const std::vector<NDArray>& values) = 0;
+  /*!
+   * \brief Initialize a list of key-value pair to the store.
+   * \param keys a list of unique keys in string format
+   * \param values a list of values
+   */
+  virtual void Init(const std::vector<std::string>& str_keys,
                     const std::vector<NDArray>& values) = 0;
   /*!
    * \brief push a list of key-value pairs into the store
@@ -102,6 +150,16 @@ class KVStore {
   virtual void Push(const std::vector<int>& keys,
                     const std::vector<NDArray>& values,
                     int priority = 0)  = 0;
+
+  /*!
+   * \brief push a list of key-value pairs into the store
+   * \param keys the list of keys in string format
+   * \param values the list of values
+   * \param priority Priority of the action.
+   */
+  virtual void Push(const std::vector<std::string>& str_keys,
+                    const std::vector<NDArray>& values,
+                    int priority = 0)  = 0;
   /*!
    * \brief pull a list of key-value pairs from the store
    *
@@ -124,15 +182,54 @@ class KVStore {
    * \param keys the list of keys
    * \param values the list of buffers for the pulled data, they should be preallocated
    * \param priority Priority of the action.
+   * \param ignore_sparse whether to ignore sparse arrays in the request
    */
   virtual void Pull(const std::vector<int>& keys,
                     const std::vector<NDArray*>& values,
-                    int priority = 0) = 0;
+                    int priority = 0, bool ignore_sparse = true) = 0;
+  /*!
+   * \brief pull a list of key-value pairs from the store
+   * \param keys the list of keys in string format
+   * \param values the list of buffers for the pulled data, they should be preallocated
+   * \param priority Priority of the action.
+   * \param ignore_sparse whether to ignore sparse arrays in the request
+   */
+  virtual void Pull(const std::vector<std::string>& str_keys,
+                    const std::vector<NDArray*>& values,
+                    int priority = 0, bool ignore_sparse = true) = 0;
+
+  /*!
+   * \brief pull a list of key-value pairs from the store.
+   *        The NDArray pulled back will be in row_sparse storage with only the
+   *        specified row_ids present (others rows are zeros).
+   * \param keys the list of keys
+   * \param values the list of buffers - row_id pairs
+   * \param priority the priority of the action.
+   */
+  virtual void PullRowSparse(const std::vector<int>& str_keys,
+                             const std::vector<std::pair<NDArray*, NDArray>>& val_rowids,
+                             int priority = 0) = 0;
+
+  /*!
+   * \brief pull a list of key-value pairs from the store, where each key is a string.
+   *        The NDArray pulled back will be in row_sparse storage with only the
+   *        specified row_ids present (others rows are zeros).
+   * \param keys the list of keys in string format
+   * \param values the list of buffers - row_id pairs
+   * \param priority the priority of the action.
+   */
+  virtual void PullRowSparse(const std::vector<std::string>& str_keys,
+                             const std::vector<std::pair<NDArray*, NDArray>>& val_rowids,
+                             int priority = 0) = 0;
 
   /**
    * \brief the prototype of user-defined updater
    */
   typedef std::function<void(int, const NDArray&, NDArray*)> Updater;
+  /**
+   * \brief the prototype of user-defined updater with string keys
+   */
+  typedef std::function<void(const std::string&, const NDArray&, NDArray*)> StrUpdater;
   /*!
    * \brief set an updater
    *
@@ -145,6 +242,20 @@ class KVStore {
   virtual void set_updater(const Updater& updater) {
     CHECK(updater) << "invalid updater";
     updater_ = updater;
+  }
+
+  /*!
+   * \brief set an updater with string keys
+   *
+   * Given a string key, assume \a x is the received (pushed) value and \a y is the
+   * value stored on the store node. The store updates \a y by `h(x, &y)`. The
+   * default \a h is ASSIGN, namely `*y = x`.
+   *
+   * \param updater user-defined string updater, default is assign
+   */
+  virtual void set_updater(const StrUpdater& updater) {
+    CHECK(updater) << "invalid updater";
+    str_updater_ = updater;
   }
 
   /******************************************************
@@ -266,6 +377,20 @@ class KVStore {
   virtual void SendCommandToServers(int cmd_id, const std::string& cmd_body) { }
 
   /**
+   * \brief Sends server profiler commands to all server nodes
+   * Only the worker with rank=0 sends the command which will be received by all servers
+   * \param type ProfilerCommand type
+   * \param params parameters for that command in the form of a string
+   */
+  virtual void SetServerProfilerCommand(const KVStoreServerProfilerCommand type,
+                                        const std::string& params) {
+    LOG(INFO) << "Unable to pass server the profiler command. If you are using "
+              << "distributed kvstore, you need to compile with USE_DIST_KVSTORE=1."
+              << "If you are training on single machine, then there is no server process"
+              << "to profile. Please profile the worker process instead.";
+  }
+
+  /**
    * \brief the prototype of a server controller
    */
   typedef std::function<void(int, const std::string&)> Controller;
@@ -287,14 +412,25 @@ class KVStore {
 
  protected:
   /**
-   * \brief the user-defined  updater
+   * \brief the user-defined updater
    */
   Updater updater_;
+
+  /**
+   * \brief the user-defined updater with string keys
+   */
+  StrUpdater str_updater_;
 
   /**
    * \brief the kvstore type
    */
   std::string type_;
+
+  /** \brief Gradient compression object starts with GC_NONE mode
+   * Used if SetGradientCompression sets the type.
+   * Currently there is no support for un-setting gradient compression
+   */
+  std::shared_ptr<kvstore::GradientCompression> gradient_compression_;
 
   /**
    * \brief whether to do barrier when finalize

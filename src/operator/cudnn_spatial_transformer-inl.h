@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  * Copyright (c) 2016 by Contributors
  * \file cudnn_spatial_transformer-inl.h
@@ -21,13 +40,13 @@ class CuDNNSpatialTransformerOp : public Operator {
     init_cudnn_ = false;
     dtype_ = mshadow::DataType<DType>::kCudnnFlag;
     if (param_.sampler_type == st::kBilinear) {
-      //sampler_ = CUDNN_SAMPLER_BILINEAR; //TODO .Unsupported
+      //sampler_ = CUDNN_SAMPLER_BILINEAR; //TODO unsupported in MIOpen
     }
   }
 
   ~CuDNNSpatialTransformerOp() {
     if (init_cudnn_) {
-      //CUDNN_CALL(cudnnDestroySpatialTransformerDescriptor(st_desc_)); //TODO .Unsupported
+     // CUDNN_CALL(cudnnDestroySpatialTransformerDescriptor(st_desc_)); //TODO unsupported in MIOpen
       CUDNN_CALL(miopenDestroyTensorDescriptor(in_desc_));
       CUDNN_CALL(miopenDestroyTensorDescriptor(out_desc_));
     }
@@ -56,13 +75,13 @@ class CuDNNSpatialTransformerOp : public Operator {
     CHECK_EQ(out.CheckContiguous(), true);
     typename DataType<DType>::ScaleType alpha = 1.0f;
     typename DataType<DType>::ScaleType beta = 0.0f;
-    if (param_.transform_type == st::kAffine) {
-      /*CUDNN_CALL(cudnnSpatialTfGridGeneratorForward(s->dnn_handle_,
+    /*if (param_.transform_type == st::kAffine) {
+      CUDNN_CALL(cudnnSpatialTfGridGeneratorForward(s->dnn_handle_,
                                                     st_desc_,
                                                     loc.dptr_,
-                                                    grid.dptr_));*/ //TODO .Unsupported
+                                                    grid.dptr_));
     }
-    /*CUDNN_CALL(cudnnSpatialTfSamplerForward(s->dnn_handle_,
+    CUDNN_CALL(cudnnSpatialTfSamplerForward(s->dnn_handle_,
                                             st_desc_,
                                             &alpha,
                                             in_desc_,
@@ -70,7 +89,7 @@ class CuDNNSpatialTransformerOp : public Operator {
                                             grid.dptr_,
                                             &beta,
                                             out_desc_,
-                                            out.dptr_));*/  //TODO . Unsupported
+                                            out.dptr_));*/ //TODO unsupported in MIOpen
   }
 
   virtual void Backward(const OpContext &ctx,
@@ -99,28 +118,26 @@ class CuDNNSpatialTransformerOp : public Operator {
     typename DataType<DType>::ScaleType beta = 0.0f;
     typename DataType<DType>::ScaleType alpha_dgrid = 1.0f;
     typename DataType<DType>::ScaleType beta_dgrid = 0.0f;
-    #if 0
-    CUDNN_CALL(cudnnSpatialTfSamplerBackward(s->dnn_handle_,
+    /*CUDNN_CALL(cudnnSpatialTfSamplerBackward(s->dnn_handle_,
                                              st_desc_,
                                              &alpha,
                                              in_desc_,
                                              data.dptr_,
                                              &beta,
-                                             in_desc_/*reuse in_desc_*/,
-                                             ddata.dptr_/*output*/,
-                                             &alpha_dgrid,
-                                             out_desc_/*reuse out_desc_*/,
-                                             grad.dptr_,
+                                             in_desc_*//*reuse in_desc_*///,
+                                             //ddata.dptr_/*output*/,
+                                             //&alpha_dgrid,
+                                             //out_desc_/*reuse out_desc_*/,
+                                             /*grad.dptr_,
                                              grid.dptr_,
                                              &beta_dgrid,
                                              grid.dptr_));
-   #endif //TODO .Unsupported
     if (param_.transform_type == st::kAffine) {
-     // CUDNN_CALL(cudnnSpatialTfGridGeneratorBackward(s->dnn_handle_,
-     //                                                st_desc_,
-     //                                                grid.dptr_,
-     //                                                dloc.dptr_/*out*/)); //TODO.Unsupported.
-    }
+      CUDNN_CALL(cudnnSpatialTfGridGeneratorBackward(s->dnn_handle_,
+                                                     st_desc_,
+                                                     grid.dptr_,
+                                                     dloc.dptr_*//*out*///));
+    //}  //TODO unsupported in MIOpen
   }
 
  private:
@@ -137,16 +154,18 @@ class CuDNNSpatialTransformerOp : public Operator {
       init_cudnn_ = true;
       Tensor<gpu, 4, DType> data = in_data[st::kData].get<gpu, 4, DType>(s);
       Tensor<gpu, 4, DType> out = out_data[st::kOut].get<gpu, 4, DType>(s);
-      //CUDNN_CALL(cudnnCreateSpatialTransformerDescriptor(&st_desc_)); //TODO Unsupported
+      //CUDNN_CALL(cudnnCreateSpatialTransformerDescriptor(&st_desc_)); //TODO unsupported in MIOpen
       CUDNN_CALL(miopenCreateTensorDescriptor(&in_desc_));
       CUDNN_CALL(miopenCreateTensorDescriptor(&out_desc_));
       CUDNN_CALL(miopenSet4dTensorDescriptor(in_desc_,
+                                            //format_,
                                             dtype_,
                                             data.size(0),
                                             data.size(1),
                                             data.size(2),
                                             data.size(3)));
       CUDNN_CALL(miopenSet4dTensorDescriptor(out_desc_,
+                                            //format_,
                                             dtype_,
                                             out.size(0),
                                             out.size(1),
@@ -159,19 +178,19 @@ class CuDNNSpatialTransformerOp : public Operator {
                                                           sampler_,
                                                           dtype_,
                                                           4,
-                                                          dim));*/ //TODO .Unsupported
+                                                          dim));*/ //TODO unsupported in MIOpen
       }
     }
   }
 
   bool init_cudnn_;
   miopenDataType_t dtype_;
-  //cudnnSpatialTransformerDescriptor_t st_desc_; //TODO Unsupported
+  //cudnnSpatialTransformerDescriptor_t st_desc_; //TODO unsupported in MIOpen
   miopenTensorDescriptor_t in_desc_;
   miopenTensorDescriptor_t out_desc_;
-  //cudnnSamplerType_t sampler_; //TODO Unsupported
+ // cudnnSamplerType_t sampler_;  //TODO unsupported in MIOpen
   #if CUDNN_MAJOR >= 5
-  //cudnnTensorFormat_t format_;
+  //cudnnTensorFormat_t format_; //TODO unsupported in MIOpen
   #endif
   SpatialTransformerParam param_;
 };

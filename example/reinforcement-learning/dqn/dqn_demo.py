@@ -1,12 +1,33 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
 import mxnet as mx
 import mxnet.ndarray as nd
 import numpy
 from base import Base
 from operators import *
 from atari_game import AtariGame
-from utils import *
+from utils import get_numpy_rng, parse_ctx
 import logging
 import argparse
+import sys
+import time
 
 root = logging.getLogger()
 root.setLevel(logging.DEBUG)
@@ -30,7 +51,7 @@ def main():
     parser.add_argument('-r', '--rom', required=False, type=str,
                         default=os.path.join('roms', 'breakout.bin'),
                         help='Path of the ROM File.')
-    parser.add_argument('-v', '--visualization', required=False, type=int, default=0,
+    parser.add_argument('-v', '--visualization', action='store_true',
                         help='Visualize the runs.')
     parser.add_argument('--lr', required=False, type=float, default=0.01,
                         help='Learning rate of the AdaGrad optimizer')
@@ -38,8 +59,8 @@ def main():
                         help='Eps of the AdaGrad optimizer')
     parser.add_argument('--clip-gradient', required=False, type=float, default=None,
                         help='Clip threshold of the AdaGrad optimizer')
-    parser.add_argument('--double-q', required=False, type=bool, default=False,
-                        help='Use Double DQN')
+    parser.add_argument('--double-q', action='store_true',
+                        help='Use Double DQN only if specified')
     parser.add_argument('--wd', required=False, type=float, default=0.0,
                         help='Weight of the L2 Regularizer')
     parser.add_argument('-c', '--ctx', required=False, type=str, default='gpu',

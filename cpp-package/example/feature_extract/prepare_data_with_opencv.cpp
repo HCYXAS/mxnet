@@ -1,5 +1,23 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
- * Copyright (c) 2015 by Contributors
  */
 #include <fstream>
 #include <iostream>
@@ -11,7 +29,7 @@ using namespace std;
 
 /*read images and store them the NDArray format that MXNet.cpp can handle*/
 void Mat2Array() {
-  string file_name_list[] = {"./1.jpg", "./2.jpg"};
+  string file_name_list[] = {"./dog.jpg", "./cat.jpg"};
 
   std::vector<float> array;
   for (auto &t : file_name_list) {
@@ -27,7 +45,7 @@ void Mat2Array() {
     }
   }
   ofstream outf("./img.dat", ios::binary);
-  outf.write(reinterpret_cast<char *>array.data(), array.size() * sizeof(float));
+  outf.write(reinterpret_cast<char *>(array.data()), array.size() * sizeof(float));
   outf.close();
 }
 

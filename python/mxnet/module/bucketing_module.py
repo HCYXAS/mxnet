@@ -1,3 +1,20 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
 # pylint: disable=too-many-instance-attributes, too-many-arguments, protected-access
 # pylint: disable=too-many-public-methods
 """A `BucketingModule` implement the `BaseModule` API, and allows multiple
@@ -14,6 +31,7 @@ from ..initializer import Uniform
 
 from .base_module import BaseModule, _check_input_names
 from .module import Module
+from ..name import NameManager
 
 class BucketingModule(BaseModule):
     """This module helps to deal efficiently with varying-length inputs.
@@ -35,17 +53,26 @@ class BucketingModule(BaseModule):
     state_names : list of str
         States are similar to data and label, but not provided by data iterator.
         Instead they are initialized to 0 and can be set by set_states()
+    group2ctxs : dict of str to context or list of context,
+                 or list of dict of str to context
+        Default is `None`. Mapping the `ctx_group` attribute to the context assignment.
+    compression_params : dict
+        Specifies type of gradient compression and additional arguments depending
+        on the type of compression being used. For example, 2bit compression requires a threshold.
+        Arguments would then be {'type':'2bit', 'threshold':0.5}
+        See mxnet.KVStore.set_gradient_compression method for more details on gradient compression.
     """
     def __init__(self, sym_gen, default_bucket_key=None, logger=logging,
                  context=ctx.cpu(), work_load_list=None,
-                 fixed_param_names=None, state_names=None):
+                 fixed_param_names=None, state_names=None, group2ctxs=None,
+                 compression_params=None):
         super(BucketingModule, self).__init__(logger=logger)
 
         assert default_bucket_key is not None
         self._default_bucket_key = default_bucket_key
         self._sym_gen = sym_gen
 
-        symbol, data_names, label_names = sym_gen(default_bucket_key)
+        symbol, data_names, label_names = self._call_sym_gen(default_bucket_key)
         data_names = list(data_names) if data_names is not None else []
         label_names = list(label_names) if label_names is not None else []
         state_names = list(state_names) if state_names is not None else []
@@ -56,15 +83,19 @@ class BucketingModule(BaseModule):
         _check_input_names(symbol, state_names, "state", True)
         _check_input_names(symbol, fixed_param_names, "fixed_param", True)
 
+        self._compression_params = compression_params
         self._fixed_param_names = fixed_param_names
         self._state_names = state_names
         self._context = context
         self._work_load_list = work_load_list
+        self._group2ctxs = group2ctxs
 
         self._buckets = {}
         self._curr_module = None
         self._curr_bucket_key = None
         self._params_dirty = False
+        self._monitor = None
+        self._grad_req = None
 
     def _reset_bind(self):
         """Internal utility function to reset binding."""
@@ -73,13 +104,17 @@ class BucketingModule(BaseModule):
         self._curr_module = None
         self._curr_bucket_key = None
 
+    def _call_sym_gen(self, *args, **kwargs):
+        with NameManager():
+            return self._sym_gen(*args, **kwargs)
+
     @property
     def data_names(self):
         """A list of names for data required by this module."""
         if self.binded:
             return self._curr_module.data_names
         else:
-            _, data_names, _ = self._sym_gen(self._default_bucket_key)
+            _, data_names, _ = self._call_sym_gen(self._default_bucket_key)
             return data_names
 
     @property
@@ -88,12 +123,13 @@ class BucketingModule(BaseModule):
         if self.binded:
             return self._curr_module.output_names
         else:
-            symbol, _, _ = self._sym_gen(self._default_bucket_key)
+            symbol, _, _ = self._call_sym_gen(self._default_bucket_key)
             return symbol.list_outputs()
 
     @property
     def data_shapes(self):
         """Get data shapes.
+
         Returns
         -------
         A list of `(name, shape)` pairs.
@@ -104,18 +140,21 @@ class BucketingModule(BaseModule):
     @property
     def label_shapes(self):
         """Get label shapes.
+
         Returns
         -------
-        A list of `(name, shape)` pairs. The return value could be ``None`` if
-        the module does not need labels, or if the module is not bound for
-        training (in this case, label information is not available).
+        A list of `(name, shape)` pairs.
+            The return value could be ``None`` if the module does not need labels,
+            or if the module is not bound for training (in this case, label information
+            is not available).
         """
         assert self.binded
         return self._curr_module.label_shapes
 
     @property
     def output_shapes(self):
-        """Get output shapes.
+        """Gets output shapes.
+
         Returns
         -------
         A list of `(name, shape)` pairs.
@@ -124,11 +163,12 @@ class BucketingModule(BaseModule):
         return self._curr_module.output_shapes
 
     def get_params(self):
-        """Get current parameters.
+        """Gets current parameters.
+
         Returns
         -------
-        `(arg_params, aux_params)`, each a dictionary mapping names to parameters
-        (`NDArray`).
+        `(arg_params, aux_params)`
+            A pair of dictionaries each mapping parameter names to NDArray values.
         """
         assert self.binded and self.params_initialized
         self._curr_module._params_dirty = self._params_dirty
@@ -136,8 +176,9 @@ class BucketingModule(BaseModule):
         self._params_dirty = False
         return params
 
-    def set_params(self, arg_params, aux_params, allow_missing=False, force_init=True):
-        """Assign parameter and aux state values.
+    def set_params(self, arg_params, aux_params, allow_missing=False, force_init=True,
+                   allow_extra=False):
+        """Assigns parameters and aux state values.
 
         Parameters
         ----------
@@ -150,13 +191,16 @@ class BucketingModule(BaseModule):
             called to fill those missing params.
         force_init : bool
             If true, will force re-initialize even if already initialized.
+        allow_extra : boolean, optional
+            Whether allow extra parameters that are not needed by symbol.
+            If this is True, no error will be thrown when arg_params or aux_params
+            contain extra parameters that is not needed by the executor.
 
         Examples
         --------
-        An example of setting module parameters::
-            >>> sym, arg_params, aux_params = \
-            >>>     mx.model.load_checkpoint(model_prefix, n_epoch_load)
-            >>> mod.set_params(arg_params=arg_params, aux_params=aux_params)
+        >>> # An example of setting module parameters.
+        >>> sym, arg_params, aux_params = mx.model.load_checkpoint(model_prefix, n_epoch_load)
+        >>> mod.set_params(arg_params=arg_params, aux_params=aux_params)
         """
         if not allow_missing:
             self.init_params(initializer=None, arg_params=arg_params, aux_params=aux_params,
@@ -169,15 +213,15 @@ class BucketingModule(BaseModule):
             return
 
         self._curr_module.set_params(arg_params, aux_params, allow_missing=allow_missing,
-                                     force_init=force_init)
+                                     force_init=force_init, allow_extra=allow_extra)
 
         # because we didn't update self._arg_params, they are dirty now.
         self._params_dirty = True
         self.params_initialized = True
 
     def init_params(self, initializer=Uniform(0.01), arg_params=None, aux_params=None,
-                    allow_missing=False, force_init=False):
-        """Initialize parameters.
+                    allow_missing=False, force_init=False, allow_extra=False):
+        """Initializes parameters.
 
         Parameters
         ----------
@@ -193,18 +237,22 @@ class BucketingModule(BaseModule):
             In this case, missing values will be filled with `initializer`.
         force_init : bool
             Defaults to ``False``.
+        allow_extra : boolean, optional
+            Whether allow extra parameters that are not needed by symbol.
+            If this is True, no error will be thrown when arg_params or aux_params
+            contain extra parameters that is not needed by the executor.
         """
         if self.params_initialized and not force_init:
             return
         assert self.binded, 'call bind before initializing the parameters'
         self._curr_module.init_params(initializer=initializer, arg_params=arg_params,
                                       aux_params=aux_params, allow_missing=allow_missing,
-                                      force_init=force_init)
+                                      force_init=force_init, allow_extra=allow_extra)
         self._params_dirty = False
         self.params_initialized = True
 
     def get_states(self, merge_multi_context=True):
-        """Get states from all devices
+        """Gets states from all devices.
 
         Parameters
         ----------
@@ -216,15 +264,16 @@ class BucketingModule(BaseModule):
 
         Returns
         -------
-        If `merge_multi_context` is ``True``, it is like ``[out1, out2]``. Otherwise, it
-        is like ``[[out1_dev1, out1_dev2], [out2_dev1, out2_dev2]]``. All the output
-        elements are `NDArray`.
+        list of NDArrays or list of list of NDArrays
+            If `merge_multi_context` is ``True``, it is like ``[out1, out2]``. Otherwise, it
+            is like ``[[out1_dev1, out1_dev2], [out2_dev1, out2_dev2]]``. All the output
+            elements are `NDArray`.
         """
         assert self.binded and self.params_initialized
         return self._curr_module.get_states(merge_multi_context=merge_multi_context)
 
     def set_states(self, states=None, value=None):
-        """Set value for states. Only one of states & value can be specified.
+        """Sets value for states. Only one of states & values can be specified.
 
         Parameters
         ----------
@@ -283,14 +332,17 @@ class BucketingModule(BaseModule):
         self.for_training = for_training
         self.inputs_need_grad = inputs_need_grad
         self.binded = True
+        self._grad_req = grad_req
 
-        symbol, data_names, label_names = self._sym_gen(self._default_bucket_key)
+        symbol, data_names, label_names = self._call_sym_gen(self._default_bucket_key)
         module = Module(symbol, data_names, label_names, logger=self.logger,
                         context=self._context, work_load_list=self._work_load_list,
                         fixed_param_names=self._fixed_param_names,
-                        state_names=self._state_names)
+                        state_names=self._state_names,
+                        group2ctxs=self._group2ctxs,
+                        compression_params=self._compression_params)
         module.bind(data_shapes, label_shapes, for_training, inputs_need_grad,
-                    force_rebind=False, shared_module=None, grad_req=grad_req)
+                    force_rebind=False, shared_module=None, grad_req=self._grad_req)
         self._curr_module = module
         self._curr_bucket_key = self._default_bucket_key
         self._buckets[self._default_bucket_key] = module
@@ -300,7 +352,7 @@ class BucketingModule(BaseModule):
             self.set_params(arg_params, aux_params)
 
     def switch_bucket(self, bucket_key, data_shapes, label_shapes=None):
-        """Switch to a different bucket. This will change ``self.curr_module``.
+        """Switches to a different bucket. This will change ``self.curr_module``.
 
         Parameters
         ----------
@@ -313,15 +365,20 @@ class BucketingModule(BaseModule):
         """
         assert self.binded, 'call bind before switching bucket'
         if not bucket_key in self._buckets:
-            symbol, data_names, label_names = self._sym_gen(bucket_key)
+            symbol, data_names, label_names = self._call_sym_gen(bucket_key)
             module = Module(symbol, data_names, label_names,
                             logger=self.logger, context=self._context,
                             work_load_list=self._work_load_list,
                             fixed_param_names=self._fixed_param_names,
-                            state_names=self._state_names)
+                            state_names=self._state_names,
+                            group2ctxs=self._group2ctxs,
+                            compression_params=self._compression_params)
             module.bind(data_shapes, label_shapes, self._curr_module.for_training,
                         self._curr_module.inputs_need_grad,
-                        force_rebind=False, shared_module=self._buckets[self._default_bucket_key])
+                        force_rebind=False, shared_module=self._buckets[self._default_bucket_key],
+                        grad_req=self._grad_req)
+            if self._monitor is not None:
+                module.install_monitor(self._monitor)
             self._buckets[bucket_key] = module
 
         self._curr_module = self._buckets[bucket_key]
@@ -330,7 +387,7 @@ class BucketingModule(BaseModule):
     def init_optimizer(self, kvstore='local', optimizer='sgd',
                        optimizer_params=(('learning_rate', 0.01),),
                        force_init=False):
-        """Install and initialize optimizers.
+        """Installs and initializes optimizers.
 
         Parameters
         ----------
@@ -358,12 +415,23 @@ class BucketingModule(BaseModule):
 
         self.optimizer_initialized = True
 
-    def prepare(self, data_batch):
-        '''Prepare a data batch for forward.
+    def prepare(self, data_batch, sparse_row_id_fn=None):
+        '''Prepares the module for processing a data batch.
+
+        Usually involves switching bucket and reshaping.
+        For modules that contain `row_sparse` parameters in KVStore,
+        it prepares the `row_sparse` parameters based on the sparse_row_id_fn.
 
         Parameters
         ----------
         data_batch : DataBatch
+            The current batch of data for forward computation.
+
+        sparse_row_id_fn : A callback function
+            The function  takes `data_batch` as an input and returns a dict of
+            str -> NDArray. The resulting dict is used for pulling row_sparse
+            parameters from the kvstore, where the str key is the name of the param,
+            and the value is the row id of the param to pull.
         '''
         # perform bind if haven't done so
         assert self.binded and self.params_initialized
@@ -372,6 +440,7 @@ class BucketingModule(BaseModule):
         data_shapes = data_batch.provide_data
         label_shapes = data_batch.provide_label
         self.switch_bucket(bucket_key, data_shapes, label_shapes)
+        self._curr_module.prepare(data_batch, sparse_row_id_fn=sparse_row_id_fn)
         # switch back
         self.switch_bucket(original_bucket_key, None, None)
 
@@ -395,15 +464,22 @@ class BucketingModule(BaseModule):
         self._curr_module.backward(out_grads=out_grads)
 
     def update(self):
-        """Update parameters according to installed optimizer and the gradient computed
+        """Updates parameters according to installed optimizer and the gradient computed
         in the previous forward-backward cycle.
+
+        When KVStore is used to update parameters for multi-device or multi-machine training,
+        a copy of the parameters are stored in KVStore. Note that for `row_sparse` parameters,
+        this function does update the copy of parameters in KVStore, but doesn't broadcast the
+        updated parameters to all devices / machines. Please call `prepare` to broadcast
+        `row_sparse` parameters with the next batch of data.
+
         """
         assert self.binded and self.params_initialized and self.optimizer_initialized
         self._params_dirty = True
         self._curr_module.update()
 
     def get_outputs(self, merge_multi_context=True):
-        """Get outputs from a previous forward computation.
+        """Gets outputs from a previous forward computation.
 
         Parameters
         ----------
@@ -415,15 +491,16 @@ class BucketingModule(BaseModule):
 
         Returns
         -------
-        If `merge_multi_context` is ``True``, it is like ``[out1, out2]``. Otherwise, it
-        is like ``[[out1_dev1, out1_dev2], [out2_dev1, out2_dev2]]``. All the output
-        elements are numpy arrays.
+        list of numpy arrays or list of list of numpy arrays
+            If `merge_multi_context` is ``True``, it is like ``[out1, out2]``. Otherwise, it
+            is like ``[[out1_dev1, out1_dev2], [out2_dev1, out2_dev2]]``. All the output
+            elements are numpy arrays.
         """
         assert self.binded and self.params_initialized
         return self._curr_module.get_outputs(merge_multi_context=merge_multi_context)
 
     def get_input_grads(self, merge_multi_context=True):
-        """Get the gradients with respect to the inputs of the module.
+        """Gets the gradients with respect to the inputs of the module.
 
         Parameters
         ----------
@@ -435,15 +512,16 @@ class BucketingModule(BaseModule):
 
         Returns
         -------
-        If `merge_multi_context` is ``True``, it is like ``[grad1, grad2]``. Otherwise, it
-        is like ``[[grad1_dev1, grad1_dev2], [grad2_dev1, grad2_dev2]]``. All the output
-        elements are `NDArray`.
+        list of NDArrays or list of list of NDArrays
+            If `merge_multi_context` is ``True``, it is like ``[grad1, grad2]``. Otherwise, it
+            is like ``[[grad1_dev1, grad1_dev2], [grad2_dev1, grad2_dev2]]``. All the output
+            elements are `NDArray`.
         """
         assert self.binded and self.params_initialized and self.inputs_need_grad
         return self._curr_module.get_input_grads(merge_multi_context=merge_multi_context)
 
-    def update_metric(self, eval_metric, labels):
-        """Evaluate and accumulate evaluation metric on outputs of the last forward computation.
+    def update_metric(self, eval_metric, labels, pre_sliced=False):
+        """Evaluates and accumulates evaluation metric on outputs of the last forward computation.
 
         Parameters
         ----------
@@ -452,7 +530,7 @@ class BucketingModule(BaseModule):
             Typically ``data_batch.label``.
         """
         assert self.binded and self.params_initialized
-        self._curr_module.update_metric(eval_metric, labels)
+        self._curr_module.update_metric(eval_metric, labels, pre_sliced)
 
     @property
     def symbol(self):
@@ -461,7 +539,8 @@ class BucketingModule(BaseModule):
         return self._curr_module.symbol
 
     def install_monitor(self, mon):
-        """ Install monitor on all executors """
+        """Installs monitor on all executors """
         assert self.binded
+        self._monitor = mon
         for mod in self._buckets.values():
             mod.install_monitor(mon)

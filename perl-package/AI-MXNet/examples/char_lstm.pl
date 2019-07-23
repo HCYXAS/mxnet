@@ -1,4 +1,22 @@
-#!/usr/bin/perl
+#!/usr/bin/env perl
+
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
 use strict;
 use warnings;
 use PDL;
@@ -115,7 +133,7 @@ method next()
         [$offset + 1 , $offset + $self->batch_size*$self->seq_size]
     )->reshape([$self->batch_size, $self->seq_size]);
     $self->seq_counter($self->seq_counter + 1);
-    if($self->seq_counter == $seq_size - 1)
+    if($self->seq_counter == $self->seq_size - 1)
     {
         $self->counter($self->counter + 1);
         $self->seq_counter(0);
@@ -215,22 +233,23 @@ $model->fit(
     initializer         => mx->init->Xavier(factor_type => "in", magnitude => 2.34),
     num_epoch           => $num_epoch,
     batch_end_callback  => mx->callback->Speedometer($batch_size, $disp_batches),
-    ($chkp_epoch ? (epoch_end_callback  => [mx->rnn->do_rnn_checkpoint($stack, $chkp_prefix, $chkp_epoch), \&sample]) : ())
+    ($chkp_epoch ? (epoch_end_callback  => [mx->callback->module_checkpoint($model, $chkp_prefix, $chkp_epoch), \&sample]) : ())
 );
 
+my $chkp = 1;
 sub sample {
     return if not $sample_size;
-    $model->reshape(data_shapes=>[['data',[1, $seq_size]]], label_shapes=>[['softmax_label',[1, $seq_size]]]);
+    my $inference_model = mx->mod->Module->load($chkp_prefix, $chkp++);
+    $inference_model->bind(data_shapes=>[['data',[1, $seq_size]]], label_shapes=>[['softmax_label',[1, $seq_size]]]);
     my $input = mx->nd->array($fdata->slice([0, $seq_size-1]))->reshape([1, $seq_size]);
     $| = 1;
     for (0..$sample_size-1)
     {
-        $model->forward(mx->io->DataBatch(data=>[$input]), is_train => 0);
-        my $prob = $model->get_outputs(0)->[0][0]->at($seq_size-1)->aspdl;
+        $inference_model->forward(mx->io->DataBatch(data=>[$input]), is_train => 0);
+        my $prob = $inference_model->get_outputs(0)->[0][0]->at($seq_size-1)->aspdl;
         my $next_char = Math::Random::Discrete->new($prob->reshape(-1)->unpdl, [0..scalar(keys %vocabulary)-1])->rand;
         print "$reverse_vocab{$next_char}";
         $input->at(0)->slice([0, $seq_size-2]) .= $input->at(0)->slice([1, $seq_size-1])->copy;
         $input->at(0)->at($seq_size-1) .= $next_char;
     }
-    $model->reshape(data_shapes=>[['data',[$batch_size, $seq_size]]], label_shapes=>[['softmax_label',[$batch_size, $seq_size]]]);
 }

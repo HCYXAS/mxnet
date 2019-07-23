@@ -1,8 +1,25 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
 # Find the MKL libraries
 #
 # Options:
 #
-#   USE_MKLML_MKL                   : Search for MKL:ML library variant
+#   USE_MKLDNN                    : Search for MKL:ML library variant
 #
 #   MKL_USE_SINGLE_DYNAMIC_LIBRARY  : use single dynamic library interface
 #   MKL_USE_STATIC_LIBS             : use static libraries
@@ -16,7 +33,7 @@
 #   MKL_INCLUDE_DIR      : unclude directory
 #   MKL_LIBRARIES        : the libraries to link against.
 #
-# cjolivier01: Changed to also look for MKLML library (subset of mkl) instead of standard MKL package
+# cjolivier01: Changed to also look for MKLDNN library (subset of mkl) instead of standard MKL package
 #
 
 if(MKL_FOUND)
@@ -26,55 +43,6 @@ endif()
 # ---[ Root folders
 set(INTEL_ROOT "/opt/intel" CACHE PATH "Folder contains intel libs")
 
-if(USE_MKLML_MKL)
-
-  find_path(MKL_ROOT include/mkl_blas.h
-    PATHS $ENV{MKL_ROOT}
-    ${INTEL_ROOT}/mklml
-    ${DIRECT_DEPENDENCY_ROOTS}
-    DOC "Folder contains MKL"
-    )
-
-  # ---[ Find include dir
-  find_path(MKL_INCLUDE_DIR mkl_blas.h PATHS ${MKL_ROOT} PATH_SUFFIXES include)
-  set(__looked_for MKL_INCLUDE_DIR)
-
-  # ---[ Find libraries
-  if(CMAKE_SIZEOF_VOID_P EQUAL 4)
-    set(__path_suffixes lib lib/ia32)
-  else()
-    set(__path_suffixes lib lib/intel64)
-  endif()
-
-  set(__mkl_libs "")
-
-  if(WIN32)
-    list(APPEND __mkl_libs intel)
-  else()
-    list(APPEND __mkl_libs gnu)
-  endif()
-
-  foreach (__lib ${__mkl_libs})
-    set(__mkl_lib "mklml_${__lib}")
-    string(TOUPPER ${__mkl_lib} __mkl_lib_upper)
-
-    if(MKL_USE_STATIC_LIBS)
-      set(__mkl_lib "lib${__mkl_lib}.a")
-    endif()
-
-    find_library(${__mkl_lib_upper}_LIBRARY
-      NAMES ${__mkl_lib}
-      PATHS ${MKL_ROOT} "${MKL_INCLUDE_DIR}/.."
-      PATH_SUFFIXES ${__path_suffixes}
-      DOC "The path to Intel(R) MKL ${__mkl_lib} library")
-    mark_as_advanced(${__mkl_lib_upper}_LIBRARY)
-
-    list(APPEND __looked_for ${__mkl_lib_upper}_LIBRARY)
-    list(APPEND MKL_LIBRARIES ${${__mkl_lib_upper}_LIBRARY})
-  endforeach()
-
-
-else(USE_MKLML_MKL)
 
   # ---[ Options
   mxnet_option(MKL_USE_SINGLE_DYNAMIC_LIBRARY "Use single dynamic library interface" ON)
@@ -176,7 +144,7 @@ else(USE_MKLML_MKL)
     list(APPEND MKL_LIBRARIES ${MKL_RTL_LIBRARY})
   endif()
 
-endif(USE_MKLML_MKL)
+
 
 include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(MKL DEFAULT_MSG ${__looked_for})

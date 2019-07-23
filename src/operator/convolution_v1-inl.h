@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  * Copyright (c) 2015 by Contributors
  * \file convolution_v1-inl.h
@@ -19,6 +38,7 @@
 #include <string>
 #include <utility>
 #include "./operator_common.h"
+#include "./linalg.h"
 
 namespace mxnet {
 namespace op {
@@ -31,10 +51,10 @@ enum ConvolutionV1OpCudnnTune {kOff, kLimited, kFastest};
 }
 
 struct ConvolutionV1Param : public dmlc::Parameter<ConvolutionV1Param> {
-  TShape kernel;
-  TShape stride;
-  TShape dilate;
-  TShape pad;
+  mxnet::TShape kernel;
+  mxnet::TShape stride;
+  mxnet::TShape dilate;
+  mxnet::TShape pad;
   uint32_t num_filter;
   uint32_t num_group;
   uint64_t workspace;
@@ -44,11 +64,11 @@ struct ConvolutionV1Param : public dmlc::Parameter<ConvolutionV1Param> {
   dmlc::optional<int> layout;
   DMLC_DECLARE_PARAMETER(ConvolutionV1Param) {
     DMLC_DECLARE_FIELD(kernel).describe("convolution kernel size: (h, w) or (d, h, w)");
-    DMLC_DECLARE_FIELD(stride).set_default(TShape())
+    DMLC_DECLARE_FIELD(stride).set_default(mxnet::TShape(0, 0))
     .describe("convolution stride: (h, w) or (d, h, w)");
-    DMLC_DECLARE_FIELD(dilate).set_default(TShape())
+    DMLC_DECLARE_FIELD(dilate).set_default(mxnet::TShape(0, 0))
     .describe("convolution dilate: (h, w) or (d, h, w)");
-    DMLC_DECLARE_FIELD(pad).set_default(TShape())
+    DMLC_DECLARE_FIELD(pad).set_default(mxnet::TShape(0, 0))
     .describe("pad for convolution: (h, w) or (d, h, w)");
     DMLC_DECLARE_FIELD(num_filter).set_range(1, 100000)
     .describe("convolution filter(channel) number");
@@ -56,7 +76,11 @@ struct ConvolutionV1Param : public dmlc::Parameter<ConvolutionV1Param> {
     .describe("Number of group partitions. Equivalent to slicing input into num_group\n    "
               "partitions, apply convolution on each, then concatenate the results");
     DMLC_DECLARE_FIELD(workspace).set_default(1024).set_range(0, 8192)
-    .describe("Maximum tmp workspace allowed for convolution (MB).");
+    .describe("Maximum temporary workspace allowed for convolution (MB)."
+              "This parameter determines the effective batch size of the convolution "
+              "kernel, which may be smaller than the given batch size. "
+              "Also, the workspace will be automatically enlarged to make sure that we can "
+              "run the kernel with batch_size=1");
     DMLC_DECLARE_FIELD(no_bias).set_default(false)
     .describe("Whether to disable bias parameter.");
     DMLC_DECLARE_FIELD(cudnn_tune)
@@ -121,7 +145,6 @@ class ConvolutionV1Op : public Operator {
     Tensor<xpu, 3, DType> wmat =
         in_data[conv_v1::kWeight].get_with_shape<xpu, 3, DType>(wmat_shape, s);
     Tensor<xpu, 4, DType> out = out_data[conv_v1::kOut].get<xpu, 4, DType>(s);
-//#if defined(__HIPCC__) && (__HIP_DEVICE_COMPILE__ == 1)
 #if defined(__HIPCC__)
     CHECK_EQ(s->blas_handle_ownership_, Stream<xpu>::OwnHandle)
         << "Must init CuBLAS handle in stream";
@@ -163,7 +186,9 @@ class ConvolutionV1Op : public Operator {
       for (uint32_t gid = 0; gid < param_.num_group; ++gid) {
         mshadow::Tensor<xpu, 2, DType> tmpc = temp_col.Slice(gstride * gid,
                                        gstride * (gid + 1));
-        temp_dst[gid] = dot(wmat[gid], tmpc);
+        // Legacy approach shown here for comparison:
+        //   temp_dst[gid] = dot(wmat[gid], tmpc);
+        linalg_gemm(wmat[gid], tmpc, temp_dst[gid], false, false, s);
       }
       out.Slice(i, i + step) = swapaxis<1, 0>(reshape(temp_dst,
                                               mshadow::Shape4(param_.num_filter,
@@ -250,15 +275,21 @@ class ConvolutionV1Op : public Operator {
         Tensor<xpu, 2, DType> tmpc = temp_col.Slice(gstride * gid, gstride * (gid + 1));
         if (i == 0) {
           Tensor<xpu, 2, DType> tmp_gwmat = gwmat[gid];
-          Assign(tmp_gwmat, req[conv_v1::kWeight], dot(temp_dst[gid], tmpc.T()));
+          // Legacy approach shown here for comparison:
+          //   Assign(tmp_gwmat, req[conv_v1::kWeight], dot(temp_dst[gid], tmpc.T()));
+          linalg_gemm(temp_dst[gid], tmpc, tmp_gwmat, false, true, s, req[conv_v1::kWeight]);
         } else {
-          gwmat[gid] += dot(temp_dst[gid], tmpc.T());
+          // Legacy approach shown here for comparison:
+          //   gwmat[gid] += dot(temp_dst[gid], tmpc.T());
+          linalg_gemm(temp_dst[gid], tmpc, gwmat[gid], false, true, s, kAddTo);
         }
       }
 
       for (uint32_t gid = 0; gid < param_.num_group; ++gid) {
         Tensor<xpu, 2, DType> tmpc = temp_col.Slice(gstride * gid, gstride * (gid + 1));
-        tmpc = dot(wmat[gid].T(), temp_dst[gid]);
+        // Legacy approach shown here for comparison:
+        //   tmpc = dot(wmat[gid].T(), temp_dst[gid]);
+        linalg_gemm(wmat[gid], temp_dst[gid], tmpc, true, false, s);
       }
       if (param_.pad[0] == 0 && param_.pad[1] == 0) {
         Assign(gdata.Slice(i, i + step), req[conv_v1::kData],
@@ -304,12 +335,10 @@ class ConvolutionV1Op : public Operator {
                                      oshape[2] * oshape[3]);
     // param_.workspace is in elements of sizeof(DType)
     // if param_.workspace is set to zero the nstep_ equals ishape[0] (batch)
-    nstep_ = std::max(
-        std::min(
-            static_cast<index_t>(
-                param_.workspace / (shape_colunit_.Size() + shape_dstunit_.Size())),
-            ishape[0]),
-        1U);
+    nstep_ = std::max<index_t>(
+        std::min<index_t>(param_.workspace /
+          (shape_colunit_.Size() + shape_dstunit_.Size()), ishape[0]),
+      1);
 
     mshadow::Shape<2> scol = mshadow::Shape2(shape_colunit_[0],
                                              shape_colunit_[1] * nstep_);
@@ -317,9 +346,6 @@ class ConvolutionV1Op : public Operator {
                                              shape_dstunit_[1],
                                              shape_dstunit_[2] * nstep_);
     index_t required_size = scol.Size() + sdst.Size();
-    CHECK_GE(param_.workspace, required_size)
-      << "\nMinimum workspace size: " << required_size * sizeof(DType) << " Bytes\n"
-      << "Given: " << param_.workspace * sizeof(DType) << " Bytes";
     return required_size;
   }
 
@@ -331,8 +357,8 @@ class ConvolutionV1Op : public Operator {
 
 template<typename xpu>
 Operator* CreateOp(ConvolutionV1Param param, int dtype,
-                   std::vector<TShape> *in_shape,
-                   std::vector<TShape> *out_shape,
+                   mxnet::ShapeVector *in_shape,
+                   mxnet::ShapeVector *out_shape,
                    Context ctx);
 
 #if DMLC_USE_CXX11
@@ -367,9 +393,9 @@ class ConvolutionV1Prop : public OperatorProperty {
     return param_.__DICT__();
   }
 
-  bool InferShape(std::vector<TShape> *in_shape,
-                  std::vector<TShape> *out_shape,
-                  std::vector<TShape> *aux_shape) const override {
+  bool InferShape(mxnet::ShapeVector *in_shape,
+                  mxnet::ShapeVector *out_shape,
+                  mxnet::ShapeVector *aux_shape) const override {
     using namespace mshadow;
     if (!param_.no_bias) {
       CHECK_EQ(in_shape->size(), 3U) << "Input:[data, weight, bias]";
@@ -377,9 +403,9 @@ class ConvolutionV1Prop : public OperatorProperty {
       CHECK_EQ(in_shape->size(), 2U) << "Input:[data, weight]";
     }
     // CHECK_EQ(out_shape->size(), 1) << "Output: [output]";
-    out_shape->resize(1, TShape());
-    const TShape &dshp = (*in_shape)[conv_v1::kData];
-    if (dshp.ndim() ==  0) return false;
+    out_shape->resize(1, mxnet::TShape());
+    const mxnet::TShape &dshp = (*in_shape)[conv_v1::kData];
+    if (!mxnet::ndim_is_known(dshp)) return false;
     if (param_.kernel.ndim() == 2) {
       // 2d conv_v1
       CHECK_EQ(dshp.ndim(), 4U) \
@@ -474,13 +500,11 @@ class ConvolutionV1Prop : public OperatorProperty {
     CHECK_GE(in_type->size(), 1);
     int dtype = (*in_type)[0];
     CHECK_NE(dtype, -1) << "First input must have specified type";
-    for (index_t i = 0; i < in_type->size(); ++i) {
+    for (size_t i = 0; i < in_type->size(); ++i) {
       if ((*in_type)[i] == -1) {
         (*in_type)[i] = dtype;
       } else {
-        CHECK_EQ((*in_type)[i], dtype) << "This layer requires uniform type. "
-                                       << "Expected " << dtype << " v.s. given "
-                                       << (*in_type)[i] << " at " << ListArguments()[i];
+        UNIFORM_TYPE_CHECK((*in_type)[i], dtype, ListArguments()[i]);
       }
     }
     out_type->clear();
@@ -506,12 +530,12 @@ class ConvolutionV1Prop : public OperatorProperty {
   }
 
   std::vector<ResourceRequest> ForwardResource(
-      const std::vector<TShape> &in_shape) const override {
+      const mxnet::ShapeVector &in_shape) const override {
     return {ResourceRequest::kTempSpace};
   }
 
   std::vector<ResourceRequest> BackwardResource(
-      const std::vector<TShape> &in_shape) const override {
+      const mxnet::ShapeVector &in_shape) const override {
     return {ResourceRequest::kTempSpace};
   }
 
@@ -520,7 +544,7 @@ class ConvolutionV1Prop : public OperatorProperty {
     return NULL;
   }
 
-  Operator* CreateOperatorEx(Context ctx, std::vector<TShape> *in_shape,
+  Operator* CreateOperatorEx(Context ctx, mxnet::ShapeVector *in_shape,
                              std::vector<int> *in_type) const override;
 
  private:

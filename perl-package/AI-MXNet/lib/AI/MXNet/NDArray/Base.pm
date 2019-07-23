@@ -1,3 +1,20 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
 package AI::MXNet::NDArray::Base;
 use strict;
 use warnings;
@@ -43,33 +60,66 @@ func _make_ndarray_function($handle, $func_name)
                             $key_var_num_args,
                             $ret_type
     );
+    my %ndarguments;
     my @arguments;
+    my %arguments = (out => 1, name => 1, ctx => 1, shape => 1);
+    my $j = 0;
     for my $i (0..(@$arg_names-1))
     {
         if(not $arg_types->[$i] =~ /^(?:NDArray|Symbol|ndarray\-or\-symbol)/)
         {
             push @arguments, $arg_names->[$i];
+            $arguments{ $arg_names->[$i] } = 1;
+        }
+        else
+        {
+            $ndarguments{ $arg_names->[$i] } = $j++;
         }
     }
     my $generic_ndarray_function = sub
     {
         my $class = shift;
-        my (@args, %kwargs);
+        my (@args, %kwargs, %ndkwargs, @tmp);
         if(@_ and ref $_[-1] eq 'HASH')
         {
             %kwargs = %{ pop(@_) };
         }
-        @args = @_;
-        if(ref $class)
+        else
         {
-            @args = ($class) if not @args;
-            $class = ref $class;
+            while(@_ >= 2 and not ref $_[-2])
+            {
+                if(exists $arguments{ $_[-2] })
+                {
+                    my $v = pop(@_);
+                    my $k = pop(@_);
+                    $kwargs{ $k } = $v;
+                }
+                elsif(exists $ndarguments{ $_[-2] })
+                {
+                    my $v = pop(@_);
+                    my $k = pop(@_);
+                    $ndkwargs{ $k } = $v;
+                }
+                else
+                {
+                    unshift(@tmp, pop(@_));
+                    unshift(@tmp, pop(@_));
+                }
+            }
+        }
+        @args = (@_, @tmp);
+        if(%ndkwargs)
+        {
+            for my $k (keys %ndkwargs)
+            {
+                $args[$ndarguments{$k}] = $ndkwargs{$k};
+            }
         }
         my @ndargs;
         my @pos_args;
         for my $i (@args)
         {
-            if(blessed($i) and $i->isa($class))
+            if(blessed($i) and $i->isa(__PACKAGE__))
             {
                 push @ndargs, $i->handle;
             }
@@ -79,12 +129,13 @@ func _make_ndarray_function($handle, $func_name)
             }
             if(@pos_args > @arguments)
             {
-                die "Too many positional arguments";
+                confess("Too many positional arguments");
             }
         }
         @kwargs{ @arguments[0..$#pos_args] } = @pos_args;
         my $original_output;
         my $output_vars;
+        delete $kwargs{name};
         if(grep { $_ eq 'out' } keys %kwargs)
         {
             $output_vars = delete $kwargs{out};
@@ -98,12 +149,17 @@ func _make_ndarray_function($handle, $func_name)
         {
             $output_vars = [];
         }
+        if(blessed($class) and $class->isa(__PACKAGE__) and not @{ $output_vars })
+        {
+            @ndargs = ($class->handle) if not @ndargs;
+            $class = ref $class;
+        }
         for my $key (keys %kwargs)
         {
-            $kwargs{ $key } = "(" .join(", ", @{ $kwargs{ $key } }) .")" 
+            $kwargs{ $key } = "(" .join(", ", map { defined($_) ? $_ : 'None' } @{ $kwargs{ $key } }) .")"
                 if ref $kwargs{ $key } eq 'ARRAY';
         }
-        my $out = check_call(AI::MXNetCAPI::ImperativeInvoke(
+        my ($out, $stypes) = check_call(AI::MXNetCAPI::ImperativeInvokeEx(
                     $handle,
                     scalar(@ndargs),
                     \@ndargs,
@@ -114,16 +170,51 @@ func _make_ndarray_function($handle, $func_name)
         return $original_output if $original_output;
         if(@$out == 1)
         {
-            return $class->new(handle => $out->[0]);
+            return __PACKAGE__->_ndarray_cls($out->[0], 1, $stypes->[0]);
         }
         else
         {
-            return [map { $class->new(handle => $_) } @$out];
+            my $i = 0;
+            return [map { __PACKAGE__->_ndarray_cls($_, 1, $stypes->[$i++]) } @$out];
         }
     };
     $function_meta{ $generic_ndarray_function }{__name__} = $func_name;
     $function_meta{ $generic_ndarray_function }{__doc__} = $doc_str;
     return $generic_ndarray_function;
+}
+
+method _ndarray_cls($handle, $writable=1, $stype=STORAGE_TYPE_UNDEFINED)
+{
+    if($stype eq STORAGE_TYPE_UNDEFINED)
+    {
+        $stype = __PACKAGE__->_storage_type($handle);
+    }
+    if($stype eq STORAGE_TYPE_DEFAULT)
+    {
+        return AI::MXNet::NDArray->new(handle => $handle, writable => $writable);
+    }
+    elsif($stype eq STORAGE_TYPE_CSR)
+    {
+        return AI::MXNet::NDArray::CSR->new(handle => $handle, writable => $writable);
+    }
+    elsif($stype eq STORAGE_TYPE_ROW_SPARSE)
+    {
+        return AI::MXNet::NDArray::RowSparse->new(handle => $handle, writable => $writable);
+    }
+    else
+    {
+        confess("unknown storage type: $stype");
+    }
+}
+
+method _storage_type($handle)
+{
+    scalar(check_call(AI::MXNetCAPI::NDArrayGetStorageType($handle)));
+}
+
+method stype()
+{
+    return STORAGE_TYPE_ID_TO_STR->{ __PACKAGE__->_storage_type($self->handle) };
 }
 
 method _init_ndarray_module()
@@ -139,6 +230,7 @@ method _init_ndarray_module()
         }
     }
 }
+
 
 __PACKAGE__->_init_ndarray_module;
 

@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  * Copyright (c) 2017 by Contributors
  * \file grid_generator-inl.h
@@ -17,6 +36,7 @@
 #include <string>
 #include "./mshadow_op.h"
 #include "./operator_common.h"
+#include "./linalg.h"
 
 namespace mxnet {
 namespace op {
@@ -30,18 +50,18 @@ enum GridGeneratorTransformType {kAffine, kWarp};
 
 struct GridGeneratorParam : public dmlc::Parameter<GridGeneratorParam> {
   int transform_type;
-  TShape target_shape;
+  mxnet::TShape target_shape;
   DMLC_DECLARE_PARAMETER(GridGeneratorParam) {
     int shape[] = {0, 0};
     DMLC_DECLARE_FIELD(transform_type)
     .add_enum("affine", grid::kAffine)
     .add_enum("warp", grid::kWarp)
-    .describe("transformation type\n    "
-              "if transformation type is affine, data is affine matrix : (batch, 6)\n    "
-              "if transformation type is warp, data is optical flow : (batch, 2, h, w)");
-    DMLC_DECLARE_FIELD(target_shape).set_default(TShape(shape, shape + 2))
-    .describe("if transformation type is affine, the operator need a target_shape : (H, W)\n    "
-              "if transofrmation type is warp, the operator will ignore target_shape");
+    .describe("The type of transformation. For `affine`, input data should be an affine matrix "
+              "of size (batch, 6). For `warp`, input data should be an optical flow of size "
+              "(batch, 2, h, w).");
+    DMLC_DECLARE_FIELD(target_shape).set_default(mxnet::TShape(shape, shape + 2))
+    .describe("Specifies the output shape (H, W). This is required if transformation type is "
+              "`affine`. If transformation type is `warp`, this parameter is ignored.");
   }
 };
 
@@ -83,7 +103,9 @@ class GridGeneratorOp : public Operator {
         grid_dst[1] = scalar<DType>(-1.0) + tcast<DType>(tcast<int>(grid_dst[1] /
           scalar<DType>(param_.target_shape[1]))) * scalar<DType>(2.0/(param_.target_shape[0] - 1));
         grid_dst[2] = scalar<DType>(1.0);
-        Assign(out, req[grid::kOut], dot(data, grid_dst));
+        // Legacy approach shown here for comparison:
+        //   Assign(out, req[grid::kOut], dot(data, grid_dst));
+        linalg_gemm(data, grid_dst, out, false, false, s, req[grid::kOut]);
         break;
       }
       // Warping transformation
@@ -104,7 +126,7 @@ class GridGeneratorOp : public Operator {
         Assign(out, req[grid::kOut],
                (data + broadcast_with_axis(grid_dst, -1, data.shape_[0])) /
                  broadcast_to(reshape(workspace, Shape4(1, 2, 1, 1)),
-                              TShape(data.shape_)) - scalar<DType>(1));
+                              mxnet::TShape(data.shape_)) - scalar<DType>(1));
         break;
       }
     }
@@ -132,8 +154,10 @@ class GridGeneratorOp : public Operator {
           param_.target_shape[0] * param_.target_shape[1]);
         Tensor<xpu, 2, DType> grad = out_grad[grid::kOut]
           .get_with_shape<xpu, 2, DType>(grad_shape, s);
+        // Legacy approach shown here for comparison:
+        //   Assign(gdata, req[grid::kData], dot(grad, grid_dst.T()));
         // grad : (batch * 2, H * W)   grid_dst.T : (H * W, 3)
-        Assign(gdata, req[grid::kData] , dot(grad, grid_dst.T()));
+        linalg_gemm(grad, grid_dst, gdata, false, true, s, req[grid::kData]);
         break;
       }
       case grid::kWarp: {
@@ -145,7 +169,7 @@ class GridGeneratorOp : public Operator {
         workspace[1] = scalar<DType>((DType(gdata.size(2)) - 1.0) / 2.0);
         Assign(gdata, req[grid::kData],
                grad / broadcast_to(reshape(workspace, Shape4(1, 2, 1, 1)),
-                                   TShape(gdata.shape_)));
+                                   mxnet::TShape(gdata.shape_)));
         break;
       }
     }
@@ -185,12 +209,12 @@ class GridGeneratorProp : public OperatorProperty {
     return param_.__DICT__();
   }
 
-  bool InferShape(std::vector<TShape> *in_shape,
-                  std::vector<TShape> *out_shape,
-                  std::vector<TShape> *aux_shape) const override {
+  bool InferShape(mxnet::ShapeVector *in_shape,
+                  mxnet::ShapeVector *out_shape,
+                  mxnet::ShapeVector *aux_shape) const override {
     using namespace mshadow;
     CHECK_EQ(in_shape->size(), 1U) << "Input:[data]";
-    const TShape &lshape = (*in_shape)[grid::kData];
+    const mxnet::TShape &lshape = (*in_shape)[grid::kData];
     if (lshape.ndim() ==  0) return false;
     out_shape->clear();
     switch (param_.transform_type) {
@@ -224,12 +248,12 @@ class GridGeneratorProp : public OperatorProperty {
                    std::vector<int> *out_type,
                    std::vector<int> *aux_type) const override {
       int dtype = -1;
-      for (size_t i = 0; i < in_type->size(); ++i) {
+      for (int type : *in_type) {
         if (dtype == -1) {
-          dtype = in_type->at(i);
+          dtype = type;
         } else {
-          CHECK(in_type->at(i) == dtype ||
-                in_type->at(i) == -1) <<
+          CHECK(type == dtype ||
+              type == -1) <<
                 "Non-uniform data type in GridGenerator";
         }
       }
@@ -276,7 +300,7 @@ class GridGeneratorProp : public OperatorProperty {
   }
 
   std::vector<ResourceRequest> ForwardResource(
-    const std::vector<TShape> &in_shape) const override {
+    const mxnet::ShapeVector &in_shape) const override {
     switch (param_.transform_type) {
     case grid::kAffine: {
       return{};
@@ -289,7 +313,7 @@ class GridGeneratorProp : public OperatorProperty {
   }
 
   std::vector<ResourceRequest> BackwardResource(
-      const std::vector<TShape> &in_shape) const override {
+      const mxnet::ShapeVector &in_shape) const override {
     switch (param_.transform_type) {
       case grid::kAffine: {
         return {};
@@ -306,7 +330,7 @@ class GridGeneratorProp : public OperatorProperty {
     return NULL;
   }
 
-  Operator* CreateOperatorEx(Context ctx, std::vector<TShape> *in_shape,
+  Operator* CreateOperatorEx(Context ctx, mxnet::ShapeVector *in_shape,
                              std::vector<int> *in_type) const override;
 
  private:

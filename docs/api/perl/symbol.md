@@ -1,3 +1,20 @@
+<!--- Licensed to the Apache Software Foundation (ASF) under one -->
+<!--- or more contributor license agreements.  See the NOTICE file -->
+<!--- distributed with this work for additional information -->
+<!--- regarding copyright ownership.  The ASF licenses this file -->
+<!--- to you under the Apache License, Version 2.0 (the -->
+<!--- "License"); you may not use this file except in compliance -->
+<!--- with the License.  You may obtain a copy of the License at -->
+
+<!---   http://www.apache.org/licenses/LICENSE-2.0 -->
+
+<!--- Unless required by applicable law or agreed to in writing, -->
+<!--- software distributed under the License is distributed on an -->
+<!--- "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY -->
+<!--- KIND, either express or implied.  See the License for the -->
+<!--- specific language governing permissions and limitations -->
+<!--- under the License. -->
+
 # MXNet Perl Symbolic API
 
 Topics:
@@ -17,8 +34,8 @@ The following example configures a two-layer neural network.
 
 ```perl
 pdl> use AI::MXNet qw(mx)
-pdl> $data = mx->symbold->Variable("data")
-pdl> $fc1  = mx->symbol->FullyConnected(data => $data, name => "fc1", num_hidden" -> 128)
+pdl> $data = mx->symbol->Variable("data")
+pdl> $fc1  = mx->symbol->FullyConnected(data => $data, name => "fc1", num_hidden => 128)
 pdl> $act1 = mx->symbol->Activation(data => $fc1, name => "relu1", act_type => "relu")
 pdl> $fc2 =  mx->symbol->FullyConnected(data => $act1, name => "fc2", num_hidden => 64)
 pdl> $net =  mx->symbol->SoftmaxOutput(data => $fc2, name => "out")

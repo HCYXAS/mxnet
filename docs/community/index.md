@@ -1,13 +1,28 @@
+<!--- Licensed to the Apache Software Foundation (ASF) under one -->
+<!--- or more contributor license agreements.  See the NOTICE file -->
+<!--- distributed with this work for additional information -->
+<!--- regarding copyright ownership.  The ASF licenses this file -->
+<!--- to you under the Apache License, Version 2.0 (the -->
+<!--- "License"); you may not use this file except in compliance -->
+<!--- with the License.  You may obtain a copy of the License at -->
+
+<!---   http://www.apache.org/licenses/LICENSE-2.0 -->
+
+<!--- Unless required by applicable law or agreed to in writing, -->
+<!--- software distributed under the License is distributed on an -->
+<!--- "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY -->
+<!--- KIND, either express or implied.  See the License for the -->
+<!--- specific language governing permissions and limitations -->
+<!--- under the License. -->
+
 # MXNet Community
-## Questions about Using MXNet
-If you are not sure of how to use MXNet for something, or have questions about applying it to a particular kind of problem, please post a question at [Stackoverflow](http://stackoverflow.com/) with tag - ```mxnet```. You can view StackOverflow questions about mxnet [here](http://stackoverflow.com/questions/tagged/mxnet).
 
-## Issue Tracker
-We track bugs and new feature requests in the MXNet Github repo in the issues folder: [mxnet/issues](https://github.com/dmlc/mxnet/issues).
+```eval_rst
+.. toctree::
+   :maxdepth: 1
 
-## Contributors
-MXNet has been developed and is used by a group of active community members. Contribute to improving it! For more information, see [contributions](http://mxnet.io/community/contribute.html).
-
-## Roadmap
-
-MXNet is evolving fast. To see what's next and what we are working on internally, go to the [MXNet Roadmap](https://github.com/dmlc/mxnet/labels/Roadmap).
+   contribute.md
+   ecosystem.md
+   powered_by.md
+   mxnet_channels.md
+```

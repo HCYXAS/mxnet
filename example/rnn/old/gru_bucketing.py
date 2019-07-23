@@ -1,3 +1,20 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
 # pylint: disable=C0111,too-many-arguments,too-many-instance-attributes,too-many-locals,redefined-outer-name,fixme
 # pylint: disable=superfluous-parens, no-member, invalid-name
 import sys
@@ -6,7 +23,7 @@ import numpy as np
 import mxnet as mx
 
 from gru import gru_unroll
-from bucket_io import BucketSentenceIter, default_build_vocab
+from bucket_io import BucketSentenceIter, default_build_vocab, DummyIter
 
 def Perplexity(label, pred):
     label = label.T.reshape((-1,))
@@ -34,7 +51,7 @@ if __name__ == '__main__':
     #contexts = [mx.context.gpu(i) for i in range(1)]
     contexts = mx.context.cpu()
 
-    vocab = default_build_vocab("./data/ptb.train.txt")
+    vocab = default_build_vocab("./data/sherlockholmes.train.txt")
 
     def sym_gen(seq_len):
         return gru_unroll(num_lstm_layer, seq_len, len(vocab),
@@ -43,9 +60,9 @@ if __name__ == '__main__':
 
     init_h = [('l%d_init_h'%l, (batch_size, num_hidden)) for l in range(num_lstm_layer)]
 
-    data_train = BucketSentenceIter("./data/ptb.train.txt", vocab,
+    data_train = BucketSentenceIter("./data/sherlockholmes.train.txt", vocab,
                                     buckets, batch_size, init_h)
-    data_val = BucketSentenceIter("./data/ptb.valid.txt", vocab,
+    data_val = BucketSentenceIter("./data/sherlockholmes.valid.txt", vocab,
                                   buckets, batch_size, init_h)
 
     if dummy_data:

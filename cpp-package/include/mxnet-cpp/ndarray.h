@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
 *  Copyright (c) 2016 by Contributors
 * \file ndarray.h
@@ -5,13 +24,14 @@
 * \author Chuntao Hong, Zhang Chen
 */
 
-#ifndef CPP_PACKAGE_INCLUDE_MXNET_CPP_NDARRAY_H_
-#define CPP_PACKAGE_INCLUDE_MXNET_CPP_NDARRAY_H_
+#ifndef MXNET_CPP_NDARRAY_H_
+#define MXNET_CPP_NDARRAY_H_
 
 #include <map>
 #include <memory>
 #include <string>
 #include <vector>
+#include <iostream>
 #include "mxnet-cpp/base.h"
 #include "mxnet-cpp/shape.h"
 
@@ -111,18 +131,21 @@ class NDArray {
   /*!
   * \brief construct a new dynamic NDArray
   * \param shape the shape of array
-  * \param constext context of NDArray
+  * \param context context of NDArray
   * \param delay_alloc whether delay the allocation
+  * \param dtype data type of NDArray
   */
   NDArray(const std::vector<mx_uint> &shape, const Context &context,
-          bool delay_alloc = true);
+          bool delay_alloc = true, int dtype = 0);
   /*!
   * \brief construct a new dynamic NDArray
   * \param shape the shape of array
   * \param constext context of NDArray
   * \param delay_alloc whether delay the allocation
+  * \param dtype data type of NDArray
   */
-  NDArray(const Shape &shape, const Context &context, bool delay_alloc = true);
+  NDArray(const Shape &shape, const Context &context,
+          bool delay_alloc = true, int dtype = 0);
   NDArray(const mx_float *data, size_t size);
   /*!
   * \brief construct a new dynamic NDArray
@@ -144,10 +167,12 @@ class NDArray {
   NDArray operator-(mx_float scalar);
   NDArray operator*(mx_float scalar);
   NDArray operator/(mx_float scalar);
+  NDArray operator%(mx_float scalar);
   NDArray operator+(const NDArray &);
   NDArray operator-(const NDArray &);
   NDArray operator*(const NDArray &);
   NDArray operator/(const NDArray &);
+  NDArray operator%(const NDArray &);
   /*!
   * \brief set all the elements in ndarray to be scalar
   * \param scalar the scalar to set
@@ -164,24 +189,31 @@ class NDArray {
   /*!
   * \brief elementwise subtract from current ndarray
   * this mutate the current NDArray
-  * \param scalar the data to substract
+  * \param scalar the data to subtract
   * \return reference of self
   */
   NDArray &operator-=(mx_float scalar);
   /*!
   * \brief elementwise multiplication to current ndarray
   *  this mutate the current NDArray
-  * \param scalar the data to substract
+  * \param scalar the data to subtract
   * \return reference of self
   */
   NDArray &operator*=(mx_float scalar);
   /*!
   * \brief elementwise division from current ndarray
   *  this mutate the current NDArray
-  * \param scalar the data to substract
+  * \param scalar the data to subtract
   * \return reference of self
   */
   NDArray &operator/=(mx_float scalar);
+  /*!
+  * \brief elementwise modulo from current ndarray
+  *  this mutate the current NDArray
+  * \param scalar the data to subtract
+  * \return reference of self
+  */
+  NDArray &operator%=(mx_float scalar);
   /*!
   * \brief elementwise add to current space
   *  this mutate the current NDArray
@@ -192,24 +224,31 @@ class NDArray {
   /*!
   * \brief elementwise subtract from current ndarray
   * this mutate the current NDArray
-  * \param src the data to substract
+  * \param src the data to subtract
   * \return reference of self
   */
   NDArray &operator-=(const NDArray &src);
   /*!
   * \brief elementwise multiplication to current ndarray
   *  this mutate the current NDArray
-  * \param src the data to substract
+  * \param src the data to subtract
   * \return reference of self
   */
   NDArray &operator*=(const NDArray &src);
   /*!
   * \brief elementwise division from current ndarray
   *  this mutate the current NDArray
-  * \param src the data to substract
+  * \param src the data to subtract
   * \return reference of self
   */
   NDArray &operator/=(const NDArray &src);
+  /*!
+  * \brief elementwise modulo from current ndarray
+  *  this mutate the current NDArray
+  * \param src the data to subtract
+  * \return reference of self
+  */
+  NDArray &operator%=(const NDArray &src);
   NDArray ArgmaxChannel();
   /*!
   * \brief Do a synchronize copy from a continugous CPU memory region.
@@ -255,15 +294,15 @@ class NDArray {
   */
   void SyncCopyToCPU(std::vector<mx_float> *data, size_t size = 0);
   /*!
-  * \brief Copy the content of current array to other.
-  * \param other the new context of this NDArray
-  * \return the new copy
+  * \brief copy the content of current array to a target array.
+  * \param other the target NDArray
+  * \return the target NDarray
   */
   NDArray CopyTo(NDArray * other) const;
   /*!
-  * \brief return a new copy this NDArray
-  * \param other the target NDArray
-  * \return the copy target NDarray
+  * \brief return a new copy to this NDArray
+  * \param Context the new context of this NDArray
+  * \return the new copy
   */
   NDArray Copy(const Context &) const;
   /*!
@@ -281,6 +320,12 @@ class NDArray {
    * \return offset of three dimensions array
    */
   size_t Offset(size_t c, size_t h, size_t w) const;
+  /*!
+  * \brief return value of the element at (index)
+  * \param index  position
+  * \return value of one dimensions array
+  */
+  mx_float At(size_t index) const;
   /*!
   * \brief return value of the element at (h, w)
   * \param h height position
@@ -362,6 +407,32 @@ class NDArray {
   */
   static std::vector<NDArray> LoadToList(const std::string &file_name);
   /*!
+  * \brief Load NDArrays from buffer.
+  * \param buffer Pointer to buffer. (ie contents of param file)
+  * \param size Size of buffer
+  * \param array_list a list of NDArrays returned, do not fill the list if
+  * nullptr is given.
+  * \param array_map a map from names to NDArrays returned, do not fill the map
+  * if nullptr is given or no names is stored in binary file.
+  */
+  static void LoadFromBuffer(const void *buffer, size_t size,
+                   std::vector<NDArray> *array_list = nullptr,
+                   std::map<std::string, NDArray> *array_map = nullptr);
+  /*!
+  * \brief Load map of NDArrays from buffer.
+  * \param buffer Pointer to buffer. (ie contents of param file)
+  * \param size Size of buffer
+  * \return a list of NDArrays.
+  */
+  static std::map<std::string, NDArray> LoadFromBufferToMap(const void *buffer, size_t size);
+  /*!
+  * \brief Load list of NDArrays from buffer.
+  * \param buffer Pointer to buffer. (ie contents of param file)
+  * \param size Size of buffer
+  * \return a map from names to NDArrays.
+  */
+  static std::vector<NDArray> LoadFromBufferToList(const void *buffer, size_t size);
+  /*!
   * \brief save a map of string->NDArray to binary file.
   * \param file_name name of the binary file.
   * \param array_map a map from names to NDArrays.
@@ -388,6 +459,7 @@ class NDArray {
   */
   int GetDType() const;
   /*!
+  * \brief Get the pointer to data (IMPORTANT: The ndarray should not be in GPU)
   * \return the data pointer to the current NDArray
   */
   const mx_float *GetData() const;
@@ -405,7 +477,9 @@ class NDArray {
  private:
   std::shared_ptr<NDBlob> blob_ptr_;
 };
+
+std::ostream& operator<<(std::ostream& out, const NDArray &ndarray);
 }  // namespace cpp
 }  // namespace mxnet
 
-#endif  // CPP_PACKAGE_INCLUDE_MXNET_CPP_NDARRAY_H_
+#endif  // MXNET_CPP_NDARRAY_H_

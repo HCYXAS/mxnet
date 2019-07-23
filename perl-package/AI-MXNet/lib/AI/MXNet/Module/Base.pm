@@ -1,3 +1,22 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+use strict;
+use warnings;
 package AI::MXNet::BatchEndParam;
 use Mouse;
 use AI::MXNet::Function::Parameters;
@@ -8,6 +27,7 @@ package AI::MXNet::Module::Base;
 use Mouse;
 use AI::MXNet::Base;
 use Time::HiRes qw(time);
+use Storable qw(dclone);
 
 =head1 NAME
 
@@ -64,12 +84,13 @@ method _check_names_match(
 )
 {
     return if (not @$data_shapes and @$data_names == 1 and  $data_names->[0] eq 'softmax_label');
-    my @actual = map { @{$_}[0] } @{ $data_shapes };
-    if("@$data_names" ne "@actual")
+    my @actual = sort map { @{$_}[0] } @{ $data_shapes };
+    my @data_names = sort @$data_names;
+    if("@data_names" ne "@actual")
     {
         my $msg = sprintf(
             "Data provided by %s_shapes don't match names specified by %s_names (%s vs. %s)",
-            $name, $name, "@$data_shapes", "@$data_names"
+            $name, $name, "@actual", "@data_names"
         );
         if($throw)
         {
@@ -233,7 +254,7 @@ method forward_backward(AI::MXNet::DataBatch $data_batch)
 
 method score(
     AI::MXNet::DataIter                 $eval_data,
-    EvalMetric                          $eval_metric,
+    EvalMetric|ArrayRef[EvalMetric]     $eval_metric,
     Maybe[Int]                          :$num_batch=,
     Maybe[Callback]|ArrayRef[Callback]  :$batch_end_callback=,
     Maybe[Callback]|ArrayRef[Callback]  :$score_end_callback=,
@@ -266,7 +287,7 @@ method score(
             );
             for my $callback (@{ _as_list($batch_end_callback) })
             {
-                &{$callback}($batch_end_params);
+                $callback->($batch_end_params);
             }
         }
         $actual_num_batch++;
@@ -281,7 +302,7 @@ method score(
         );
         for my $callback (@{ _as_list($score_end_callback) })
         {
-            &{callback}($params);
+            $callback->($params);
         }
     }
     return $eval_metric->get_name_value;
@@ -330,7 +351,7 @@ method iter_predict(AI::MXNet::DataIter $eval_data, Maybe[Int] :$num_batch=, Boo
 
     Parameters
     ----------
-    $eval_data  : AI::MXNet::DataIter
+    $eval_data  : AI::MXNet::DataIter|AcceptableInput (PDL|NDArray)
     :$num_batch= : Maybe[Int]
         Default is undef, indicating running all the batches in the data iterator.
     :$merge_batches=1 : Bool
@@ -343,6 +364,8 @@ method iter_predict(AI::MXNet::DataIter $eval_data, Maybe[Int] :$num_batch=, Boo
 
     Returns
     -------
+    If the input is AI::MXNet::NDArray|PDL then the return value is AI::MXNet::NDArray.
+
     When $merge_batches is 1 (by default), the return value will be an array ref
     [$out1, $out2, $out3] where each element is concatenation of the outputs for
     all the mini-batches. If $always_output_list` also is 0 (by default),
@@ -358,13 +381,21 @@ method iter_predict(AI::MXNet::DataIter $eval_data, Maybe[Int] :$num_batch=, Boo
 =cut
 
 method predict(
-    AI::MXNet::DataIter $eval_data,
+    AI::MXNet::DataIter|AcceptableInput $eval_data,
     Maybe[Int] :$num_batch=, Bool :$merge_batches=1, Bool :$reset=1, Bool :$always_output_list=0
 )
 {
     assert($self->binded and $self->params_initialized);
+    if(not blessed $eval_data or not $eval_data->isa('AI::MXNet::DataIter'))
+    {
+        if(not blessed $eval_data or not $eval_data->isa('AI::MXNet::NDArray'))
+        {
+            $eval_data = AI::MXNet::NDArray->array($eval_data);
+        }
+        $self->forward(AI::MXNet::DataBatch->new(data => [$eval_data]));
+        return $self->get_outputs->[0];
+    }
     $eval_data->reset() if $reset;
-
     my @output_list;
     my $nbatch = 0;
     while(my $eval_batch = <$eval_data>)
@@ -464,10 +495,10 @@ method predict(
 method fit(
     AI::MXNet::DataIter                 $train_data,
     Maybe[AI::MXNet::DataIter]         :$eval_data=,
-    EvalMetric                         :$eval_metric='acc',
+    EvalMetric|ArrayRef[EvalMetric]    :$eval_metric='acc',
     Maybe[Callback]|ArrayRef[Callback] :$epoch_end_callback=,
     Maybe[Callback]|ArrayRef[Callback] :$batch_end_callback=,
-    Str                                :$kvstore='local',
+    KVStore                            :$kvstore='local',
     Optimizer                          :$optimizer='sgd',
     HashRef                            :$optimizer_params={ learning_rate => 0.01 },
     Maybe[Callback]|ArrayRef[Callback] :$eval_end_callback=,
@@ -480,7 +511,7 @@ method fit(
     Bool                               :$force_init=0,
     Int                                :$begin_epoch=0,
     Int                                :$num_epoch,
-    Maybe[EvalMetric]                  :$validation_metric=,
+    Maybe[EvalMetric|ArrayRef[EvalMetric]] :$validation_metric=,
     Maybe[AI::MXNet::Monitor]          :$monitor=
 )
 {
@@ -513,6 +544,7 @@ method fit(
     }
     $eval_metric = AI::MXNet::Metric->create($eval_metric)
         unless blessed $eval_metric;
+    my $epoch_eval_metric = dclone($eval_metric);
 
     ################################################################################
     # training loop
@@ -521,6 +553,7 @@ method fit(
     {
         my $tic = time;
         $eval_metric->reset;
+        $epoch_eval_metric->reset;
         my $nbatch = 0;
         my $end_of_batch = 0;
         my $next_data_batch = <$train_data>;
@@ -539,10 +572,11 @@ method fit(
             {
                 $end_of_batch = 1;
             }
-            $self->update_metric($eval_metric, $data_batch->label);
+            $self->update_metric($epoch_eval_metric, $data_batch->label);
             $monitor->toc_print if $monitor;
             if(defined $batch_end_callback)
             {
+                $self->update_metric($eval_metric, $data_batch->label);
                 my $batch_end_params = AI::MXNet::BatchEndParam->new(
                     epoch       => $epoch,
                     nbatch      => $nbatch,
@@ -550,13 +584,13 @@ method fit(
                 );
                 for my $callback (@{ _as_list($batch_end_callback) })
                 {
-                    &{$callback}($batch_end_params);
+                    $callback->($batch_end_params);
                 }
             }
             $nbatch++;
         }
         # one epoch of training is finished
-        my $name_value = $eval_metric->get_name_value;
+        my $name_value = $epoch_eval_metric->get_name_value;
         while(my ($name, $val) = each %{ $name_value })
         {
             $self->logger->info('Epoch[%d] Train-%s=%f', $epoch, $name, $val);
@@ -572,7 +606,7 @@ method fit(
         {
             for my $callback (@{ _as_list($epoch_end_callback) })
             {
-                &{$callback}($epoch, $self->get_symbol, $arg_params, $aux_params);
+                $callback->($epoch, $self->get_symbol, $arg_params, $aux_params);
             }
         }
         #----------------------------------------
@@ -650,7 +684,7 @@ method output_shapes() { confess("NotImplemented") }
 
 =head2 get_params
 
-    The parameters, these are potentially a copies of the the actual parameters used
+    The parameters, these are potentially a copies of the actual parameters used
     to do computation on the device.
 
     Returns
@@ -677,6 +711,10 @@ method get_params() { confess("NotImplemented") }
         called to fill those missing params.
     :$force_init=0 : Bool
         If true, will force re-initialize even if already initialized.
+    :$allow_extra=0 : Boolean, optional
+        Whether allow extra parameters that are not needed by symbol.
+        If this is True, no error will be thrown when arg_params or aux_params
+        contain extra parameters that is not needed by the executor.
 =cut
 
 method init_params(
@@ -684,7 +722,8 @@ method init_params(
     Maybe[HashRef[AI::MXNet::NDArray]] :$arg_params=,
     Maybe[HashRef[AI::MXNet::NDArray]] :$aux_params=,
     Bool                               :$allow_missing=0,
-    Bool                               :$force_init=0
+    Bool                               :$force_init=0,
+    Bool                               :$allow_extra=0
 )
 {
     confess("NotImplemented");
@@ -705,13 +744,18 @@ method init_params(
         called to fill those missing params.
     :$force_init=0 : Bool
         If true, will force re-initialize even if already initialized.
+    :$allow_extra=0 : Bool
+        Whether allow extra parameters that are not needed by symbol.
+        If this is True, no error will be thrown when arg_params or aux_params
+        contain extra parameters that is not needed by the executor.
 =cut
 
 method set_params(
     Maybe[HashRef[AI::MXNet::NDArray]]  $arg_params=,
     Maybe[HashRef[AI::MXNet::NDArray]]  $aux_params=,
     Bool                               :$allow_missing=0,
-    Bool                               :$force_init=0
+    Bool                               :$force_init=0,
+    Bool                               :$allow_extra=0
 )
 {
     $self->init_params(
@@ -719,7 +763,8 @@ method set_params(
         arg_params    => $arg_params,
         aux_params    => $aux_params,
         allow_missing => $allow_missing,
-        force_init    => $force_init
+        force_init    => $force_init,
+        allow_extra   => $allow_extra
     );
 }
 
@@ -865,7 +910,11 @@ method prepare(AI::MXNet::DataBatch $data_batch){}
 
 =head2 forward
 
-    Forward computation.
+    Forward computation. It supports data batches with different shapes, such as
+    different batch sizes or different image sizes.
+    If reshaping of data batch relates to modification of symbol or module, such as
+    changing image layout ordering or switching from training to predicting, module
+    rebinding is required.
 
     Parameters
     ----------

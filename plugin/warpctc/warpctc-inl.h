@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  * Copyright (c) 2015 by Contributors
  * \file warpctc-inl.h
@@ -121,16 +140,16 @@ class WarpCTCOp : public Operator {
     TBlob label = in_data[warpctc_enum::kLabel];
     CHECK_EQ(data.shape_.ndim(), 2) << "input data shape should be 2 (t*n, p)";
     ctcOptions info; //please updated to latest baidu/warp-ctc NOLINT(*)
-    if (data.dev_mask_ == cpu::kDevMask) {
+    if (data.dev_mask() == cpu::kDevMask) {
       info.loc = CTC_CPU;
       info.num_threads = 1;
-    } else if (data.dev_mask_ == gpu::kDevMask) {
-#if MXNET_USE_CUDA
+    } else if (data.dev_mask() == gpu::kDevMask) {
+#if MXNET_USE_GPU
       info.loc = CTC_GPU;
       info.stream = ctx.get_stream<gpu>()->stream_;
     } else {
 #endif
-      LOG(FATAL) << "Unknown device type " << data.dev_mask_;
+      LOG(FATAL) << "Unknown device type " << data.dev_mask();
     }
     info.blank_label = 0;
 
@@ -142,15 +161,15 @@ class WarpCTCOp : public Operator {
       input_lengths.push_back(T);
     }
 
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
     hipError_t cuda_status;
 #endif
     float* activations = static_cast<float*>(data.dptr_);
     int* flat_labels = static_cast<int*>(label.dptr_);
     int* cpu_raw_labels = flat_labels;
     float* grads = static_cast<float*>(in_grad[warpctc_enum::kData].dptr_);
-    if (data.dev_mask_ == gpu::kDevMask) {
-#if MXNET_USE_CUDA
+    if (data.dev_mask() == gpu::kDevMask) {
+#if MXNET_USE_GPU
       cpu_raw_labels = reinterpret_cast<int*>(malloc(sizeof(int) * label.Size()));
       cuda_status = hipMemcpyAsync(cpu_raw_labels, flat_labels,
                                     label.Size()*sizeof(int),
@@ -193,10 +212,10 @@ class WarpCTCOp : public Operator {
                                     info),
                    "Error: compute_ctc_loss");
 
-    if (data.dev_mask_ == cpu::kDevMask) {
+    if (data.dev_mask() == cpu::kDevMask) {
       free(cpu_labels);
-    } else if (data.dev_mask_ == gpu::kDevMask) {
-#if MXNET_USE_CUDA
+    } else if (data.dev_mask() == gpu::kDevMask) {
+#if MXNET_USE_GPU
       free(cpu_raw_labels);
       free(cpu_labels);
 #endif
@@ -228,14 +247,14 @@ class WarpCTCProp : public OperatorProperty {
     return param_.__DICT__();
   }
 
-  bool InferShape(std::vector<TShape> *in_shape,
-                  std::vector<TShape> *out_shape,
-                  std::vector<TShape> *aux_shape) const override {
+  bool InferShape(mxnet::ShapeVector *in_shape,
+                  mxnet::ShapeVector *out_shape,
+                  mxnet::ShapeVector *aux_shape) const override {
     using namespace mshadow;
     CHECK_EQ(in_shape->size(), 2) << "Input:[data, label]";
-    const TShape &dshape = in_shape->at(0);
+    const mxnet::TShape &dshape = in_shape->at(0);
     if (dshape.ndim() == 0) return false;
-    TShape label_shape(dshape.ndim() - 1);
+    mxnet::TShape label_shape(dshape.ndim() - 1);
     label_shape[0] = param_.label_length * (dshape[0] / param_.input_length);
     SHAPE_ASSIGN_CHECK(*in_shape, warpctc_enum::kLabel, label_shape);
 
@@ -257,7 +276,7 @@ class WarpCTCProp : public OperatorProperty {
   }
 
   std::vector<ResourceRequest> BackwardResource(
-      const std::vector<TShape> &in_shape) const override {
+      const mxnet::ShapeVector &in_shape) const override {
     return {ResourceRequest::kTempSpace};
   }
 

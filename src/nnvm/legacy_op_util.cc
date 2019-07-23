@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2015 by Contributors
  * \file legacy_op_util.cc
@@ -30,8 +49,10 @@ class ParsedOpProp {
   std::vector<std::string> outputs;
   // initializer
   void Init(const NodeAttrs& attrs) {
-    std::vector<std::pair<std::string, std::string> > kwargs(
-        attrs.dict.begin(), attrs.dict.end());
+    // For performance, do a reserve first and then copy attrs.dict
+    std::vector<std::pair<std::string, std::string> > kwargs;
+    kwargs.reserve(attrs.dict.size());
+    kwargs.insert(kwargs.end(), attrs.dict.begin(), attrs.dict.end());
     try {
       ptr->Init(kwargs);
     } catch (const dmlc::ParamError& e) {
@@ -54,6 +75,100 @@ class ParsedOpProp {
   }
 };
 
+class OperatorState {
+ public:
+  OperatorState(Operator *opr, const OperatorProperty *prop) {
+    opr_ = opr;
+
+    in_data_fwd_.resize(prop->ListArguments().size());
+    in_data_bwd_.resize(prop->ListArguments().size());
+    out_data_.resize(prop->NumOutputs());
+    aux_data_.resize(prop->ListAuxiliaryStates().size());
+    in_grad_.resize(in_data_fwd_.size());
+    out_grad_.resize(prop->NumVisibleOutputs());
+
+    std::vector<TBlob*> out_grad_ptr(out_grad_.size());
+    for (size_t i = 0; i < out_grad_.size(); ++i) {
+      out_grad_ptr[i] = &out_grad_[i];
+    }
+    std::vector<TBlob*> in_data_ptr(in_data_fwd_.size());
+    for (size_t i = 0; i < in_data_fwd_.size(); ++i) {
+      in_data_ptr[i] = &in_data_bwd_[i];
+    }
+    std::vector<TBlob*> out_data_ptr(out_data_.size());
+    for (size_t i = 0; i < out_data_.size(); ++i) {
+      out_data_ptr[i] = &out_data_[i];
+    }
+    arg_data_ptr_ = prop->BackwardInputs(
+        out_grad_ptr, in_data_ptr, out_data_ptr);
+  }
+
+  ~OperatorState() { delete opr_; }
+
+  void Forward(const OpContext &ctx,
+               const std::vector<TBlob>& inputs,
+               const std::vector<OpReqType>& req,
+               const std::vector<TBlob>& outputs) {
+    CHECK_EQ(inputs.size(), in_data_fwd_.size() + aux_data_.size());
+    CHECK_EQ(outputs.size(), out_data_.size());
+    // in_data_bwd_ has the same tblobs as the ones in in_data_fwd_, except that the ones
+    // referred by arg_data_ptr_ will be overriden
+    for (size_t i = 0; i < in_data_fwd_.size(); ++i) in_data_fwd_[i] = inputs[i];
+    for (size_t i = 0; i < in_data_fwd_.size(); ++i) in_data_bwd_[i] = inputs[i];
+    for (size_t i = 0; i < aux_data_.size(); ++i) {
+      aux_data_[i] = inputs[i + in_data_fwd_.size()];
+    }
+    for (size_t i = 0; i < out_data_.size(); ++i) out_data_[i] = outputs[i];
+    opr_->Forward(ctx, in_data_fwd_, req, out_data_, aux_data_);
+  }
+
+  void Backward(const OpContext &ctx,
+                const std::vector<TBlob>& inputs,
+                const std::vector<OpReqType>& req,
+                const std::vector<TBlob>& outputs) {
+    CHECK_EQ(arg_data_ptr_.size() + aux_data_.size(), inputs.size());
+    // override tblobs pointed by arg_data_ptr_ since they might not contain
+    // initialized data during forward pass.
+    for (size_t i = 0; i < arg_data_ptr_.size(); ++i) {
+      *arg_data_ptr_[i] = inputs[i];
+    }
+    for (size_t i = 0; i < aux_data_.size(); ++i) {
+      aux_data_[i] = inputs[inputs.size() - aux_data_.size() + i];
+    }
+    CHECK_EQ(outputs.size(), in_grad_.size());
+    for (size_t i = 0; i < outputs.size(); ++i) in_grad_[i] = outputs[i];
+    opr_->Backward(ctx, out_grad_, in_data_bwd_, out_data_, req, in_grad_, aux_data_);
+  }
+
+ private:
+  Operator *opr_;
+  // input data blobs for forward and backward
+  // in_data_fwd_ and in_data_bwd_ will hold different tblobs when StorageFallbackOpExecutor
+  // performs storage fallback on a non-default input NDArray. The one in in_data_fwd_ is
+  // generated when setting up forward executor, while the one in in_data_bwd_ is generated
+  // when setting up backward executor.
+  std::vector<TBlob> in_data_fwd_, in_data_bwd_;
+  std::vector<TBlob> aux_data_, out_data_, in_grad_, out_grad_;
+  std::vector<TBlob*> arg_data_ptr_;
+};
+
+void LegacyOpForward(const OpStatePtr& state,
+                     const OpContext& ctx,
+                     const std::vector<TBlob>& inputs,
+                     const std::vector<OpReqType>& req,
+                     const std::vector<TBlob>& outputs) {
+  auto& op = state.get_state<OperatorState>();
+  op.Forward(ctx, inputs, req, outputs);
+}
+
+void LegacyOpBackward(const OpStatePtr& state,
+                      const OpContext& ctx,
+                      const std::vector<TBlob>& inputs,
+                      const std::vector<OpReqType>& req,
+                      const std::vector<TBlob>& outputs) {
+  auto& op = state.get_state<OperatorState>();
+  op.Backward(ctx, inputs, req, outputs);
+}
 
 // function to use operator property to infer attr
 // get op property from the attribute
@@ -93,12 +208,12 @@ bool OpPropInferAttr(const NodeAttrs& attrs,
 }
 
 bool OpPropInferShape(const NodeAttrs& attrs,
-                      std::vector<TShape> *iattr,
-                      std::vector<TShape> *oattr) {
+                      mxnet::ShapeVector *iattr,
+                      mxnet::ShapeVector *oattr) {
   auto finfer = [](const OperatorProperty* op,
-                   std::vector<TShape> *in,
-                   std::vector<TShape> *out,
-                   std::vector<TShape> *aux) {
+                   mxnet::ShapeVector *in,
+                   mxnet::ShapeVector *out,
+                   mxnet::ShapeVector *aux) {
     return op->InferShape(in, out, aux);
   };
   return OpPropInferAttr(attrs, iattr, oattr, finfer);
@@ -164,32 +279,32 @@ std::vector<std::pair<int, int> > OpPropInplaceOption(const NodeAttrs& attrs) {
   }
   std::vector<std::pair<int, int> > forward_inplace;
   for (auto& kv : prop.ptr->ForwardInplaceOption(in_data, out_addr)) {
-    forward_inplace.push_back(
-        std::make_pair(kv.first, *static_cast<int*>(kv.second)));
+    forward_inplace.emplace_back(kv.first, *static_cast<int*>(kv.second));
   }
   return forward_inplace;
 }
 
 std::vector<ResourceRequest> OpPropResourceRequest(const NodeAttrs& attrs) {
-  std::vector<TShape> ishape;
+  mxnet::ShapeVector ishape;
   auto& prop = nnvm::get<ParsedOpProp>(attrs.parsed);
   return prop.ptr->ForwardResource(ishape);
 }
 
 std::vector<ResourceRequest> OpBackResourceRequest(const NodeAttrs& attrs) {
-  std::vector<TShape> ishape;
+  mxnet::ShapeVector ishape;
   auto& prop = nnvm::get<ParsedOpProp>(attrs.parsed);
   return prop.ptr->BackwardResource(ishape);
 }
 
-Operator* OpPropCreateLayerOp(const NodeAttrs& attrs,
-                              Context ctx,
-                              const std::vector<TShape>& ishape,
-                              const std::vector<int>& itype) {
+OpStatePtr OpPropCreateLayerOp(const NodeAttrs& attrs,
+                               Context ctx,
+                               const mxnet::ShapeVector& ishape,
+                               const std::vector<int>& itype) {
   auto& prop = nnvm::get<ParsedOpProp>(attrs.parsed);
-  std::vector<TShape> is(ishape.begin(), ishape.begin() + prop.arguments.size());
+  mxnet::ShapeVector is(ishape.begin(), ishape.begin() + prop.arguments.size());
   std::vector<int> it(itype.begin(), itype.begin() + prop.arguments.size());
-  return prop.ptr->CreateOperatorEx(ctx, &is, &it);
+  return OpStatePtr::Create<OperatorState>(prop.ptr->CreateOperatorEx(ctx, &is, &it),
+                                           prop.ptr.get());
 }
 
 inline std::vector<NodeEntry> OpPropGradient(
@@ -197,17 +312,18 @@ inline std::vector<NodeEntry> OpPropGradient(
     const NodePtr& ptr,
     const std::vector<NodeEntry>& out_grads) {
   auto& prop = nnvm::get<ParsedOpProp>(ptr->attrs.parsed);
-  std::vector<NodeEntry> out_data(prop.outputs.size());
-  for (uint32_t i = 0; i < out_data.size(); ++i) {
-    out_data[i] = NodeEntry{ptr, i, 0};
-  }
+  std::vector<NodeEntry> out_data;
+  out_data.reserve(prop.outputs.size());
+  for (size_t i = 0; i < prop.outputs.size(); ++i)
+    out_data.emplace_back(ptr, i, 0);
+
   std::vector<NodeEntry> in_data(
       ptr->inputs.begin(), ptr->inputs.begin() + prop.arguments.size());
   std::vector<NodeEntry> ograd(
       out_grads.begin(), out_grads.begin() + prop.ptr->NumVisibleOutputs());
   auto inputs = prop.ptr->BackwardInputs(ograd, in_data, out_data);
   // add all the auxiliary data
-  for (uint32_t i = 0; i < prop.aux_states.size(); ++i) {
+  for (size_t i = 0; i < prop.aux_states.size(); ++i) {
     inputs.emplace_back(ptr->inputs[i + prop.arguments.size()]);
   }
   NodePtr gnode = Node::Create();
@@ -216,17 +332,15 @@ inline std::vector<NodeEntry> OpPropGradient(
   gnode->attrs = ptr->attrs;
   gnode->attrs.op = back_op;
   gnode->attrs.name = ptr->attrs.name + "_backward";
-  std::vector<NodeEntry> in_grad(prop.arguments.size());
-  for (uint32_t i = 0; i < prop.arguments.size(); ++i) {
-    in_grad[i] = NodeEntry{gnode, i, 0};
+  std::vector<NodeEntry> in_grad;
+  in_grad.reserve(prop.arguments.size() + prop.aux_states.size());
+  for (size_t i = 0; i < prop.arguments.size(); ++i) {
+    in_grad.emplace_back(gnode, i, 0);
   }
   // attach no gradient node to forbid gradient on aux_state
   if (prop.aux_states.size() != 0) {
-    NodePtr ng = Node::Create();
-    ng->attrs.op = Op::Get("_NoGradient");
-    ng->attrs.name = "NoGradient";
-    for (uint32_t i = 0; i < prop.aux_states.size(); ++i) {
-      in_grad.emplace_back(NodeEntry{ng, 0, 0});
+    for (size_t i = 0; i < prop.aux_states.size(); ++i) {
+      in_grad.emplace_back(Node::Create(Op::Get("_NoGradient"), "NoGradient"), 0, 0);
     }
   }
   return in_grad;
@@ -264,13 +378,13 @@ std::vector<std::pair<int, int> > OpBackInplaceOption(const NodeAttrs& attrs) {
   std::vector<int> out_data_index(prop.outputs.size());
 
   int counter = 0;
-  for (size_t i = 0; i < in_data_index.size(); ++i) {
+  for (const int& i : in_data_index) {
     in_data_index[i] = counter++;
   }
-  for (size_t i = 0; i < out_grad_index.size(); ++i) {
+  for (const int& i : out_grad_index) {
     out_grad_index[i] = counter++;
   }
-  for (size_t i = 0; i < out_data_index.size(); ++i) {
+  for (const int& i : out_data_index) {
     out_data_index[i] = counter++;
   }
 
@@ -300,6 +414,11 @@ std::vector<std::pair<int, int> > OpBackInplaceOption(const NodeAttrs& attrs) {
   return remap;
 }
 
+inline ExecType OpExecType(const NodeAttrs& attrs) {
+  auto& prop = nnvm::get<ParsedOpProp>(attrs.parsed);
+  return prop.ptr->exec_type();
+}
+
 // register the legacy operator properties under NNVM registry.
 void RegisterLegacyOpProp() {
   for (auto reg : dmlc::Registry<OperatorPropertyReg>::List()) {
@@ -323,15 +442,19 @@ void RegisterLegacyOpProp() {
     op.set_attr<nnvm::FListInputNames>("FListInputNames", OpPropListInputNames);
     op.set_attr<nnvm::FListOutputNames>("FListOutputNames", OpPropListOutputNames);
     op.set_attr<nnvm::FNumVisibleOutputs>("FNumVisibleOutputs", OpPropNumVisibleOutputs);
-    op.set_attr<nnvm::FInferShape>("FInferShape", OpPropInferShape);
+    op.set_attr<mxnet::FInferShape>("FInferShape", OpPropInferShape);
     op.set_attr<nnvm::FInferType>("FInferType", OpPropInferType);
     op.set_attr<nnvm::FMutateInputs>("FMutateInputs", OpPropMutateInputs);
     op.set_attr<nnvm::FInplaceOption>("FInplaceOption", OpPropInplaceOption);
     op.set_attr<FResourceRequest>("FResourceRequest", OpPropResourceRequest);
-    op.set_attr<FCreateLayerOp>("FCreateLayerOp", OpPropCreateLayerOp);
+    op.set_attr<FExecType>("FExecType", OpExecType);
+    op.set_attr<FCreateOpState>("FCreateOpState", OpPropCreateLayerOp);
+    op.set_attr<FStatefulCompute>("FStatefulCompute<cpu>", LegacyOpForward);
+    op.set_attr<FStatefulCompute>("FStatefulCompute<gpu>", LegacyOpForward);
     if (reg->key_var_num_args.length() != 0) {
       op.set_attr<std::string>("key_var_num_args", reg->key_var_num_args);
     }
+
     // register BackwardOps
     std::string back_op_name = "_backward_" + reg->name;
     Op& back_op = ::dmlc::Registry<::nnvm::Op>::Get()->__REGISTER__(back_op_name);
@@ -348,6 +471,9 @@ void RegisterLegacyOpProp() {
         "FResourceRequest", OpBackResourceRequest);
     back_op.set_attr<bool>("TIsLayerOpBackward", true);
     back_op.set_attr<bool>("TIsBackward", true);
+    back_op.set_attr<FExecType>("FExecType", OpExecType);
+    back_op.set_attr<FStatefulCompute>("FStatefulCompute<cpu>", LegacyOpBackward);
+    back_op.set_attr<FStatefulCompute>("FStatefulCompute<gpu>", LegacyOpBackward);
   }
 }
 

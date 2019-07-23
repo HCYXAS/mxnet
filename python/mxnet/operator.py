@@ -1,18 +1,43 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
 # coding: utf-8
-# pylint: disable=invalid-name, protected-access, too-many-arguments, no-self-use, too-many-locals, broad-except
+# pylint: disable=invalid-name, protected-access, too-many-arguments, no-self-use, too-many-locals, broad-except, too-many-lines, unnecessary-pass
 """numpy interface for operators."""
 from __future__ import absolute_import
 
 import traceback
+import warnings
+import collections
 
+from array import array
 from threading import Lock
+import ctypes
 from ctypes import CFUNCTYPE, POINTER, Structure, pointer
 from ctypes import c_void_p, c_int, c_char, c_char_p, cast, c_bool
 
-from .base import _LIB, check_call
-from .base import c_array, c_str, mx_uint, mx_float, ctypes2numpy_shared, NDArrayHandle, py_str
-from . import symbol
+from .base import _LIB, check_call, MXCallbackList, c_array, c_array_buf, mx_int, OpHandle
+from .base import c_str, mx_uint, mx_float, ctypes2numpy_shared, NDArrayHandle, py_str
+from . import symbol, context
 from .ndarray import NDArray, _DTYPE_NP_TO_MX, _DTYPE_MX_TO_NP
+from .ndarray.ndarray import _STORAGE_TYPE_STR_TO_ID, _STORAGE_TYPE_ID_TO_STR
+from .ndarray.ndarray import _STORAGE_TYPE_UNDEFINED, _STORAGE_TYPE_DEFAULT
+from .ndarray.ndarray import _STORAGE_TYPE_CSR, _STORAGE_TYPE_ROW_SPARSE
+from .ndarray import _ndarray_cls
 
 c_int_p = POINTER(c_int)
 
@@ -29,6 +54,7 @@ class PythonOp(object):
     def __init__(self, need_top_grad=True):
         self.info_ = None
         self.need_top_grad_ = need_top_grad
+        warnings.warn('PythonOp has been deprecated. Please use CustomOp')
 
     def __call__(self, *args, **kwargs):
         return self.get_symbol(*args, **kwargs)
@@ -134,12 +160,13 @@ class NumpyOp(PythonOp):
     """
     def __init__(self, need_top_grad=True):
         super(NumpyOp, self).__init__(need_top_grad)
+        warnings.warn('NumpyOp has been deprecated. Please use CustomOp')
 
     def get_symbol(self, *args, **kwargs):
         fb_functype = CFUNCTYPE(None, c_int, POINTER(POINTER(mx_float)), POINTER(c_int),
                                 POINTER(POINTER(mx_uint)), POINTER(c_int), c_void_p)
         infer_functype = CFUNCTYPE(None, c_int, POINTER(c_int),
-                                   POINTER(POINTER(mx_uint)), c_void_p)
+                                   POINTER(POINTER(mx_int)), c_void_p)
         list_functype = CFUNCTYPE(None, POINTER(POINTER(POINTER(c_char))), c_void_p)
         class NumpyOpInfo(Structure):
             """Structure that holds Callback information. Passed to NumpyOpProp"""
@@ -189,7 +216,9 @@ class NumpyOp(PythonOp):
             assert len(ishape) == n_in
             rshape = list(ishape) + list(oshape)
             for i in range(n_in+n_out):
-                tensor_shapes[i] = cast(c_array(mx_uint, rshape[i]), POINTER(mx_uint))
+                tensor_shapes[i] = cast(c_array_buf(mx_int,
+                                                    array('i', rshape[i])),
+                                        POINTER(mx_int))
                 tensor_dims[i] = len(rshape[i])
 
         def list_outputs_entry(out, _):
@@ -234,11 +263,12 @@ class NDArrayOp(PythonOp):
     """
     def __init__(self, need_top_grad=True):
         super(NDArrayOp, self).__init__(need_top_grad)
+        warnings.warn('NDArrayOp has been deprecated. Please use CustomOp')
 
     def get_symbol(self, *args, **kwargs):
         fb_functype = CFUNCTYPE(c_bool, c_int, POINTER(c_void_p), POINTER(c_int), c_void_p)
         infer_functype = CFUNCTYPE(c_bool, c_int, POINTER(c_int),
-                                   POINTER(POINTER(mx_uint)), c_void_p)
+                                   POINTER(POINTER(mx_int)), c_void_p)
         list_functype = CFUNCTYPE(c_bool, POINTER(POINTER(POINTER(c_char))), c_void_p)
         deps_functype = CFUNCTYPE(c_bool, c_int_p, c_int_p, c_int_p,
                                   c_int_p, POINTER(c_int_p), c_void_p)
@@ -307,7 +337,9 @@ class NDArrayOp(PythonOp):
                 assert len(ishape) == n_in
                 rshape = list(ishape) + list(oshape)
                 for i in range(n_in+n_out):
-                    tensor_shapes[i] = cast(c_array(mx_uint, rshape[i]), POINTER(mx_uint))
+                    tensor_shapes[i] = cast(c_array_buf(mx_int,
+                                                        array('i', rshape[i])),
+                                            POINTER(mx_int))
                     tensor_dims[i] = len(rshape[i])
             except Exception:
                 print('Error in NDArrayOp.infer_shape: %s' % traceback.format_exc())
@@ -346,7 +378,7 @@ class NDArrayOp(PythonOp):
                 out_data = [out_data[i] for i in range(len(self.list_outputs()))]
                 rdeps = self.declare_backward_dependency(out_grad, in_data, out_data)
                 num_dep[0] = len(rdeps)
-                rdeps = cast(c_array(c_int, rdeps), c_int_p)
+                rdeps = cast(c_array_buf(c_int, array('i', rdeps)), c_int_p)
                 deps[0] = rdeps
             except Exception:
                 print('Error in NDArrayOp.declare_backward_dependency: %s' % traceback.format_exc())
@@ -434,7 +466,7 @@ class CustomOp(object):
         """Helper function for assigning into dst depending on requirements."""
         if req == 'null':
             return
-        elif req == 'write' or req == 'inplace':
+        elif req in ('write', 'inplace'):
             dst[:] = src
         elif req == 'add':
             dst[:] += src
@@ -448,7 +480,7 @@ class CustomOpProp(object):
         The default declare_backward_dependency function. Use this value
         to determine whether this operator needs gradient input.
     """
-    def __init__(self, need_top_grad=False):
+    def __init__(self, need_top_grad=True):
         self.need_top_grad_ = need_top_grad
 
     def infer_shape(self, in_shape):
@@ -471,7 +503,7 @@ class CustomOpProp(object):
             List of aux shapes calculated from in_shape,
             in the same order as declared in list_auxiliary_states.
         """
-        return in_shape, [in_shape[0]], []
+        return in_shape, (in_shape[0],)*len(self.list_outputs()), ()
 
     def infer_type(self, in_type):
         """infer_type interface. override to create new operators
@@ -495,6 +527,91 @@ class CustomOpProp(object):
         """
         return in_type, [in_type[0]]*len(self.list_outputs()), \
             [in_type[0]]*len(self.list_auxiliary_states())
+
+    def infer_storage_type(self, in_stype):
+        """infer_storage_type interface. Used to infer storage type of
+        inputs and outputs in the forward pass. When this interface is not implemented,
+        all stypes will be inferred as default.
+
+        Parameters
+        ----------
+        in_stype : list of stypes, valid stypes are default, row_sparse and
+            csr
+
+        Returns
+        -------
+        in_stype : list
+            list of argument stypes.
+        out_stype : list
+            list of output types calculated from in_stype,
+            in the same order as declared in list_outputs.
+        aux_type : Optional, list
+            list of aux types calculated from in_stype,
+            in the same order as declared in list_auxiliary_states.
+        """
+        for i, stype in enumerate(in_stype):
+            assert stype == _STORAGE_TYPE_ID_TO_STR[_STORAGE_TYPE_DEFAULT], \
+            "Default infer_storage_type implementation doesnt allow non default stypes: " \
+            "found non default stype '%s' for in_stype[%d]. Please implement " \
+            "infer_storage_type and infer_storage_type_backward interface " \
+            "in your custom operator if you have non-default input/output stypes" % (stype, i)
+        return in_stype, \
+               [_STORAGE_TYPE_ID_TO_STR[_STORAGE_TYPE_DEFAULT]]*len(self.list_outputs()), \
+               [_STORAGE_TYPE_ID_TO_STR[_STORAGE_TYPE_DEFAULT]]*len(self.list_auxiliary_states())
+
+    def infer_storage_type_backward(self, ograd_stype, in_stype, out_stype, igrad_stype, aux_stype):
+        """infer_storage_type_backward interface. Used to infer storage
+        type of inputs and outputs in the backward pass.
+
+        Will raise an error if undefined storage type is returned.
+        Returned lists have to be the same size as the input lists to infer_storage_type_backward,
+        otherwise an exception will be thrown. When this interface is not implemented,
+        all stypes will be inferred as default.
+
+        Parameters
+        ----------
+        ograd_stype : list
+            list of output gradient storage types
+        in_stype : list
+            list of input storage types
+        out_stype : list
+            list of output storage types
+        igrad_stype : list
+            list of input gradient storage types
+        aux_stype : list
+            list of auxiliary storage types
+
+        Returns
+        -------
+        ograd_stype : list
+            list of inferred output gradient storage types
+        in_stype : list
+            list of inferred input storage types
+        out_stype : list
+            list of inferred output storage types
+        igrad_stype : list
+            list of inferred input gradient storage types
+        aux_stype : list
+            list of inferred storage types for auxiliary states
+        """
+        for i, stype in enumerate(ograd_stype):
+            assert stype == _STORAGE_TYPE_ID_TO_STR[_STORAGE_TYPE_DEFAULT], \
+            "Default infer_storage_type_backward implementation doesnt allow non default stypes: " \
+             "found non default stype '%s' for ograd_stype[%d]. Please implement " \
+             "infer_storage_type and infer_storage_type_backward interface " \
+             "in your custom operator if you have non-default output gradient stypes" % (stype, i)
+        for i, stype in enumerate(igrad_stype):
+            if stype == _STORAGE_TYPE_ID_TO_STR[_STORAGE_TYPE_UNDEFINED]:
+                stype = _STORAGE_TYPE_ID_TO_STR[_STORAGE_TYPE_DEFAULT]
+            assert stype == _STORAGE_TYPE_ID_TO_STR[_STORAGE_TYPE_DEFAULT], \
+            "Default infer_storage_type_backward implementation doesnt allow non default stypes: " \
+            "found non default stype '%s' for igrad_stype[%d]. Please implement " \
+            "infer_storage_type and infer_storage_type_backward interface " \
+            "in your custom operator if you have non-default input gradient stypes" % (stype, i)
+        stype_lists = [ograd_stype, in_stype, out_stype, igrad_stype, aux_stype]
+        for stype_list in stype_lists:
+            stype_list[:] = len(stype_list) * [_STORAGE_TYPE_ID_TO_STR[_STORAGE_TYPE_DEFAULT]]
+        return stype_lists[0], stype_lists[1], stype_lists[2], stype_lists[3], stype_lists[4]
 
     def list_outputs(self):
         """list_outputs interface. Can override when creating new operators.
@@ -561,6 +678,7 @@ class _Registry(object):
     def __init__(self):
         self.ref_holder = {}
         self.counter = 0
+        self.result_deps = set()
         self.lock = Lock()
 
     def inc(self):
@@ -577,22 +695,16 @@ def register(reg_name):
     """Register a subclass of CustomOpProp to the registry with name reg_name."""
     def do_register(prop_cls):
         """Register a subclass of CustomOpProp to the registry."""
-
-        class MXCallbackList(Structure):
-            """Structure that holds Callback information. Passed to CustomOpProp."""
-            _fields_ = [
-                ('num_callbacks', c_int),
-                ('callbacks', POINTER(CFUNCTYPE(c_int))),
-                ('contexts', POINTER(c_void_p))
-                ]
-
         fb_functype = CFUNCTYPE(c_int, c_int, POINTER(c_void_p), POINTER(c_int),
                                 POINTER(c_int), c_int, c_void_p)
         del_functype = CFUNCTYPE(c_int, c_void_p)
 
         infershape_functype = CFUNCTYPE(c_int, c_int, POINTER(c_int),
-                                        POINTER(POINTER(mx_uint)), c_void_p)
+                                        POINTER(POINTER(mx_int)), c_void_p)
         infertype_functype = CFUNCTYPE(c_int, c_int, POINTER(c_int), c_void_p)
+        inferstorage_functype = CFUNCTYPE(c_int, c_int, POINTER(c_int), c_void_p)
+        inferstorage_backward_functype = CFUNCTYPE(c_int, c_int, POINTER(c_int), \
+                                                   POINTER(c_int), c_void_p)
         list_functype = CFUNCTYPE(c_int, POINTER(POINTER(POINTER(c_char))), c_void_p)
         deps_functype = CFUNCTYPE(c_int, c_int_p, c_int_p, c_int_p,
                                   c_int_p, POINTER(c_int_p), c_void_p)
@@ -626,17 +738,123 @@ def register(reg_name):
                         ishape, oshape, ashape = ret
                     else:
                         raise AssertionError("infer_shape must return 2 or 3 lists")
-                    assert len(oshape) == n_out
-                    assert len(ishape) == n_in
-                    assert len(ashape) == n_aux
+                    assert len(oshape) == n_out, \
+                        "InferShape Error: expecting %d entries in returned output " \
+                        "shapes, got %d."%(n_out, len(oshape))
+                    assert len(ishape) == n_in, \
+                        "InferShape Error: expecting %d entries in returned input " \
+                        "shapes, got %d."%(n_in, len(ishape))
+                    assert len(ashape) == n_aux, \
+                        "InferShape Error: expecting %d entries in returned aux state " \
+                        "shapes, got %d."%(n_aux, len(ashape))
                     rshape = list(ishape) + list(oshape) + list(ashape)
                     for i in range(n_in+n_out+n_aux):
-                        tensor_shapes[i] = cast(c_array(mx_uint, rshape[i]), POINTER(mx_uint))
+                        tensor_shapes[i] = cast(c_array_buf(mx_int,
+                                                            array('i', rshape[i])),
+                                                POINTER(mx_int))
                         tensor_dims[i] = len(rshape[i])
 
                     infer_shape_entry._ref_holder = [tensor_shapes]
                 except Exception:
                     print('Error in %s.infer_shape: %s' % (reg_name, traceback.format_exc()))
+                    return False
+                return True
+
+
+            def infer_storage_type_backward_entry(num_tensor, tensor_stypes, tags, _):
+                # pylint: disable=C0301
+                """C Callback for CustomOpProp::InferStorageTypeBackward"""
+                try:
+                    tensors = [[] for i in range(5)]
+                    for i in range(num_tensor):
+                        tensors[tags[i]].append(_STORAGE_TYPE_ID_TO_STR[tensor_stypes[i]])
+                    # Ordering of stypes: ograd, input, output, igrad, aux
+                    tensors = [tensors[3], tensors[0], tensors[1], tensors[2], tensors[4]]
+                    ret = op_prop.infer_storage_type_backward(tensors[0],
+                                                              tensors[1],
+                                                              tensors[2],
+                                                              tensors[3],
+                                                              tensors[4])
+                    if len(ret) == 4:
+                        ret += []
+                    elif len(ret) == 5:
+                        pass
+                    else:
+                        raise AssertionError("infer_storage_type_backward must return 4 or 5 lists")
+                    assert len(ret[0]) == len(tensors[0]), \
+                        "InferStorageTypeBackward Error: expecting == %d " \
+                        "entries in returned output gradient " \
+                        "stypes, got %d."%(len(tensors[0]), len(ret[0]))
+                    assert len(ret[1]) == len(tensors[1]), \
+                        "InferStorageTypeBackward Error: expecting == %d " \
+                        "entries in returned input stypes, " \
+                        "got %d."%(len(tensors[1]), len(ret[1]))
+                    assert len(ret[2]) == len(tensors[2]), \
+                        "InferStorageTypeBackward Error: expecting == %d " \
+                        "entries in returned output stypes, " \
+                        "got %d."%(len(tensors[2]), len(ret[2]))
+                    assert len(ret[3]) == len(tensors[3]), \
+                        "InferStorageTypeBackward Error: expecting == %d " \
+                        "entries in returned input gradient stypes, " \
+                        "got %d."%(len(tensors[3]), len(ret[3]))
+                    assert len(ret[4]) == len(tensors[4]), \
+                        "InferStorageTypeBackward Error: expecting == %d " \
+                        "entries in returned aux stypes, " \
+                        "got %d."%(len(tensors[4]), len(ret[4]))
+                    rstype = []
+                    for i, ret_list in enumerate(ret):
+                        rstype.extend(ret_list)
+
+                    for i, stype in enumerate(rstype):
+                        assert stype != _STORAGE_TYPE_ID_TO_STR[_STORAGE_TYPE_UNDEFINED], \
+                            "stype should not be undefined"
+                        assert stype in _STORAGE_TYPE_STR_TO_ID, \
+                            "Provided stype: %s is not valid " \
+                            "valid stypes are %s, %s, %s"%(stype,
+                                                           _STORAGE_TYPE_ID_TO_STR[_STORAGE_TYPE_DEFAULT],
+                                                           _STORAGE_TYPE_ID_TO_STR[_STORAGE_TYPE_ROW_SPARSE],
+                                                           _STORAGE_TYPE_ID_TO_STR[_STORAGE_TYPE_CSR])
+                        tensor_stypes[i] = _STORAGE_TYPE_STR_TO_ID[stype]
+
+                    infer_storage_type_backward_entry._ref_holder = [tensor_stypes]
+                except Exception:
+                    print('Error in %s.infer_type: %s' % (reg_name, traceback.format_exc()))
+                    return False
+                return True
+
+            def infer_storage_type_entry(num_tensor, tensor_stypes, _):
+                """C Callback for CustomOpProp::InferStorageType"""
+                try:
+                    n_in = len(op_prop.list_arguments())
+                    n_out = len(op_prop.list_outputs())
+                    n_aux = len(op_prop.list_auxiliary_states())
+                    assert num_tensor == n_in + n_out + n_aux
+
+                    stypes = [_STORAGE_TYPE_ID_TO_STR[tensor_stypes[i]] for i in range(n_in)]
+                    ret = op_prop.infer_storage_type(stypes)
+                    if len(ret) == 2:
+                        istype, ostype = ret
+                        astype = []
+                    elif len(ret) == 3:
+                        istype, ostype, astype = ret
+                    else:
+                        raise AssertionError("infer_storage_type must return 2 or 3 lists")
+
+                    assert len(ostype) == n_out, \
+                        "InferStorageType Error: expecting %d entries in returned output " \
+                        "stypes, got %d."%(n_out, len(ostype))
+                    assert len(istype) == n_in, \
+                        "InferStorageType Error: expecting %d entries in returned input " \
+                        "stypes, got %d."%(n_in, len(istype))
+                    assert len(astype) == n_aux, \
+                        "InferStorageType Error: expecting %d entries in returned aux state " \
+                        "stypes, got %d."%(n_aux, len(astype))
+                    rtype = list(istype) + list(ostype) + list(astype)
+                    for i, dtype in enumerate(rtype):
+                        tensor_stypes[i] = _STORAGE_TYPE_STR_TO_ID[dtype]
+                    infer_storage_type_entry._ref_holder = [tensor_stypes]
+                except Exception:
+                    print('Error in %s.infer_type: %s' % (reg_name, traceback.format_exc()))
                     return False
                 return True
 
@@ -657,9 +875,15 @@ def register(reg_name):
                         itype, otype, atype = ret
                     else:
                         raise AssertionError("infer_type must return 2 or 3 lists")
-                    assert len(otype) == n_out
-                    assert len(itype) == n_in
-                    assert len(atype) == n_aux
+                    assert len(otype) == n_out, \
+                        "InferType Error: expecting %d entries in returned output " \
+                        "types, got %d."%(n_out, len(otype))
+                    assert len(itype) == n_in, \
+                        "InferType Error: expecting %d entries in returned input " \
+                        "types, got %d."%(n_in, len(itype))
+                    assert len(atype) == n_aux, \
+                        "InferType Error: expecting %d entries in returned aux state " \
+                        "types, got %d."%(n_aux, len(atype))
                     rtype = list(itype) + list(otype) + list(atype)
                     for i, dtype in enumerate(rtype):
                         tensor_types[i] = _DTYPE_NP_TO_MX[dtype]
@@ -721,7 +945,10 @@ def register(reg_name):
                     out_data = [out_data[i] for i in range(len(op_prop.list_outputs()))]
                     rdeps = op_prop.declare_backward_dependency(out_grad, in_data, out_data)
                     num_dep[0] = len(rdeps)
-                    rdeps = cast(c_array(c_int, rdeps), c_int_p)
+                    _registry.result_deps = set()
+                    for dep in rdeps:
+                        _registry.result_deps.add(dep)
+                    rdeps = cast(c_array_buf(c_int, array('i', rdeps)), c_int_p)
                     deps[0] = rdeps
 
                     declare_backward_dependency_entry._ref_holder = [deps]
@@ -734,6 +961,9 @@ def register(reg_name):
             def create_operator_entry(ctx, num_inputs, shapes, ndims, dtypes, ret, _):
                 """C Callback for CustomOpProp::CreateOperator"""
                 try:
+                    ctx = py_str(ctx)
+                    sep = ctx.find('(')
+                    ctx = context.Context(ctx[:sep], int(ctx[sep+1:-1]))
                     ndims = [ndims[i] for i in range(num_inputs)]
                     shapes = [[shapes[i][j] for j in range(ndims[i])] for i in range(num_inputs)]
                     dtypes = [dtypes[i] for i in range(num_inputs)]
@@ -745,17 +975,18 @@ def register(reg_name):
                             tensors = [[] for i in range(5)]
                             for i in range(num_ndarray):
                                 if tags[i] == 1 or tags[i] == 4:
-                                    tensors[tags[i]].append(NDArray(cast(ndarraies[i],
-                                                                         NDArrayHandle),
-                                                                    writable=True))
+                                    tensors[tags[i]].append(_ndarray_cls(cast(ndarraies[i],
+                                                                              NDArrayHandle),
+                                                                         writable=True))
                                 else:
-                                    tensors[tags[i]].append(NDArray(cast(ndarraies[i],
-                                                                         NDArrayHandle),
-                                                                    writable=False))
+                                    tensors[tags[i]].append(_ndarray_cls(cast(ndarraies[i],
+                                                                              NDArrayHandle),
+                                                                         writable=False))
                             reqs = [req_enum[reqs[i]] for i in range(len(tensors[1]))]
-                            op.forward(is_train=is_train, req=reqs,
-                                       in_data=tensors[0], out_data=tensors[1],
-                                       aux=tensors[4])
+                            with ctx:
+                                op.forward(is_train=is_train, req=reqs,
+                                           in_data=tensors[0], out_data=tensors[1],
+                                           aux=tensors[4])
                         except Exception:
                             print('Error in CustomOp.forward: %s' % traceback.format_exc())
                             return False
@@ -766,20 +997,35 @@ def register(reg_name):
                         # pylint: disable=W0613
                         try:
                             tensors = [[] for i in range(5)]
+                            num_outputs = len(op_prop.list_outputs())
+                            num_args = len(op_prop.list_arguments())
                             for i in range(num_ndarray):
-                                if tags[i] == 2 or tags[i] == 4:
-                                    tensors[tags[i]].append(NDArray(cast(ndarraies[i],
-                                                                         NDArrayHandle),
-                                                                    writable=True))
+                                if i in _registry.result_deps or i >= (num_outputs * 2 + num_args):
+                                    # If it is a backward dependency or output or aux:
+                                    # Set stype as undefined so that it returns
+                                    # ndarray based on existing stype
+                                    stype = _STORAGE_TYPE_UNDEFINED
                                 else:
-                                    tensors[tags[i]].append(NDArray(cast(ndarraies[i],
-                                                                         NDArrayHandle),
-                                                                    writable=False))
+                                    # If it is some input, output or out grad ndarray not part of
+                                    # backward dependency it is empty and thus the ndarray should
+                                    # be set to default
+                                    stype = _STORAGE_TYPE_DEFAULT
+                                if tags[i] == 2 or tags[i] == 4:
+                                    tensors[tags[i]].append(_ndarray_cls(cast(ndarraies[i],
+                                                                              NDArrayHandle),
+                                                                         writable=True,
+                                                                         stype=stype))
+                                else:
+                                    tensors[tags[i]].append(_ndarray_cls(cast(ndarraies[i],
+                                                                              NDArrayHandle),
+                                                                         writable=False,
+                                                                         stype=stype))
                             reqs = [req_enum[reqs[i]] for i in range(len(tensors[2]))]
-                            op.backward(req=reqs,
-                                        in_data=tensors[0], out_data=tensors[1],
-                                        in_grad=tensors[2], out_grad=tensors[3],
-                                        aux=tensors[4])
+                            with ctx:
+                                op.backward(req=reqs,
+                                            in_data=tensors[0], out_data=tensors[1],
+                                            in_grad=tensors[2], out_grad=tensors[3],
+                                            aux=tensors[4])
                         except Exception:
                             print('Error in CustomOp.backward: %s' % traceback.format_exc())
                             return False
@@ -831,7 +1077,9 @@ def register(reg_name):
                          infershape_functype(infer_shape_entry),
                          deps_functype(declare_backward_dependency_entry),
                          createop_functype(create_operator_entry),
-                         infertype_functype(infer_type_entry)]
+                         infertype_functype(infer_type_entry),
+                         inferstorage_functype(infer_storage_type_entry),
+                         inferstorage_backward_functype(infer_storage_type_backward_entry)]
             callbacks = [cast(i, CFUNCTYPE(c_int)) for i in callbacks]
             contexts = [None]*len(callbacks)
             ret[0] = MXCallbackList(c_int(len(callbacks)),
@@ -853,3 +1101,60 @@ def register(reg_name):
     return do_register
 
 register("custom_op")(CustomOpProp)
+
+
+def get_all_registered_operators():
+    """Get all registered MXNet operator names.
+
+    Returns
+    -------
+    operator_names : list of string
+    """
+    plist = ctypes.POINTER(ctypes.c_char_p)()
+    size = ctypes.c_uint()
+
+    check_call(_LIB.MXListAllOpNames(ctypes.byref(size),
+                                     ctypes.byref(plist)))
+
+    mx_registered_operator_names = [py_str(plist[i]) for i in range(size.value)]
+    return mx_registered_operator_names
+
+OperatorArguments = collections.namedtuple('OperatorArguments', ['narg', 'names', 'types'])
+
+def get_operator_arguments(op_name):
+    """Given operator name, fetch operator arguments - number of arguments,
+    argument names, argument types.
+
+    Parameters
+    ----------
+    op_name: str
+        Handle for the operator
+
+    Returns
+    -------
+    operator_arguments : OperatorArguments, namedtuple with number of arguments, names and types
+    """
+    op_handle = OpHandle()
+    check_call(_LIB.NNGetOpHandle(c_str(op_name), ctypes.byref(op_handle)))
+    real_name = ctypes.c_char_p()
+    desc = ctypes.c_char_p()
+    num_args = mx_uint()
+    arg_names = ctypes.POINTER(ctypes.c_char_p)()
+    arg_types = ctypes.POINTER(ctypes.c_char_p)()
+    arg_descs = ctypes.POINTER(ctypes.c_char_p)()
+    key_var_num_args = ctypes.c_char_p()
+    ret_type = ctypes.c_char_p()
+
+    check_call(_LIB.MXSymbolGetAtomicSymbolInfo(
+        op_handle, ctypes.byref(real_name), ctypes.byref(desc),
+        ctypes.byref(num_args),
+        ctypes.byref(arg_names),
+        ctypes.byref(arg_types),
+        ctypes.byref(arg_descs),
+        ctypes.byref(key_var_num_args),
+        ctypes.byref(ret_type)))
+
+    narg = int(num_args.value)
+    arg_names = [py_str(arg_names[i]) for i in range(narg)]
+    arg_types = [py_str(arg_types[i]) for i in range(narg)]
+    return OperatorArguments(narg, arg_names, arg_types)

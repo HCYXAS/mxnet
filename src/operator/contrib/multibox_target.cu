@@ -1,5 +1,23 @@
 #include "hip/hip_runtime.h"
-#include <hip/hip_runtime.h>
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  * Copyright (c) 2016 by Contributors
  * \file multibox_target.cu
@@ -23,7 +41,7 @@ __global__ void InitGroundTruthFlags(DType *gt_flags, const DType *labels,
                                      const int num_batches,
                                      const int num_labels,
                                      const int label_width) {
-  int index = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
+  int index = blockIdx.x * blockDim.x + threadIdx.x;
   if (index >= num_batches * num_labels) return;
   int b = index / num_labels;
   int l = index % num_labels;
@@ -38,7 +56,7 @@ template<typename DType>
 __global__ void FindBestMatches(DType *best_matches, DType *gt_flags,
                                 DType *anchor_flags, const DType *overlaps,
                                 const int num_anchors, const int num_labels) {
-  int nbatch = hipBlockIdx_x;
+  int nbatch = blockIdx.x;
   gt_flags += nbatch * num_labels;
   overlaps += nbatch * num_anchors * num_labels;
   best_matches += nbatch * num_anchors;
@@ -63,7 +81,7 @@ __global__ void FindBestMatches(DType *best_matches, DType *gt_flags,
     int max_x = -1;
     int max_y = -1;
     DType max_value = 1e-6;  // start with very small overlap
-    for (int i = hipThreadIdx_x; i < num_anchors; i += num_threads) {
+    for (int i = threadIdx.x; i < num_anchors; i += num_threads) {
       if (anchor_flags[i] > .5) continue;
       for (int j = 0; j < num_labels; ++j) {
         if (gt_flags[j] > .5) {
@@ -76,12 +94,12 @@ __global__ void FindBestMatches(DType *best_matches, DType *gt_flags,
         }
       }
     }
-    max_indices_x[hipThreadIdx_x] = max_x;
-    max_indices_y[hipThreadIdx_x] = max_y;
-    max_values[hipThreadIdx_x] = max_value;
+    max_indices_x[threadIdx.x] = max_x;
+    max_indices_y[threadIdx.x] = max_y;
+    max_values[threadIdx.x] = max_value;
     __syncthreads();
 
-    if (hipThreadIdx_x == 0) {
+    if (threadIdx.x == 0) {
       // merge results and assign best match
       int max_x = -1;
       int max_y = -1;
@@ -116,13 +134,13 @@ __global__ void FindGoodMatches(DType *best_matches, DType *anchor_flags,
                                 const DType *overlaps, const int num_anchors,
                                 const int num_labels,
                                 const float overlap_threshold) {
-  int nbatch = hipBlockIdx_x;
+  int nbatch = blockIdx.x;
   overlaps += nbatch * num_anchors * num_labels;
   best_matches += nbatch * num_anchors;
   anchor_flags += nbatch * num_anchors;
   const int num_threads = kMaxThreadsPerBlock;
 
-  for (int i = hipThreadIdx_x; i < num_anchors; i += num_threads) {
+  for (int i = threadIdx.x; i < num_anchors; i += num_threads) {
     if (anchor_flags[i] < 0) {
       int idx = -1;
       float max_value = -1.f;
@@ -143,7 +161,7 @@ __global__ void FindGoodMatches(DType *best_matches, DType *anchor_flags,
 
 template<typename DType>
 __global__ void UseAllNegatives(DType *anchor_flags, const int num) {
-  int idx = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
+  int idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (idx >= num) return;
   if (anchor_flags[idx] < 0.5) {
     anchor_flags[idx] = 0;  // regard all non-positive as negatives
@@ -158,7 +176,7 @@ __global__ void NegativeMining(const DType *overlaps, const DType *cls_preds,
                                const int minimum_negative_samples,
                                const int num_anchors,
                                const int num_labels, const int num_classes) {
-  int nbatch = hipBlockIdx_x;
+  int nbatch = blockIdx.x;
   overlaps += nbatch * num_anchors * num_labels;
   cls_preds += nbatch * num_classes * num_anchors;
   anchor_flags += nbatch * num_anchors;
@@ -167,7 +185,7 @@ __global__ void NegativeMining(const DType *overlaps, const DType *cls_preds,
   int num_positive;
   __shared__ int num_negative;
 
-  if (hipThreadIdx_x == 0) {
+  if (threadIdx.x == 0) {
     num_positive = 0;
     for (int i = 0; i < num_anchors; ++i) {
       if (anchor_flags[i] > .5) {
@@ -186,7 +204,7 @@ __global__ void NegativeMining(const DType *overlaps, const DType *cls_preds,
 
   if (num_negative < 1) return;
 
-  for (int i = hipThreadIdx_x; i < num_anchors; i += num_threads) {
+  for (int i = threadIdx.x; i < num_anchors; i += num_threads) {
     buffer[i] = -1.f;
     if (anchor_flags[i] < 0) {
       // compute max class prediction score
@@ -219,14 +237,14 @@ __global__ void NegativeMining(const DType *overlaps, const DType *cls_preds,
   DType *index_dst = buffer + num_anchors * 2;
   DType *src = index_src;
   DType *dst = index_dst;
-  for (int i = hipThreadIdx_x; i < num_anchors; i += num_threads) {
+  for (int i = threadIdx.x; i < num_anchors; i += num_threads) {
     index_src[i] = i;
   }
   __syncthreads();
 
   for (int width = 2; width < (num_anchors << 1); width <<= 1) {
     int slices = (num_anchors - 1) / (num_threads * width) + 1;
-    int start = width * hipThreadIdx_x * slices;
+    int start = width * threadIdx.x * slices;
     for (int slice = 0; slice < slices; ++slice) {
       if (start >= num_anchors) break;
       int middle = start + (width >> 1);
@@ -255,7 +273,7 @@ __global__ void NegativeMining(const DType *overlaps, const DType *cls_preds,
   }
   __syncthreads();
 
-  for (int i = hipThreadIdx_x; i < num_negative; i += num_threads) {
+  for (int i = threadIdx.x; i < num_negative; i += num_threads) {
     int idx = static_cast<int>(src[i]);
     if (anchor_flags[idx] < 0) {
       anchor_flags[idx] = 0;
@@ -271,7 +289,7 @@ __global__ void AssignTrainigTargets(DType *loc_target, DType *loc_mask,
                                      const int num_labels, const int label_width,
                                      const float vx, const float vy,
                                      const float vw, const float vh) {
-  const int nbatch = hipBlockIdx_x;
+  const int nbatch = blockIdx.x;
   loc_target += nbatch * num_anchors * 4;
   loc_mask += nbatch * num_anchors * 4;
   cls_target += nbatch * num_anchors;
@@ -280,7 +298,7 @@ __global__ void AssignTrainigTargets(DType *loc_target, DType *loc_mask,
   labels += nbatch * num_labels * label_width;
   const int num_threads = kMaxThreadsPerBlock;
 
-  for (int i = hipThreadIdx_x; i < num_anchors; i += num_threads) {
+  for (int i = threadIdx.x; i < num_anchors; i += num_threads) {
     if (anchor_flags[i] > 0.5) {
       // positive sample
       int offset_l = static_cast<int>(best_matches[i]) * label_width;
@@ -332,14 +350,13 @@ inline void MultiBoxTargetForward(const Tensor<gpu, 2, DType> &loc_target,
                            const float negative_mining_ratio,
                            const float negative_mining_thresh,
                            const int minimum_negative_samples,
-                           const nnvm::Tuple<float> &variances) {
+                           const mxnet::Tuple<float> &variances) {
   const int num_batches = labels.size(0);
   const int num_labels = labels.size(1);
   const int label_width = labels.size(2);
   const int num_anchors = anchors.size(0);
   const int num_classes = cls_preds.size(1);
   CHECK_GE(num_batches, 1);
-  CHECK_GT(num_labels, 2);
   CHECK_GE(num_anchors, 1);
   CHECK_EQ(variances.ndim(), 4);
 
@@ -363,7 +380,7 @@ inline void MultiBoxTargetForward(const Tensor<gpu, 2, DType> &loc_target,
   cuda::CheckLaunchParam(num_batches, num_threads, "MultiBoxTarget Matching");
   hipLaunchKernelGGL(HIP_KERNEL_NAME(cuda::FindBestMatches<DType>), dim3(num_batches), dim3(num_threads), 0, 0, best_matches,
     gt_flags, anchor_flags, overlaps, num_anchors, num_labels);
-   MULTIBOX_TARGET_CUDA_CHECK(hipPeekAtLastError());
+  MULTIBOX_TARGET_CUDA_CHECK(hipPeekAtLastError());
 
   // find good matches with overlap > threshold
   if (overlap_threshold > 0) {

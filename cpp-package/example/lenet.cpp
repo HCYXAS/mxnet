@@ -1,24 +1,46 @@
-/*!
- * Copyright (c) 2015 by Contributors
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
-#include <iostream>
+
+/*!
+ */
 #include <fstream>
 #include <map>
 #include <string>
 #include <vector>
+#include <cstdlib>
 #include "mxnet-cpp/MxNetCpp.h"
-// Allow IDE to parse the types
-#include "../include/mxnet-cpp/op.h"
+#include "utils.h"
 
-using namespace std;
 using namespace mxnet::cpp;
 
 class Lenet {
  public:
   Lenet()
       : ctx_cpu(Context(DeviceType::kCPU, 0)),
-        ctx_dev(Context(DeviceType::kGPU, 0)) {}
-  void Run() {
+#if MXNET_USE_CPU
+        ctx_dev(Context(DeviceType::kCPU, 0))
+#else
+        ctx_dev(Context(DeviceType::kGPU, 0))
+#endif
+        {}
+
+  void Run(int max_epoch) {
     /*
      * LeCun, Yann, Leon Bottou, Yoshua Bengio, and Patrick Haffner.
      * "Gradient-based learning applied to document recognition."
@@ -36,25 +58,25 @@ class Lenet {
 
     Symbol conv1 =
         Convolution("conv1", data, conv1_w, conv1_b, Shape(5, 5), 20);
-    Symbol tanh1 = Activation("tanh1", conv1, ActivationActType::tanh);
-    Symbol pool1 = Pooling("pool1", tanh1, Shape(2, 2), PoolingPoolType::max,
-      false, false, PoolingPoolingConvention::valid, Shape(2, 2));
+    Symbol tanh1 = Activation("tanh1", conv1, ActivationActType::kTanh);
+    Symbol pool1 = Pooling("pool1", tanh1, Shape(2, 2), PoolingPoolType::kMax,
+      false, false, PoolingPoolingConvention::kValid, Shape(2, 2));
 
     Symbol conv2 = Convolution("conv2", pool1, conv2_w, conv2_b,
       Shape(5, 5), 50);
-    Symbol tanh2 = Activation("tanh2", conv2, ActivationActType::tanh);
-    Symbol pool2 = Pooling("pool2", tanh2, Shape(2, 2), PoolingPoolType::max,
-      false, false, PoolingPoolingConvention::valid, Shape(2, 2));
+    Symbol tanh2 = Activation("tanh2", conv2, ActivationActType::kTanh);
+    Symbol pool2 = Pooling("pool2", tanh2, Shape(2, 2), PoolingPoolType::kMax,
+      false, false, PoolingPoolingConvention::kValid, Shape(2, 2));
 
     Symbol conv3 = Convolution("conv3", pool2, conv3_w, conv3_b,
       Shape(2, 2), 500);
-    Symbol tanh3 = Activation("tanh3", conv3, ActivationActType::tanh);
-    Symbol pool3 = Pooling("pool3", tanh3, Shape(2, 2), PoolingPoolType::max,
-      false, false, PoolingPoolingConvention::valid, Shape(1, 1));
+    Symbol tanh3 = Activation("tanh3", conv3, ActivationActType::kTanh);
+    Symbol pool3 = Pooling("pool3", tanh3, Shape(2, 2), PoolingPoolType::kMax,
+      false, false, PoolingPoolingConvention::kValid, Shape(1, 1));
 
     Symbol flatten = Flatten("flatten", pool3);
     Symbol fc1 = FullyConnected("fc1", flatten, fc1_w, fc1_b, 500);
-    Symbol tanh4 = Activation("tanh4", fc1, ActivationActType::tanh);
+    Symbol tanh4 = Activation("tanh4", fc1, ActivationActType::kTanh);
     Symbol fc2 = FullyConnected("fc2", tanh4, fc2_w, fc2_b, 10);
 
     Symbol lenet = SoftmaxOutput("softmax", fc2, data_label);
@@ -68,12 +90,11 @@ class Lenet {
     int W = 28;
     int H = 28;
     int batch_size = 42;
-    int max_epoch = 100000;
     float learning_rate = 1e-4;
     float weight_decay = 1e-4;
 
     /*prepare the data*/
-    vector<float> data_vec, label_vec;
+    std::vector<float> data_vec, label_vec;
     size_t data_count = GetData(&data_vec, &label_vec);
     const float *dptr = data_vec.data();
     const float *lptr = label_vec.data();
@@ -118,7 +139,12 @@ class Lenet {
     Optimizer* opt = OptimizerRegistry::Find("ccsgd");
     opt->SetParam("momentum", 0.9)
        ->SetParam("rescale_grad", 1.0)
-       ->SetParam("clip_gradient", 10);
+       ->SetParam("clip_gradient", 10)
+       ->SetParam("lr", learning_rate)
+       ->SetParam("wd", weight_decay);
+
+    Executor *exe = lenet.SimpleBind(ctx_dev, args_map);
+    auto arg_names = lenet.ListArguments();
 
     for (int ITER = 0; ITER < max_epoch; ++ITER) {
       size_t start_index = 0;
@@ -135,37 +161,40 @@ class Lenet {
         start_index += batch_size;
         NDArray::WaitAll();
 
-        Executor *exe = lenet.SimpleBind(ctx_dev, args_map);
         exe->Forward(true);
         exe->Backward();
-        exe->UpdateAll(opt, learning_rate, weight_decay);
-
-        delete exe;
+        // Update parameters
+        for (size_t i = 0; i < arg_names.size(); ++i) {
+          if (arg_names[i] == "data" || arg_names[i] == "data_label") continue;
+          opt->Update(i, exe->arg_arrays[i], exe->grad_arrays[i]);
+        }
       }
 
       LG << "Iter " << ITER
          << ", accuracy: " << ValAccuracy(batch_size * 10, lenet);
     }
+    delete exe;
+    delete opt;
   }
 
  private:
   Context ctx_cpu;
   Context ctx_dev;
-  map<string, NDArray> args_map;
+  std::map<std::string, NDArray> args_map;
   NDArray train_data;
   NDArray train_label;
   NDArray val_data;
   NDArray val_label;
 
-  size_t GetData(vector<float> *data, vector<float> *label) {
-    const char *train_data_path = "./train.csv";
-    ifstream inf(train_data_path);
-    string line;
+  size_t GetData(std::vector<float> *data, std::vector<float> *label) {
+    const char *train_data_path = "./data/mnist_data/mnist_train.csv";
+    std::ifstream inf(train_data_path);
+    std::string line;
     inf >> line;  // ignore the header
     size_t _N = 0;
     while (inf >> line) {
       for (auto &c : line) c = (c == ',') ? ' ' : c;
-      stringstream ss;
+      std::stringstream ss;
       ss << line;
       float _data;
       ss >> _data;
@@ -229,8 +258,10 @@ class Lenet {
 };
 
 int main(int argc, char const *argv[]) {
+  TRY
   Lenet lenet;
-  lenet.Run();
+  lenet.Run(argc > 1 ? strtol(argv[1], NULL, 10) : 100000);
   MXNotifyShutdown();
+  CATCH
   return 0;
 }

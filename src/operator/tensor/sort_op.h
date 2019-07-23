@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2017 by Contributors
  * \file sort_op.h
@@ -12,6 +31,18 @@
 #include <type_traits>
 
 namespace mxnet {
+
+/*!
+ * \brief Return the required number of bytes for aligning an object.
+          Because CUDA requires mandatory memory alignment, this function can be
+          used to determine the number of bytes to allocate in char*.
+ * \param num_bytes size of the object in bytes
+ * \param alignment desired alignment, like 2, 4, 8
+ */
+MSHADOW_XINLINE size_t PadBytes(size_t num_bytes, size_t alignment) {
+  return num_bytes + (alignment - num_bytes % alignment) % alignment;
+}
+
 namespace op {
 /*!
  * \brief CPU/GPU: Sort key-value pairs stored in separate places. (Stable sort is performed!)
@@ -31,7 +62,7 @@ inline void SortByKey(mshadow::Tensor<cpu, 1, KDType> keys, mshadow::Tensor<cpu,
   std::vector<size_t> idx(keys.size(0));
   std::vector<KDType> keys_vec(keys.size(0));
   std::vector<VDType> values_vec(values.size(0));
-  for (int i = 0; i < keys.size(0); i++) {
+  for (index_t i = 0; i < keys.size(0); i++) {
     idx[i] = i;
     keys_vec[i] = keys[i];
     values_vec[i] = values[i];

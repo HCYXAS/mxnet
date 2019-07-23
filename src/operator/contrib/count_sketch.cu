@@ -1,5 +1,23 @@
 #include "hip/hip_runtime.h"
-#include <hip/hip_runtime.h>
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  * Copyright (c) 2015 by Contributors
  * \file count_sketch.cu
@@ -17,9 +35,9 @@
 #define THREADS_PER_BLOCK 512
 
 #define CUDA_KERNEL_LOOP(i, n) \
-  for (int i = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x; \
+  for (int i = blockIdx.x * blockDim.x + threadIdx.x; \
        i < (n); \
-       i += hipBlockDim_x * hipGridDim_x)
+       i += blockDim.x * gridDim.x)
 namespace mshadow {
 namespace cuda {
 // wrappers to deal with atomic add
@@ -52,7 +70,7 @@ __global__ void sketch_forward_kernel(const int nthreads, DType *out, const DTyp
                     const int in_dim, const int out_dim) {
   // input: n_smaples * in_dim
   // output: n_smaples * out_dim
-  const int index = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
+  const int index = blockIdx.x * blockDim.x + threadIdx.x;
   if (index >= nthreads) {
     return;
   }
@@ -72,7 +90,7 @@ __global__ void sketch_backward_kernel(const int nthreads, DType *in_grad, const
                     const int in_dim, const int out_dim) {
   // only calculate gradient regarding x
   // can also calculate gradient regarding s if needed
-  const int index = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
+  const int index = blockIdx.x * blockDim.x + threadIdx.x;
   const int i_indim = index % in_dim;
   const int i_sample = index / in_dim;
   const int i_outdim = i_sample*out_dim + h[i_indim];
@@ -112,7 +130,8 @@ inline void CountSketchForward(const Tensor<gpu, 2, DType> &out,
                                     nthreads, out_ptr+bstart*out_dim, h_ptr,
                                     s_ptr, in_ptr+bstart*in_dim, batchlen,
                                     in_dim, out_dim);
-    // hipDeviceSynchronize();
+    hipError_t err = hipDeviceSynchronize();
+    CHECK_EQ(err, hipSuccess) << "Error occured! CUDA: " << hipGetErrorString(err);
     bstart = (i+1)*batchlen;
   }
 }
@@ -135,7 +154,7 @@ inline void CountSketchBackward(const Tensor<gpu, 2, DType> &in_grad,
     upper_bound = upper_bound-1;
   }
   // guarantee there are at least one iteration
-  upper_bound = upper_bound > 0? upper_bound:0;
+  upper_bound = upper_bound > 0 ? upper_bound : 0;
   int bstart = 0;
   for ( int i = 0; i <= upper_bound; i++ ) {
     const int batchlen = min(processing_batch_size, n_samples - bstart);
@@ -147,6 +166,8 @@ inline void CountSketchBackward(const Tensor<gpu, 2, DType> &in_grad,
                             nthreads, in_grad_ptr+bstart*in_dim, h_ptr,
                             s_ptr, out_grad_ptr+bstart*out_dim, batchlen,
                             in_dim, out_dim);
+    hipError_t err = hipDeviceSynchronize();
+    CHECK_EQ(err, hipSuccess) << "Error occured! CUDA: " << hipGetErrorString(err);
     bstart = (i+1)*batchlen;
   }
 }

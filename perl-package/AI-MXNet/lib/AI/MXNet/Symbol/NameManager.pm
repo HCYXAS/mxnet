@@ -1,10 +1,31 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
 package AI::MXNet::Symbol::NameManager;
 use strict;
 use warnings;
 use Mouse;
 use AI::MXNet::Function::Parameters;
 
-=head1
+=head1 NAME
+
+    AI::MXNet::Symbol::NameManager - Automated symbol naming.
+
+=head1 DESCRIPTION
 
     NameManager that does an automatic naming.
 
@@ -44,7 +65,7 @@ our $current;
         A canonical name for the symbol.
 =cut
 
-method get(Str|Undef $name, Str $hint)
+method get(Maybe[Str] $name, Str $hint)
 {
     return $name if $name;
     if(not exists $self->counter->{ $hint })
@@ -58,10 +79,13 @@ method get(Str|Undef $name, Str $hint)
 
 method current()
 {
-    $AI::MXNet::current_nm_ldr;
+    $AI::MXNet::NameManager;
 }
 
-$AI::MXNet::current_nm_ldr = __PACKAGE__->new;
+method set_current(AI::MXNet::Symbol::NameManager $new)
+{
+    $AI::MXNet::NameManager = $new;
+}
 
 package AI::MXNet::Symbol::Prefix;
 use Mouse;
@@ -84,7 +108,7 @@ has prefix => (
     required => 1
 );
 
-method get(Str $name, Str $hint)
+method get(Maybe[Str] $name, Str $hint)
 {
     $name = $self->SUPER::get($name, $hint);
     return $self->prefix . $name;

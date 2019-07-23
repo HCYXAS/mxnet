@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2015 by Contributors
  * \file loss_binary_op-inl.h
@@ -16,15 +35,15 @@ namespace op {
 
 // return a shape of scalar
 inline bool SoftmaxCrossEntropyShape(const nnvm::NodeAttrs& attrs,
-                                     std::vector<TShape> *in_attrs,
-                                     std::vector<TShape> *out_attrs) {
+                                     mxnet::ShapeVector *in_attrs,
+                                     mxnet::ShapeVector *out_attrs) {
   CHECK_EQ((*in_attrs)[0].ndim(), 2U)
       << "SoftmaxCrossEntropy only accept 2D data";
   CHECK_EQ((*in_attrs)[1].ndim(), 1U)
       << "SoftmaxCrossEntropy only accept 1D label";
   CHECK_EQ((*in_attrs)[0][0], (*in_attrs)[1][0])
       << "SoftmaxCrossEntropy: data label shape mismatch";
-  SHAPE_ASSIGN_CHECK(*out_attrs, 0, TShape(1));
+  SHAPE_ASSIGN_CHECK(*out_attrs, 0, mxnet::TShape(1, 1));
   return true;
 }
 

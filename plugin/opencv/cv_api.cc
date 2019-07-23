@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2016 by Contributors
  * \file cv_api.h
@@ -9,7 +28,7 @@
 #include <mxnet/ndarray.h>
 #include <opencv2/opencv.hpp>
 #include "cv_api.h"
-#include "../../src/c_api/c_api_error.h"
+#include "../../src/c_api/c_api_common.h"
 
 
 using namespace mxnet;
@@ -74,14 +93,18 @@ MXNET_DLL int MXCVImdecode(const unsigned char *img, const mx_uint len,
   } else {
     LOG(FATAL) << "Only supports png and jpg.";
   }
-  NDArray ndout(TShape(dims, dims+3), Context::CPU(), true, mshadow::kUint8);
+  NDArray ndout(mxnet::TShape(dims, dims+3), Context::CPU(), true, mshadow::kUint8);
   unsigned char *img_cpy = new unsigned char[len];
   memcpy(img_cpy, img, sizeof(unsigned char)*len);
   Engine::Get()->PushSync([=](RunContext ctx){
       ndout.CheckAndAlloc();
       cv::Mat buf(1, len, CV_8U, img_cpy);
       cv::Mat dst(dims[0], dims[1], flag == 0 ? CV_8U : CV_8UC3, ndout.data().dptr_);
+#if (CV_MAJOR_VERSION > 3 || (CV_MAJOR_VERSION == 3 && CV_MINOR_VERSION >= 3))
+      cv::imdecode(buf, flag | cv::IMREAD_IGNORE_ORIENTATION, &dst);
+#else
       cv::imdecode(buf, flag, &dst);
+#endif
       CHECK(!dst.empty());
       delete[] img_cpy;
     }, ndout.ctx(), {}, {ndout.var()});
@@ -101,7 +124,7 @@ MXNET_DLL int MXCVResize(NDArrayHandle src, const mx_uint w, const mx_uint h,
   CHECK_EQ(ndsrc.dtype(), mshadow::kUint8);
 
   mx_uint dims[3] = {h, w, ndsrc.shape()[2]};
-  NDArray ndout(TShape(dims, dims+3), Context::CPU(), true, mshadow::kUint8);
+  NDArray ndout(mxnet::TShape(dims, dims+3), Context::CPU(), true, mshadow::kUint8);
 
   Engine::Get()->PushSync([=](RunContext ctx){
       ndout.CheckAndAlloc();
@@ -133,7 +156,7 @@ MXNET_DLL int MXCVcopyMakeBorder(NDArrayHandle src,
 
   int h = ndsrc.shape()[0], w = ndsrc.shape()[1], c = ndsrc.shape()[2];
   mx_uint dims[3] = {top+h+bot, left+w+right, c};
-  NDArray ndout(TShape(dims, dims+3), Context::CPU(), true, mshadow::kUint8);
+  NDArray ndout(mxnet::TShape(dims, dims+3), Context::CPU(), true, mshadow::kUint8);
 
   Engine::Get()->PushSync([=](RunContext ctx){
       ndout.CheckAndAlloc();

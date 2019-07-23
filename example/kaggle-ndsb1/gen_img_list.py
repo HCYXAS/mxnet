@@ -1,7 +1,23 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
 from __future__ import print_function
 import csv
 import os
-import sys
 import random
 import numpy as np
 import argparse
@@ -26,7 +42,7 @@ random.seed(888)
 
 fo_name=os.path.join(args.out_folder+args.out_file)
 fo = csv.writer(open(fo_name, "w"), delimiter='\t', lineterminator='\n')
-    
+
 if args.train:
     tr_fo_name=os.path.join(args.out_folder+"tr.lst")
     va_fo_name=os.path.join(args.out_folder+"va.lst")
@@ -40,7 +56,7 @@ head = "acantharia_protist_big_center,acantharia_protist_halo,acantharia_protist
 img_lst = []
 cnt = 0
 if args.train:
-    for i in xrange(len(head)):
+    for i in range(len(head)):
         path = args.image_folder + head[i]
         lst = os.listdir(args.image_folder + head[i])
         for img in lst:
@@ -58,7 +74,7 @@ random.shuffle(img_lst)
 #write
 for item in img_lst:
     fo.writerow(item)
-        
+
 
 
 ## If training, split into train and validation lists (tr.lst and va.lst)
@@ -87,5 +103,3 @@ if args.train:
         tr_fo.writerow(item)
     for item in va_lst:
         va_fo.writerow(item)
-
-

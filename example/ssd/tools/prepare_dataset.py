@@ -1,3 +1,23 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
 from __future__ import print_function
 import sys, os
 import argparse
@@ -5,6 +25,7 @@ import subprocess
 curr_path = os.path.abspath(os.path.dirname(__file__))
 sys.path.append(os.path.join(curr_path, '..'))
 from dataset.pascal_voc import PascalVoc
+from dataset.mscoco import Coco
 from dataset.concat_db import ConcatDB
 
 def load_pascal(image_set, year, devkit_path, shuffle=False):
@@ -46,6 +67,30 @@ def load_pascal(image_set, year, devkit_path, shuffle=False):
     else:
         return imdbs[0]
 
+def load_coco(image_set, dirname, shuffle=False):
+    """
+    wrapper function for loading ms coco dataset
+
+    Parameters:
+    ----------
+    image_set : str
+        train2014, val2014, valminusminival2014, minival2014
+    dirname: str
+        root dir for coco
+    shuffle: boolean
+        initial shuffle
+    """
+    anno_files = ['instances_' + y.strip() + '.json' for y in image_set.split(',')]
+    assert anno_files, "No image set specified"
+    imdbs = []
+    for af in anno_files:
+        af_path = os.path.join(dirname, 'annotations', af)
+        imdbs.append(Coco(af_path, dirname, shuffle=shuffle))
+    if len(imdbs) > 1:
+        return ConcatDB(imdbs, shuffle)
+    else:
+        return imdbs[0]
+
 def parse_args():
     parser = argparse.ArgumentParser(description='Prepare lists for dataset')
     parser.add_argument('--dataset', dest='dataset', help='dataset to use',
@@ -60,8 +105,11 @@ def parse_args():
     parser.add_argument('--root', dest='root_path', help='dataset root path',
                         default=os.path.join(curr_path, '..', 'data', 'VOCdevkit'),
                         type=str)
-    parser.add_argument('--shuffle', dest='shuffle', help='shuffle list',
-                        type=bool, default=True)
+    parser.add_argument('--no-shuffle', dest='shuffle', help='shuffle list',
+                        action='store_false')
+    parser.add_argument('--num-thread', dest='num_thread', type=int, default=1,
+                        help='number of thread to use while runing im2rec.py')
+
     args = parser.parse_args()
     return args
 
@@ -69,15 +117,25 @@ if __name__ == '__main__':
     args = parse_args()
     if args.dataset == 'pascal':
         db = load_pascal(args.set, args.year, args.root_path, args.shuffle)
+        print("saving list to disk...")
+        db.save_imglist(args.target, root=args.root_path)
+    elif args.dataset == 'coco':
+        db = load_coco(args.set, args.root_path, args.shuffle)
+        print("saving list to disk...")
         db.save_imglist(args.target, root=args.root_path)
     else:
         raise NotImplementedError("No implementation for dataset: " + args.dataset)
 
     print("List file {} generated...".format(args.target))
 
-    subprocess.check_call(["python",
-        os.path.join(curr_path, "../../../tools/im2rec.py"),
-        os.path.abspath(args.target), os.path.abspath(args.root_path),
-        "--shuffle", str(int(args.shuffle)), "--pack-label", "1"])
+    cmd_arguments = ["python",
+                    os.path.join(curr_path, "../../../tools/im2rec.py"),
+                    os.path.abspath(args.target), os.path.abspath(args.root_path),
+                    "--pack-label", "--num-thread", str(args.num_thread)]
+
+    if not args.shuffle:
+        cmd_arguments.append("--no-shuffle")
+
+    subprocess.check_call(cmd_arguments)
 
     print("Record file {} generated...".format(args.target.split('.')[0] + '.rec'))

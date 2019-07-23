@@ -1,6 +1,25 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2016 by Contributors
- * \file ordering.cc
+ * \file ordering_op.cc
  * \brief CPU Implementation of the ordering operations
  */
 // this will be invoked by gcc and compile CPU version
@@ -16,6 +35,7 @@ DMLC_REGISTER_PARAMETER(ArgSortParam);
 
 NNVM_REGISTER_OP(topk)
 .describe(R"code(Returns the top *k* elements in an input array along the given axis.
+ The returned elements will be sorted.
 
 Examples::
 
@@ -45,7 +65,7 @@ Examples::
 .set_num_inputs(1)
 .set_num_outputs(TopKNumOutputs)
 .set_attr_parser(ParamParser<TopKParam>)
-.set_attr<nnvm::FInferShape>("FInferShape", TopKShape)
+.set_attr<mxnet::FInferShape>("FInferShape", TopKShape)
 .set_attr<nnvm::FInferType>("FInferType", TopKType)
 .set_attr<nnvm::FNumVisibleOutputs>("FNumVisibleOutputs", TopKNumVisibleOutputs)
 .set_attr<FCompute>("FCompute<cpu>", TopK<cpu>)
@@ -54,9 +74,9 @@ Examples::
     const TopKParam& param = nnvm::get<TopKParam>(n->attrs.parsed);
     if (param.ret_typ == topk_enum::kReturnValue || param.ret_typ == topk_enum::kReturnBoth) {
       std::vector<nnvm::NodeEntry> inputs;
-      index_t n_out = n->num_outputs();
-      for (index_t i = 0; i < n_out; ++i) {
-        inputs.emplace_back(nnvm::NodeEntry{ n, i, 0 });
+      uint32_t n_out = n->num_outputs();
+      for (uint32_t i = 0; i < n_out; ++i) {
+        inputs.emplace_back(n, i, 0);
       }
       return MakeNonlossGradNode("_backward_topk", n, {ograds[0]}, inputs, n->attrs.dict);
     } else {
@@ -94,7 +114,7 @@ Examples::
              [ 1.,  3.]]
 
   // flattens and then sorts
-  sort(x) = [ 1.,  1.,  3.,  4.]
+  sort(x, axis=None) = [ 1.,  1.,  3.,  4.]
 
   // sorts along the first axis
   sort(x, axis=0) = [[ 1.,  1.],
@@ -108,17 +128,17 @@ Examples::
 .set_num_inputs(1)
 .set_num_outputs(2)
 .set_attr_parser(ParamParser<SortParam>)
-.set_attr<nnvm::FInferShape>("FInferShape", SortShape)
-.set_attr<nnvm::FInferType>("FInferType", ElemwiseType<1, 2>)
+.set_attr<mxnet::FInferShape>("FInferShape", SortShape)
+.set_attr<nnvm::FInferType>("FInferType", SortType)
 .set_attr<nnvm::FNumVisibleOutputs>("FNumVisibleOutputs", [](const NodeAttrs& attrs) { return 1; })
 .set_attr<FCompute>("FCompute<cpu>", Sort<cpu>)
 .set_attr<nnvm::FGradient>("FGradient",
   [](const nnvm::NodePtr& n, const std::vector<nnvm::NodeEntry>& ograds) {
     const SortParam& param = nnvm::get<SortParam>(n->attrs.parsed);
     std::vector<nnvm::NodeEntry> inputs;
-    index_t n_out = n->num_outputs();
-    for (index_t i = 0; i < n_out; ++i) {
-      inputs.emplace_back(nnvm::NodeEntry{ n, i, 0 });
+    uint32_t n_out = n->num_outputs();
+    for (uint32_t i = 0; i < n_out; ++i) {
+      inputs.emplace_back(n, i, 0);
     }
     return MakeNonlossGradNode("_backward_topk", n, {ograds[0]}, inputs,
                                {{"axis", n->attrs.dict["axis"]},
@@ -153,13 +173,13 @@ Examples::
                         [ 0.,  1.,  0.]]
 
   // flatten and then sort
-  argsort(x) = [ 3.,  1.,  5.,  0.,  4.,  2.]
+  argsort(x, axis=None) = [ 3.,  1.,  5.,  0.,  4.,  2.]
 )code" ADD_FILELINE)
 .set_num_inputs(1)
 .set_num_outputs(1)
 .set_attr_parser(ParamParser<ArgSortParam>)
-.set_attr<nnvm::FInferShape>("FInferShape", ArgSortShape)
-.set_attr<nnvm::FInferType>("FInferType", ElemwiseType<1, 1>)
+.set_attr<mxnet::FInferShape>("FInferShape", ArgSortShape)
+.set_attr<nnvm::FInferType>("FInferType", ArgSortType)
 .set_attr<FCompute>("FCompute<cpu>", ArgSort<cpu>)
 .set_attr<nnvm::FGradient>("FGradient", MakeZeroGradNodes)
 .set_attr<FResourceRequest>("FResourceRequest",

@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2015 by Contributors
  * \file image_det_aug_default.cc
@@ -15,7 +34,7 @@
 namespace mxnet {
 namespace io {
 
-using nnvm::Tuple;
+using mxnet::Tuple;
 
 namespace image_det_aug_default_enum {
 enum ImageDetAugDefaultCropEmitMode {kCenter, kOverlap};
@@ -32,7 +51,7 @@ struct DefaultImageDetAugmentParam : public dmlc::Parameter<DefaultImageDetAugme
   Tuple<float> min_crop_scales;
   /*! \brief max crop scales */
   Tuple<float> max_crop_scales;
-  /*! \brief min crop aspecct ratios */
+  /*! \brief min crop aspect ratios */
   Tuple<float> min_crop_aspect_ratios;
   /*! \brief max crop aspect ratios */
   Tuple<float> max_crop_aspect_ratios;
@@ -85,7 +104,7 @@ struct DefaultImageDetAugmentParam : public dmlc::Parameter<DefaultImageDetAugme
   /*! \brief interpolation method 0-NN 1-bilinear 2-cubic 3-area 4-lanczos4 9-auto 10-rand  */
   int inter_method;
   /*! \brief shape of the image data */
-  TShape data_shape;
+  mxnet::TShape data_shape;
   /*! \brief resize mode, 0-force
    * 1-Shrink to data_shape, preserve ratio,
    * 2-fit to data_shape, preserve ratio
@@ -103,7 +122,7 @@ struct DefaultImageDetAugmentParam : public dmlc::Parameter<DefaultImageDetAugme
     DMLC_DECLARE_FIELD(max_crop_scales).set_default(Tuple<float>({1.0f}))
         .describe("Augmentation Param: Max crop scales.");
     DMLC_DECLARE_FIELD(min_crop_aspect_ratios).set_default(Tuple<float>({1.0f}))
-        .describe("Augmentation Param: Min crop aspecct ratios.");
+        .describe("Augmentation Param: Min crop aspect ratios.");
     DMLC_DECLARE_FIELD(max_crop_aspect_ratios).set_default(Tuple<float>({1.0f}))
         .describe("Augmentation Param: Max crop aspect ratios.");
     DMLC_DECLARE_FIELD(min_crop_overlaps).set_default(Tuple<float>({0.0f}))
@@ -184,6 +203,7 @@ std::vector<dmlc::ParamFieldInfo> ListDefaultDetAugParams() {
 }
 
 #if MXNET_USE_OPENCV
+#include "./opencv_compatibility.h"
 using Rect = cv::Rect_<float>;
 
 #ifdef _MSC_VER
@@ -255,9 +275,9 @@ class ImageDetLabel {
       obj.right = *(it++);
       obj.bottom = *(it++);
       obj.extra.assign(it, it - 5 + object_width_);
-      objects_.push_back(obj);
-      CHECK_GT(obj.right, obj.left);
-      CHECK_GT(obj.bottom, obj.top);
+      if (obj.right > obj.left && obj.bottom > obj.top) {
+        objects_.push_back(obj);
+      }
     }
   }
 
@@ -297,9 +317,9 @@ class ImageDetLabel {
     }
     // check if crop_box valid
     bool valid = false;
-    if (min_crop_overlap > 0.f && max_crop_overlap < 1.f &&
-        min_crop_sample_coverage > 0.f && max_crop_sample_coverage < 1.f &&
-        min_crop_object_coverage > 0.f && max_crop_object_coverage < 1.f) {
+    if (min_crop_overlap > 0.f || max_crop_overlap < 1.f ||
+        min_crop_sample_coverage > 0.f || max_crop_sample_coverage < 1.f ||
+        min_crop_object_coverage > 0.f || max_crop_object_coverage < 1.f) {
       for (auto& obj : objects_) {
         Rect gt_box = obj.ToRect();
         if (min_crop_overlap > 0.f || max_crop_overlap < 1.f) {
@@ -330,19 +350,19 @@ class ImageDetLabel {
     if (!valid) return false;
     // transform ground-truth labels
     std::vector<ImageDetObject> new_objects;
-    for (auto iter = objects_.begin(); iter != objects_.end(); ++iter) {
+    for (auto& object : objects_) {
       if (image_det_aug_default_enum::kCenter == crop_emit_mode) {
-        float center_x = (iter->left + iter->right) * 0.5f;
-        float center_y = (iter->top + iter->bottom) * 0.5f;
+        float center_x = (object.left + object.right) * 0.5f;
+        float center_y = (object.top + object.bottom) * 0.5f;
         if (!crop_box.contains(cv::Point2f(center_x, center_y))) {
           continue;
         }
-        new_objects.push_back(iter->Project(crop_box));
+        new_objects.push_back(object.Project(crop_box));
       } else if (image_det_aug_default_enum::kOverlap == crop_emit_mode) {
-        Rect gt_box = iter->ToRect();
+        Rect gt_box = object.ToRect();
         float overlap = (crop_box & gt_box).area() / gt_box.area();
         if (overlap > emit_overlap_thresh) {
-          new_objects.push_back(iter->Project(crop_box));
+          new_objects.push_back(object.Project(crop_box));
         }
       }
     }
@@ -356,8 +376,8 @@ class ImageDetLabel {
    */
   bool TryPad(const Rect pad_box) {
     // update all objects inplace
-    for (auto it = objects_.begin(); it != objects_.end(); ++it) {
-      *it = it->Project(pad_box);
+    for (auto& object : objects_) {
+      object = object.Project(pad_box);
     }
     return true;
   }
@@ -365,8 +385,8 @@ class ImageDetLabel {
   /*! \brief flip image and object coordinates horizontally */
   bool TryMirror() {
     // flip all objects horizontally
-    for (auto it = objects_.begin(); it != objects_.end(); ++it) {
-      *it = it->HorizontalFlip();
+    for (auto& object : objects_) {
+      object = object.HorizontalFlip();
     }
     return true;
   }
@@ -390,7 +410,7 @@ class DefaultImageDetAugmenter : public ImageAugmenter {
     std::vector<std::pair<std::string, std::string> > kwargs_left;
     kwargs_left = param_.InitAllowUnknown(kwargs);
 
-    CHECK((param_.inter_method >= 1 && param_.inter_method <= 4) ||
+    CHECK((param_.inter_method >= 0 && param_.inter_method <= 4) ||
      (param_.inter_method >= 9 && param_.inter_method <= 10))
       << "invalid inter_method: valid value 0,1,2,3,9,10";
 
@@ -442,7 +462,7 @@ class DefaultImageDetAugmenter : public ImageAugmenter {
 
   /*! \brief Check number of crop samplers and given parameters */
   template<typename DType>
-  void ValidateCropParameters(nnvm::Tuple<DType> *param, const int num_sampler) {
+  void ValidateCropParameters(mxnet::Tuple<DType> *param, const int num_sampler) {
     if (num_sampler == 1) {
       CHECK_EQ(param->ndim(), 1);
     } else if (num_sampler > 1) {
@@ -465,7 +485,7 @@ class DefaultImageDetAugmenter : public ImageAugmenter {
     float min_ratio = std::max<float>(min_crop_aspect_ratio / img_aspect_ratio,
         new_scale * new_scale);
     float max_ratio = std::min<float>(max_crop_aspect_ratio / img_aspect_ratio,
-        1. / new_scale * new_scale);
+        1. / (new_scale * new_scale));
     float new_ratio = std::sqrt(std::uniform_real_distribution<float>(
         min_ratio, max_ratio)(*prnd));
     float new_width = std::min(1.f, new_scale * new_ratio);
@@ -541,7 +561,7 @@ class DefaultImageDetAugmenter : public ImageAugmenter {
         }
         cv::cvtColor(res, res, CV_HLS2BGR);
       }
-      if (fabs(c) > 1e-3) {
+      if (std::fabs(c) > 1e-3) {
         cv::Mat tmp = res;
         tmp.convertTo(res, -1, c + 1.f, 0);
       }

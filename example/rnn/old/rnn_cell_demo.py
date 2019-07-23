@@ -1,4 +1,21 @@
-"""A simple demo of new RNN cell with PTB language model."""
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+"""A simple demo of new RNN cell with sherlockholmes language model."""
 
 import os
 
@@ -33,15 +50,15 @@ if __name__ == '__main__':
     momentum = 0.0
 
     contexts = [mx.context.gpu(i) for i in range(4)]
-    vocab = default_build_vocab(os.path.join(data_dir, 'ptb.train.txt'))
+    vocab = default_build_vocab(os.path.join(data_dir, 'sherlockholmes.train.txt'))
 
     init_h = [('LSTM_init_h', (batch_size, num_lstm_layer, num_hidden))]
     init_c = [('LSTM_init_c', (batch_size, num_lstm_layer, num_hidden))]
     init_states = init_c + init_h
 
-    data_train = BucketSentenceIter(os.path.join(data_dir, 'ptb.train.txt'),
+    data_train = BucketSentenceIter(os.path.join(data_dir, 'sherlockholmes.train.txt'),
                                     vocab, buckets, batch_size, init_states)
-    data_val = BucketSentenceIter(os.path.join(data_dir, 'ptb.valid.txt'),
+    data_val = BucketSentenceIter(os.path.join(data_dir, 'sherlockholmes.valid.txt'),
                                   vocab, buckets, batch_size, init_states)
 
     def sym_gen(seq_len):
@@ -87,12 +104,12 @@ if __name__ == '__main__':
         # RNN cell takes input of shape (time, batch, feature)
         rnn = mx.sym.RNN(data=embed_tm, state_size=num_hidden,
                          num_layers=num_lstm_layer, mode='lstm',
-                         name='LSTM', 
+                         name='LSTM',
                          # The following params can be omitted
                          # provided we do not need to apply the
                          # workarounds mentioned above
                          state=rnn_h_init,
-                         state_cell=rnn_c_init, 
+                         state_cell=rnn_c_init,
                          parameters=rnn_params)
 
         # the RNN cell output is of shape (time, batch, dim)

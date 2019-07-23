@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  * Copyright (c) 2015 by Contributors
  * \file engine.h
@@ -6,7 +25,6 @@
 #ifndef MXNET_ENGINE_H_
 #define MXNET_ENGINE_H_
 
-#include <dmlc/base.h>
 #if DMLC_USE_CXX11
 #include <algorithm>
 #include <memory>
@@ -22,8 +40,26 @@ class Engine;
 
 /*! \brief namespace of engine internal types. */
 namespace engine {
-/*! \brief Internal representation of variable. */
-struct Var;
+/*! \brief base class of engine variables.*/
+struct Var {
+  virtual size_t version() {
+    return version_;
+  }
+  virtual ~Var() = default;
+  /*!
+   * \brief cast variable to derived type T
+   * \tparam T the type we want to cast into.
+   * \return A casted variable.
+   */
+  template <typename T>
+  inline T* Cast();
+  /*!
+   * \brief version number of the var. Every time the object it is associated with
+   * is modified, the version number is incremented by 1.
+   */
+  size_t version_{0};
+};  // struct Var
+
 /*! \brief Internal representation of operator.  */
 struct Opr;
 /*! \brief Variable pointer type, usually hold by user used to specify dependencies. */
@@ -38,15 +74,15 @@ class CallbackOnComplete {
  public:
   // use implicit copy and assign
   /*! \brief involve the callback */
-  inline void operator()() const {
-    (*callback_)(engine_, param_);
+  inline void operator()(const dmlc::Error* error = nullptr) const {
+    (*callback_)(engine_, param_, error);
   }
 
  private:
   /*! \brief engine can see content of callback */
   friend class ::mxnet::Engine;
   /*! \brief the real callback */
-  void (*callback_)(Engine *, void *);
+  void (*callback_)(Engine *, void *, const dmlc::Error *);
   /*! \brief the engine class passed to callback */
   Engine* engine_;
   /*! \brief the parameter set on callback */
@@ -66,7 +102,13 @@ enum class FnProperty {
   /*! \brief Prioritized sync operation on CPU */
   kCPUPrioritized,
   /*! \brief Asynchronous function call */
-  kAsync
+  kAsync,
+  /*! \brief Delete variable call */
+  kDeleteVar,
+  /*! \brief Prioritized sync operation on GPU */
+  kGPUPrioritized,
+  /*! \brief Operation not to be skipped even with associated exception */
+  kNoSkip
 };  // enum class FnProperty
 
 /*!
@@ -93,6 +135,18 @@ class MXNET_API Engine {
    */
   virtual void NotifyShutdown() = 0;
   /*!
+   *\brief Stop all workers in the engine
+   */
+  virtual void Stop() {
+    LOG(FATAL) << "Engine cannot be stopped";
+  }
+  /*!
+   * \brief Restart all workers in the engine
+   */
+  virtual void Start() {
+    LOG(FATAL) << "Engine cannot be restarted";
+  }
+  /*!
    * \brief Allocate a new variable, the variable can then
    *        be used to schedule the operation concurrently via dependency
    *        patterns.
@@ -108,13 +162,15 @@ class MXNET_API Engine {
    * \param mutable_vars The variables that current operation will mutate.
    * \param prop Property of the function.
    * \param opr_name The operator name.
+   * \param wait Whether this is a WaitForVar operation
    * \return The new operator allocated.
    */
   virtual OprHandle NewOperator(AsyncFn fn,
                                 std::vector<VarHandle> const& const_vars,
                                 std::vector<VarHandle> const& mutable_vars,
                                 FnProperty prop = FnProperty::kNormal,
-                                const char* opr_name = nullptr) = 0;
+                                const char* opr_name = nullptr,
+                                bool wait = false) = 0;
   /*!
    * \brief Delete the given operator.
    * \param op The operator to delete.
@@ -143,13 +199,15 @@ class MXNET_API Engine {
    * \param prop Property of the function.
    * \param priority Priority of the action, as hint to the engine.
    * \param opr_name The operator name.
+   * \param wait Whether this is a WaitForVar operation
    */
   virtual void PushAsync(AsyncFn exec_fun, Context exec_ctx,
                          std::vector<VarHandle> const& const_vars,
                          std::vector<VarHandle> const& mutable_vars,
                          FnProperty prop = FnProperty::kNormal,
                          int priority = 0,
-                         const char* opr_name = nullptr) = 0;
+                         const char* opr_name = nullptr,
+                         bool wait = false) = 0;
   /*!
    * \brief Schedule the deletion of a variable.
    *
@@ -174,6 +232,8 @@ class MXNET_API Engine {
    * \brief Wait until all the activity of engine finishes.
    */
   virtual void WaitForAll() = 0;
+  /*!\brief Throw if threre are associated exception with var */
+  virtual void Throw(VarHandle var) = 0;
   /*!\brief virtual destructor */
   virtual ~Engine() noexcept(false) {}
   /*!
@@ -201,12 +261,12 @@ class MXNET_API Engine {
    * \param opr_name The operator name.
    * \tparam SyncFn the synchronous function to be pushed.
    */
-  inline void PushSync(SyncFn exec_fn, Context exec_ctx,
-                       std::vector<VarHandle> const& const_vars,
-                       std::vector<VarHandle> const& mutable_vars,
-                       FnProperty prop = FnProperty::kNormal,
-                       int priority = 0,
-                       const char* opr_name = nullptr) {
+  virtual void PushSync(SyncFn exec_fn, Context exec_ctx,
+                        std::vector<VarHandle> const& const_vars,
+                        std::vector<VarHandle> const& mutable_vars,
+                        FnProperty prop = FnProperty::kNormal,
+                        int priority = 0,
+                        const char* opr_name = nullptr) {
     this->PushAsync([exec_fn](RunContext ctx, CallbackOnComplete on_complete) {
         exec_fn(ctx);
         on_complete();
@@ -219,7 +279,7 @@ class MXNET_API Engine {
    * \param param the paramter passed to callback.
    */
   inline CallbackOnComplete CreateCallback(
-      void (*callback)(Engine *, void *), void *param) {
+      void (*callback)(Engine *, void *, const dmlc::Error *), void *param) {
     CallbackOnComplete ret;
     ret.callback_ = callback;
     ret.engine_ = this;
@@ -246,6 +306,14 @@ class MXNET_API Engine {
       }
     }
     read_vars->resize(rtop - read_vars->begin());
+  }
+  /*! \brief query current limit for bulk size */
+  virtual int bulk_size() const {
+    return 0;
+  }
+  /*! \brief set maximum limit for bulk size */
+  virtual int set_bulk_size(int) {
+    return 0;
   }
 };  // class Engine
 #endif  // DMLC_USE_CXX11

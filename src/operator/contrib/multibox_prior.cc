@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  * Copyright (c) 2016 by Contributors
  * \file multibox_prior.cc
@@ -25,11 +44,12 @@ inline void MultiBoxPriorForward(const Tensor<cpu, 2, DType> &out,
     float center_y = (r + offsets[0]) * step_y;
     for (int c = 0; c < in_width; ++c) {
       float center_x = (c + offsets[1]) * step_x;
-      // ratio = 1, various sizes
+      // ratio = first ratio, various sizes
+      float ratio = num_ratios > 0? sqrtf(ratios[0]) : 1.f;
       for (int i = 0; i < num_sizes; ++i) {
         float size = sizes[i];
-        float w = size / 2;
-        float h = size / 2;
+        float w = size * in_height / in_width * ratio / 2;
+        float h = size / ratio / 2;
         out[count][0] = center_x - w;  // xmin
         out[count][1] = center_y - h;  // ymin
         out[count][2] = center_x + w;  // xmax
@@ -40,7 +60,7 @@ inline void MultiBoxPriorForward(const Tensor<cpu, 2, DType> &out,
       float size = sizes[0];
       for (int j = 1; j < num_ratios; ++j) {
         float ratio = sqrtf(ratios[j]);
-        float w = size * ratio / 2;
+        float w = size * in_height / in_width * ratio / 2;
         float h = size / ratio / 2;
         out[count][0] = center_x - w;  // xmin
         out[count][1] = center_y - h;  // ymin
@@ -57,16 +77,16 @@ namespace mxnet {
 namespace op {
 template<>
 Operator* CreateOp<cpu>(MultiBoxPriorParam param, int dtype) {
-  Operator *op = NULL;
+  Operator *op = nullptr;
   MSHADOW_REAL_TYPE_SWITCH(dtype, DType, {
     op = new MultiBoxPriorOp<cpu, DType>(param);
   });
   return op;
 }
 
-Operator* MultiBoxPriorProp::CreateOperatorEx(Context ctx, std::vector<TShape> *in_shape,
+Operator* MultiBoxPriorProp::CreateOperatorEx(Context ctx, mxnet::ShapeVector *in_shape,
                                        std::vector<int> *in_type) const {
-  std::vector<TShape> out_shape, aux_shape;
+  mxnet::ShapeVector out_shape, aux_shape;
   std::vector<int> out_type, aux_type;
   CHECK(InferShape(in_shape, &out_shape, &aux_shape));
   CHECK(InferType(in_type, &out_type, &aux_type));

@@ -1,5 +1,23 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
- * Copyright (c) 2015 by Contributors
  */
 #include <iostream>
 #include <fstream>
@@ -40,13 +58,13 @@ class FeatureExtractor {
       LG<<layer_name;
     }
     */
-    net = Symbol::Load("./model/Inception_BN-symbol.json")
+    net = Symbol::Load("./model/Inception-BN-symbol.json")
               .GetInternals()["global_pool_output"];
   }
   /*Fill the trained paramters into the model, a.k.a. net, executor*/
   void LoadParameters() {
     map<string, NDArray> paramters;
-    NDArray::Load("./model/Inception_BN-0039.params", 0, &paramters);
+    NDArray::Load("./model/Inception-BN-0126.params", 0, &paramters);
     for (const auto &k : paramters) {
       if (k.first.substr(0, 4) == "aux:") {
         auto name = k.first.substr(4, k.first.size() - 4);
@@ -81,7 +99,7 @@ class FeatureExtractor {
     data.Slice(0, 1) -= mean_img;
     data.Slice(1, 2) -= mean_img;
     args_map["data"] = data;
-    /*bind the excutor*/
+    /*bind the executor*/
     executor = net.SimpleBind(global_ctx, args_map, map<string, NDArray>(),
                               map<string, OpReqType>(), aux_map);
     executor->Forward(false);
@@ -99,7 +117,7 @@ NDArray Data2NDArray() {
   NDArray ret(Shape(2, 3, 224, 224), global_ctx, false);
   ifstream inf("./img.dat", ios::binary);
   vector<float> data(2 * 3 * 224 * 224);
-  inf.read(reinterpret_cast<char *>data.data(), 2 * 3 * 224 * 224 * sizeof(float));
+  inf.read(reinterpret_cast<char *>(data.data()), 2 * 3 * 224 * 224 * sizeof(float));
   inf.close();
   ret.SyncCopyFromCPU(data.data(), 2 * 3 * 224 * 224);
   NDArray::WaitAll();

@@ -1,5 +1,23 @@
 #!/bin/bash
 
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+
 set -e
 
 # Given an array of numbers, removes any numbers of it that fall outside a given range.
@@ -30,9 +48,9 @@ function remove_out_of_range() {
         echo "Error: Min must be less than or equal to Max"
         exit 1
     fi
-   
+
     return_arr=()
- 
+
     for number in "${lineno_array[@]}"
     do
         if (( ${number} > ${min} && ${number} < ${max} ))
@@ -232,6 +250,28 @@ function set_instruction_set() {
         ${sorted_indexes[$end_buildfromsource_command_index]})
 }
 
+# given a $buildfromsource_commands string, filter out any build commands that should not be executed
+# during the build from source tests. An example, the build from source instructions include the commands:
+# $ git clone --recursive https://github.com/apache/incubator-mxnet 
+# $ cd incubator-mxnet 
+# if these commands get executed in the jenkins job, we will be testing the build from source instructions
+# against the master branch and not against the version of the repository that Jenkins checks out for testing.
+# This presents a particularly big problem for the version branches and their nightly builds. Because, 
+# we would, in effect, be testing the build from source instructions for one version of MXNet against
+# the master branch.
+# in this function we target the commands cited in the example above.
+# See also gh issue: https://github.com/apache/incubator-mxnet/issues/13800
+function filter_build_commands() {
+    filtered_build_commands="${1}"
+
+    # Remove git commands
+    filtered_build_commands=`echo "${filtered_build_commands}" | perl -pe 's/git .*?;//g'`
+
+    # Remove 'cd incubator-mxnet'
+    filtered_build_commands=`echo "${filtered_build_commands}" | perl -pe 's/cd incubator-mxnet;//'`
+
+    echo "${filtered_build_commands}"
+}
 
 ########################LINUX-PYTHON-CPU############################
 echo
@@ -244,29 +284,52 @@ LINUX_PYTHON_CPU_END_LINENO=$(grep -n "END - Linux Python CPU Installation Instr
 
 set_instruction_set ${LINUX_PYTHON_CPU_START_LINENO} ${LINUX_PYTHON_CPU_END_LINENO}
 
-echo
-echo "### Testing Virtualenv ###"
-echo "${virtualenv_commands}"
-echo
-docker run --rm ubuntu:14.04 bash -c "${virtualenv_commands}"
+ubuntu_python_cpu_virtualenv()
+{
+    set -e
+    echo
+    echo "### Testing Virtualenv ###"
+    echo "${virtualenv_commands}" #> "$filewithcommands"
+    echo
+    eval ${virtualenv_commands}
+    echo "ubuntu_python_cpu_virtualenv: MXNet Installed Successfully"
+}
 
-echo
-echo "### Testing Pip ###"
-echo "${pip_commands}"
-echo
-docker run --rm ubuntu:14.04 bash -c "${pip_commands}"
+ubuntu_python_cpu_pip()
+{
+    set -e
+    echo
+    echo "### Testing Pip ###"
+    pip_commands="sudo ${pip_commands}"
+    echo "${pip_commands}"
+    echo
+    eval ${pip_commands}
+    echo "ubuntu_python_cpu_pip: MXNet Installed Successfully"
+}
 
-echo
-echo "### Testing Docker ###"
-echo "${docker_commands}"
-echo
-eval ${docker_commands}
+ubuntu_python_cpu_docker()
+{
+    set -e
+    echo
+    echo "### Testing Docker ###"
+    echo "${docker_commands}"
+    echo
+    eval ${docker_commands}
+    echo "ubuntu_python_cpu_docker: MXNet Installed Successfully"
 
-echo
-echo "### Testing Build From Source ###"
-echo "${buildfromsource_commands}"
-echo
-docker run --rm ubuntu:14.04 bash -c "${buildfromsource_commands}"
+}
+
+ubuntu_python_cpu_source()
+{
+    set -e
+    echo
+    echo "### Testing Build From Source ###"
+    buildfromsource_commands=$(filter_build_commands "${buildfromsource_commands}")
+    echo ${buildfromsource_commands}
+    eval ${buildfromsource_commands}
+    echo "ubuntu_python_cpu_source: MXNet Installed Successfully"
+
+}
 
 #########################LINUX-PYTHON-GPU###########################
 
@@ -280,26 +343,56 @@ LINUX_PYTHON_GPU_END_LINENO=$(grep -n "END - Linux Python GPU Installation Instr
 
 set_instruction_set ${LINUX_PYTHON_GPU_START_LINENO} ${LINUX_PYTHON_GPU_END_LINENO}
 
-echo
-echo "### Testing Virtualenv ###"
-echo "${virtualenv_commands}"
-echo
-nvidia-docker run --rm nvidia/cuda:7.5-cudnn5-devel bash -c "${virtualenv_commands}"
 
-echo
-echo "### Testing Pip ###"
-echo "${pip_commands}"
-echo
-nvidia-docker run --rm nvidia/cuda:7.5-cudnn5-devel bash -c "${pip_commands}"
+ubuntu_python_gpu_virtualenv()
+{
+    set -e
+    echo
+    echo "### Testing Virtualenv ###"
+    echo "${virtualenv_commands}"
+    echo
+    eval ${virtualenv_commands}
+    echo "ubuntu_python_gpu_virtualenv: MXNet Installed Successfully"
 
-echo
-echo "### Testing Docker ###"
-echo "${docker_commands}"
-echo
-eval ${docker_commands}
+}
 
-echo
-echo "### Testing Build From Source ###"
-echo "${buildfromsource_commands}"
-echo
-nvidia-docker run --rm nvidia/cuda:7.5-cudnn5-devel bash -c "${buildfromsource_commands}"
+ubuntu_python_gpu_pip()
+{
+    set -e
+    echo
+    echo "### Testing Pip ###"
+    echo "${pip_commands}"
+    echo
+    eval ${pip_commands}
+    echo "ubuntu_python_gpu_pip: MXNet Installed Successfully"
+
+}
+
+ubuntu_python_gpu_docker()
+{
+    set -e
+    echo
+    echo "### Testing Docker ###"
+    echo "${docker_commands}"
+    echo
+    eval ${docker_commands}
+    echo "ubuntu_python_gpu_docker: MXNet Installed Successfully"
+
+}
+
+ubuntu_python_gpu_source()
+{
+    set -e
+    echo
+    echo "### Testing Build From Source ###"
+    buildfromsource_commands=$(filter_build_commands "${buildfromsource_commands}")
+    echo ${buildfromsource_commands}
+    eval ${buildfromsource_commands}
+    echo "ubuntu_python_gpu_source: MXNet Installed Successfully"
+
+}
+
+func_virtual_commands()
+{
+  echo ${virtualenv_commands}
+}

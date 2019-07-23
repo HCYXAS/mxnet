@@ -1,3 +1,20 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
 # coding: utf-8
 """Interface for NDArray functions executed by torch backend.
 Install Torch and compile with USE_TORCH=1 to use this module."""
@@ -6,8 +23,8 @@ from __future__ import absolute_import
 import ctypes
 import sys
 from .base import _LIB
-from .base import c_array, py_str, build_param_doc as _build_param_doc
-from .base import mx_uint, mx_float, NDArrayHandle, FunctionHandle
+from .base import c_array, c_str_array, c_handle_array, py_str, build_param_doc as _build_param_doc
+from .base import mx_uint, mx_float, FunctionHandle
 from .base import check_call
 from .ndarray import NDArray, _new_empty_handle
 
@@ -68,7 +85,7 @@ def _make_torch_function(handle):
                 'Invoke with\n{res}= mxnet.th.{name}(Parameters)\nor\n'+
                 'mxnet.th.{name}({res}, Parameters).\n\n' +
                 '{param_str}\n' +
-                'Reference: ' +
+                'References: ' +
                 'https://github.com/torch/torch7/blob/master/doc/maths.md\n').format(
                     name=func_name[4:], param_str=param_str,
                     res=res))
@@ -125,18 +142,20 @@ def _make_torch_function(handle):
         for k in kwargs:
             kwargs[k] = str(kwargs[k])
 
-        check_call(_LIB.MXFuncInvokeEx( \
-                   handle, \
-                   c_array(NDArrayHandle, [x.handle for x in ndargs[n_mutate_vars:]]), \
-                   c_array(mx_float, []), \
-                   c_array(NDArrayHandle, [x.handle for x in ndargs[:n_mutate_vars]]),
-                   ctypes.c_int(len(kwargs)),
-                   c_array(ctypes.c_char_p, kwargs.keys()),
-                   c_array(ctypes.c_char_p, kwargs.values()),))
+        check_call(_LIB.MXFuncInvokeEx(
+            handle,
+            c_handle_array(ndargs[n_mutate_vars:]), # pylint: disable=invalid-slice-index
+            c_array(mx_float, []),
+            c_handle_array(ndargs[:n_mutate_vars]),   # pylint: disable=invalid-slice-index
+            ctypes.c_int(len(kwargs)),
+            c_str_array(kwargs.keys()),
+            c_str_array(kwargs.values())))
+
         if n_mutate_vars == 1:
             return ndargs[0]
         else:
-            return ndargs[:n_mutate_vars]
+            return ndargs[:n_mutate_vars] # pylint: disable=invalid-slice-index
+
     # End of function declaration
     ret_function = generic_torch_function
     ret_function.__name__ = func_name[4:]

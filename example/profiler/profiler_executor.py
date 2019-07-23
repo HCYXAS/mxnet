@@ -1,9 +1,27 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
 import mxnet as mx
 import argparse
-import os, sys
+import os
 import time
 import numpy as np
 from mxnet import profiler
+import memonger
 
 
 def parse_args():
@@ -69,7 +87,8 @@ def get_symbol():
 
 def get_module(ctx, sym, provide_data, provide_label, batch_size=None, is_train=True, use_memonger=False):
     if use_memonger:
-        sym = search_plan(sym, data=data_shapes)
+        name, data_shapes = provide_data[0]
+        sym = memonger.search_plan(sym, data=data_shapes)
     mod = mx.mod.Module(symbol=sym,
                         data_names=[name for name, _ in provide_data],
                         label_names=[name for name, _ in provide_label],
@@ -111,7 +130,7 @@ def benchmark(mod, dry_run=10, iterations=10):
 
     t0 = time.clock()
 
-    profiler.profiler_set_state('run')
+    profiler.set_state('run')
     # real run
     for i in range(iterations):
         mod.forward(batch, is_train=True)
@@ -119,7 +138,7 @@ def benchmark(mod, dry_run=10, iterations=10):
         mod.update()
         for output in mod.get_outputs(merge_multi_context=False)[0]:
             output.wait_to_read()
-    profiler.profiler_set_state('stop')
+    profiler.set_state('stop')
 
     t1 = time.clock()
     return (t1 - t0)*1000.0 / iterations
@@ -135,7 +154,7 @@ def executor(num_iteration):
 args = parse_args()
 
 if __name__ == '__main__':
-    mx.profiler.profiler_set_config(mode='symbolic', filename=args.profile_filename)
+    mx.profiler.set_config(profile_symbolic=True, filename=args.profile_filename)
     print('profile file save to {0}'.format(args.profile_filename))
     print('executor num_iteration: {0}'.format(args.iter_num))
     executor_time = executor(args.iter_num)

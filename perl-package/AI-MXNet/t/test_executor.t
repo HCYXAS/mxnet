@@ -1,6 +1,23 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
 use strict;
 use warnings;
-use Test::More tests => 2283;
+use Test::More tests => 2285;
 use AI::MXNet qw(mx);
 use AI::MXNet::TestUtils qw(reldiff pdl_maximum pdl_minimum);
 use PDL;
@@ -151,12 +168,10 @@ sub test_reshape
 {
     my $x = mx->sym->Variable('x');
     my $y = mx->sym->FullyConnected($x, num_hidden=>4);
-
-    my $exe = $y->simple_bind(ctx => mx->cpu(), shapes => { x=>[5,4] });
+    my $exe = $y->simple_bind(ctx => mx->cpu(), shapes => { x=>[5,4] }, grad_req=>'null');
     $exe->arg_arrays->[0] .= 1;
     $exe->arg_arrays->[1] .= mx->nd->ones([4,4]);
     $exe->arg_arrays->[2] .= 0;
-
     my $new_exe = $exe->reshape({ x=>[3,4] });
     $new_exe->forward(0);
     # test sub exec forward
@@ -166,6 +181,12 @@ sub test_reshape
     # test base exec forward
     $exe->forward(0);
     ok(($new_exe->outputs->[0]->aspdl == 4)->all);
+    $new_exe = $exe->reshape({ x=>[6,4] }, allow_up_sizing=>1);
+    # data ndarray is not shared between exe and new_exe
+    $new_exe->arg_arrays->[0] .= 0;
+    ok(($exe->arg_arrays->[0]->aspdl == 1)->all);
+    # weight ndarray is shared between exe and new_exe
+    ok(($new_exe->arg_arrays->[1]->aspdl == 1)->all);
 }
 
 test_bind(0);

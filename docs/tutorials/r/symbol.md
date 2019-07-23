@@ -1,3 +1,20 @@
+<!--- Licensed to the Apache Software Foundation (ASF) under one -->
+<!--- or more contributor license agreements.  See the NOTICE file -->
+<!--- distributed with this work for additional information -->
+<!--- regarding copyright ownership.  The ASF licenses this file -->
+<!--- to you under the Apache License, Version 2.0 (the -->
+<!--- "License"); you may not use this file except in compliance -->
+<!--- with the License.  You may obtain a copy of the License at -->
+
+<!---   http://www.apache.org/licenses/LICENSE-2.0 -->
+
+<!--- Unless required by applicable law or agreed to in writing, -->
+<!--- software distributed under the License is distributed on an -->
+<!--- "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY -->
+<!--- KIND, either express or implied.  See the License for the -->
+<!--- specific language governing permissions and limitations -->
+<!--- under the License. -->
+
 # Symbol and Automatic Differentiation
 
 The computational unit `NDArray` requires a way to construct neural networks. MXNet provides a symbolic interface, named Symbol, to do this. Symbol combines both flexibility and efficiency.
@@ -104,9 +121,9 @@ In the example, *net* is used as a function to apply to an existing symbol
 
 ## Training a Neural Net
 
-The [model API](../../../R-package/R/model.R) is a thin wrapper around the symbolic executors to support neural net training.
+The [model API](https://github.com/apache/incubator-mxnet/blob/master/R-package/R/model.R) is a thin wrapper around the symbolic executors to support neural net training.
 
-We encourage you to read [Symbolic Configuration and Execution in Pictures for python package](../python/symbol_in_pictures.md)for a detailed explanation of concepts in pictures.
+We encourage you to read [Symbolic Configuration and Execution in Pictures for python package](../../api/python/symbol_in_pictures/symbol_in_pictures.md)for a detailed explanation of concepts in pictures.
 
 ## How Efficient Is the Symbolic API?
 
@@ -123,7 +140,7 @@ be more memory efficient than CXXNet and gets to the same runtime with
 greater flexibility.
 
 ## Next Steps
-* [Write and use callback functions](http://mxnet.io/tutorials/r/CallbackFunctionTutorial.html)
+* [Write and use callback functions](http://mxnet.io/tutorials/r/CallbackFunction.html)
 * [Neural Networks with MXNet in Five Minutes](http://mxnet.io/tutorials/r/fiveMinutesNeuralNetwork.html)
 * [Classify Real-World Images with Pre-trained Model](http://mxnet.io/tutorials/r/classifyRealImageWithPretrainedModel.html)
 * [Handwritten Digits Classification Competition](http://mxnet.io/tutorials/r/mnistCompetition.html)

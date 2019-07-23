@@ -1,6 +1,25 @@
-import mxnet as mx
-import numpy as np
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+"""Convert caffe mean
+"""
 import argparse
+import numpy as np
+import mxnet as mx
 import caffe_parser
 
 def convert_mean(binaryproto_fname, output=None):
@@ -27,7 +46,7 @@ def convert_mean(binaryproto_fname, output=None):
         mean_blob.channels, mean_blob.height, mean_blob.width
     )
     # swap channels from Caffe BGR to RGB
-    img_mean_np[[0,2],:,:] = img_mean_np[[2,0],:,:]
+    img_mean_np[[0, 2], :, :] = img_mean_np[[2, 0], :, :]
     nd = mx.nd.array(img_mean_np)
     if output is not None:
         mx.nd.save(output, {"mean_image": nd})

@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  * Copyright (c) 2015 by Contributors
  * \file torch_module-inl.h
@@ -328,9 +347,9 @@ class TorchModuleProp : public OperatorProperty {
     return param_.__DICT__();
   }
 
-  bool InferShape(std::vector<TShape> *in_shape,
-                  std::vector<TShape> *out_shape,
-                  std::vector<TShape> *aux_shape) const override {
+  bool InferShape(mxnet::ShapeVector *in_shape,
+                  mxnet::ShapeVector *out_shape,
+                  mxnet::ShapeVector *aux_shape) const override {
     if (torchState_ == nullptr) {
       this->InitTorchState();
     }
@@ -378,7 +397,7 @@ class TorchModuleProp : public OperatorProperty {
         THFloatTensor* param = reinterpret_cast<THFloatTensor*>(luaT_toudata(L, -1,
           TorchTensor::TensorType(mshadow::cpu::kDevMask)));
         long int* size = param->size;  // NOLINT(*)
-        (*in_shape)[index++] = TShape(size, size + THFloatTensor_nDimension(param));
+        (*in_shape)[index++] = mxnet::TShape(size, size + THFloatTensor_nDimension(param));
         lua_pop(L, 1);
       }
       lua_pop(L, 2);
@@ -389,7 +408,7 @@ class TorchModuleProp : public OperatorProperty {
       THFloatTensor* output = reinterpret_cast<THFloatTensor*>(luaT_toudata(L, -1,
         TorchTensor::TensorType(mshadow::cpu::kDevMask)));
       long int* size = output->size;  // NOLINT(*)
-      (*out_shape)[0] = TShape(size, size + THFloatTensor_nDimension(output));
+      (*out_shape)[0] = mxnet::TShape(size, size + THFloatTensor_nDimension(output));
     } else {
       for (uint32_t data_index = 0; data_index < param_.num_outputs; ++data_index) {
         lua_pushnil(L);
@@ -398,7 +417,7 @@ class TorchModuleProp : public OperatorProperty {
           THFloatTensor* out = reinterpret_cast<THFloatTensor*>(luaT_toudata(L, -1,
             TorchTensor::TensorType(mshadow::cpu::kDevMask)));
           long int* size = out->size;  // NOLINT(*)
-          (*out_shape)[index++] = TShape(size, size + THFloatTensor_nDimension(out));
+          (*out_shape)[index++] = mxnet::TShape(size, size + THFloatTensor_nDimension(out));
         }
       }
     }

@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
 *  Copyright (c) 2016 by Contributors
 * \file symbol.h
@@ -5,8 +24,8 @@
 * \author Chuntao Hong, Zhang Chen
 */
 
-#ifndef CPP_PACKAGE_INCLUDE_MXNET_CPP_SYMBOL_H_
-#define CPP_PACKAGE_INCLUDE_MXNET_CPP_SYMBOL_H_
+#ifndef MXNET_CPP_SYMBOL_H_
+#define MXNET_CPP_SYMBOL_H_
 
 #include <map>
 #include <string>
@@ -72,11 +91,13 @@ class Symbol {
   Symbol operator-(const Symbol &rhs) const;
   Symbol operator*(const Symbol &rhs) const;
   Symbol operator/(const Symbol &rhs) const;
+  Symbol operator%(const Symbol &rhs) const;
 
   Symbol operator+(mx_float scalar) const;
   Symbol operator-(mx_float scalar) const;
   Symbol operator*(mx_float scalar) const;
   Symbol operator/(mx_float scalar) const;
+  Symbol operator%(mx_float scalar) const;
   Symbol Copy() const;
   /*!
   * \brief construct a variable Symbol
@@ -117,7 +138,7 @@ class Symbol {
   /*!
   * \return the SymbolHandle
   */
-  SymbolHandle GetHandle() const { return blob_ptr_->handle_; }
+  SymbolHandle GetHandle() const { return (blob_ptr_) ? blob_ptr_->handle_: NULL; }
   /*!
   * \brief construct an operator Symbol, with given input Symbol and config
   * \param name the name of the Symbol
@@ -157,6 +178,25 @@ class Symbol {
   std::vector<std::string> ListOutputs() const;
   /*! \return get the descriptions of auxiliary data for this symbol */
   std::vector<std::string> ListAuxiliaryStates() const;
+  /*! \return get all attributes for this symbol */
+  std::map<std::string, std::string> ListAttributes() const;
+  /*!
+   * \brief set key-value attribute to the symbol
+   * @param key string represent the key for the attribute
+   * @param value string represent the value for the attribute
+   */
+  void SetAttribute(const std::string& key, const std::string& value);
+  /*!
+   * \brief set a series of key-value attribute to the symbol
+   * @param attrs string:string map represent the key value attributes
+   */
+  void SetAttributes(const std::map<std::string, std::string>& attrs);
+  /*! \return get number of outputs for this symbol */
+  mx_uint GetNumOutputs() const;
+  /*! \return get the new symbol through subgraph API for this symbol */
+  mxnet::cpp::Symbol GetBackendSymbol(const std::string& backendName) const;
+  /*! \return get the name of the symbol */
+  std::string GetName() const;
   /*!
   * \brief infer and construct all the arrays to bind to executor by providing
   * some known arrays.
@@ -252,6 +292,7 @@ Symbol operator+(mx_float lhs, const Symbol &rhs);
 Symbol operator-(mx_float lhs, const Symbol &rhs);
 Symbol operator*(mx_float lhs, const Symbol &rhs);
 Symbol operator/(mx_float lhs, const Symbol &rhs);
+Symbol operator%(mx_float lhs, const Symbol &rhs);
 }  // namespace cpp
 }  // namespace mxnet
-#endif  // CPP_PACKAGE_INCLUDE_MXNET_CPP_SYMBOL_H_
+#endif  // MXNET_CPP_SYMBOL_H_

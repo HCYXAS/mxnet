@@ -1,7 +1,24 @@
+<!--- Licensed to the Apache Software Foundation (ASF) under one -->
+<!--- or more contributor license agreements.  See the NOTICE file -->
+<!--- distributed with this work for additional information -->
+<!--- regarding copyright ownership.  The ASF licenses this file -->
+<!--- to you under the Apache License, Version 2.0 (the -->
+<!--- "License"); you may not use this file except in compliance -->
+<!--- with the License.  You may obtain a copy of the License at -->
+
+<!---   http://www.apache.org/licenses/LICENSE-2.0 -->
+
+<!--- Unless required by applicable law or agreed to in writing, -->
+<!--- software distributed under the License is distributed on an -->
+<!--- "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY -->
+<!--- KIND, either express or implied.  See the License for the -->
+<!--- specific language governing permissions and limitations -->
+<!--- under the License. -->
+
 # Model API
 
 The model API provides a simplified way to train neural networks using common best practices.
-It's a thin wrapper built on top of the [ndarray](ndarray.md) and [symbolic](symbol.md)
+It's a thin wrapper built on top of the [ndarray](../python/ndarray/ndarray.md) and [symbolic](../python/symbol/symbol.md)
 modules that make neural network training easy.
 
 Topics:
@@ -10,7 +27,7 @@ Topics:
 * [Save the Model](#save-the-model)
 * [Periodic Checkpoint](#periodic-checkpointing)
 * [Initializer API Reference](#initializer-api-reference)
-* [Evaluation Metric API Reference](#initializer-api-reference)
+* [Evaluation Metric API Reference](#evaluation-metric-api-reference)
 * [Optimizer API Reference](#optimizer-api-reference)
 * [Model API Reference](#model-api-reference)
 
@@ -99,7 +116,7 @@ Training occurs in parallel on the GPUs that you specify.
 ```eval_rst
     .. raw:: html
 
-        <script type="text/javascript" src='../../_static/js/auto_module_index.js'></script>
+        <script type="text/javascript" src='../../../_static/js/auto_module_index.js'></script>
 ```
 
 
@@ -152,7 +169,7 @@ Training occurs in parallel on the GPUs that you specify.
 ```
 
 ## Next Steps
-* See [Symbolic API](symbol.md) for operations on NDArrays that assemble neural networks from layers.
-* See [IO Data Loading API](io.md) for parsing and loading data.
-* See [NDArray API](ndarray.md) for vector/matrix/tensor operations.
-* See [KVStore API](kvstore.md) for multi-GPU and multi-host distributed training.
+* See [Symbolic API](../python/symbol/symbol.md) for operations on NDArrays that assemble neural networks from layers.
+* See [IO Data Loading API](../python/io/io.md) for parsing and loading data.
+* See [NDArray API](../python/ndarray/ndarray.md) for vector/matrix/tensor operations.
+* See [KVStore API](../python/kvstore/kvstore.md) for multi-GPU and multi-host distributed training.

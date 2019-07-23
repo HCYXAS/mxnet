@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  * Copyright (c) 2016 by Contributors
  * \file nnpack_fully_connected-inl.h
@@ -15,7 +34,7 @@
 #include <vector>
 #include <string>
 #include <utility>
-#include "../fully_connected-inl.h"
+#include "../nn/fully_connected-inl.h"
 #include "nnpack.h"
 #include "nnpack_util.h"
 
@@ -45,8 +64,8 @@ class NNPACKFullyConnectedOp : public FullyConnectedOp<xpu, DType> {
     size_t expected = param_.no_bias ? 2 : 3;
     CHECK_EQ(in_data.size(), expected);
     CHECK_EQ(out_data.size(), 1);
-    const TShape& ishape = in_data[fullc::kData].shape_;
-    const TShape& oshape = out_data[fullc::kOut].shape_;
+    const mxnet::TShape& ishape = in_data[fullc::kData].shape_;
+    const mxnet::TShape& oshape = out_data[fullc::kOut].shape_;
     Stream<xpu> *s = ctx.get_stream<xpu>();
     Tensor<xpu, 2, DType> data = in_data[fullc::kData].get_with_shape<xpu, 2, DType>(
         Shape2(ishape[0], ishape.ProdShape(1, ishape.ndim())), s);

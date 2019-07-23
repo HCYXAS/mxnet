@@ -1,3 +1,20 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
 from __future__ import print_function
 import os
 import sys
@@ -7,9 +24,15 @@ from dataset.iterator import DetRecordIter
 from config.config import cfg
 from evaluate.eval_metric import MApMetric, VOC07MApMetric
 import logging
+import time
+from symbol.symbol_factory import get_symbol
+from symbol import symbol_builder
+from mxnet.base import SymbolHandle, check_call, _LIB, mx_uint, c_str_array
+import ctypes
+from mxnet.contrib.quantization import *
 
-def evaluate_net(net, path_imgrec, num_classes, mean_pixels, data_shape,
-                 model_prefix, epoch, ctx=mx.cpu(), batch_size=1,
+def evaluate_net(net, path_imgrec, num_classes, num_batch, mean_pixels, data_shape,
+                 model_prefix, epoch, ctx=mx.cpu(), batch_size=32,
                  path_imglist="", nms_thresh=0.45, force_nms=False,
                  ovp_thresh=0.5, use_difficult=False, class_names=None,
                  voc07_metric=False):
@@ -63,7 +86,7 @@ def evaluate_net(net, path_imgrec, num_classes, mean_pixels, data_shape,
     model_prefix += '_' + str(data_shape[1])
 
     # iterator
-    eval_iter = DetRecordIter(path_imgrec, batch_size, data_shape,
+    eval_iter = DetRecordIter(path_imgrec, batch_size, data_shape, mean_pixels=mean_pixels,
                               path_imglist=path_imglist, **cfg.valid)
     # model params
     load_net, args, auxs = mx.model.load_checkpoint(model_prefix, epoch)
@@ -71,9 +94,8 @@ def evaluate_net(net, path_imgrec, num_classes, mean_pixels, data_shape,
     if net is None:
         net = load_net
     else:
-        sys.path.append(os.path.join(cfg.ROOT_DIR, 'symbol'))
-        net = importlib.import_module("symbol_" + net) \
-            .get_symbol(num_classes, nms_thresh, force_nms)
+        net = get_symbol(net, data_shape[1], num_classes=num_classes,
+            nms_thresh=nms_thresh, force_suppress=force_nms)
     if not 'label' in net.list_arguments():
         label = mx.sym.Variable(name='label')
         net = mx.sym.Group([net, label])
@@ -89,6 +111,23 @@ def evaluate_net(net, path_imgrec, num_classes, mean_pixels, data_shape,
         metric = VOC07MApMetric(ovp_thresh, use_difficult, class_names)
     else:
         metric = MApMetric(ovp_thresh, use_difficult, class_names)
-    results = mod.score(eval_iter, metric, num_batch=None)
+
+    num = num_batch * batch_size
+    data = [mx.random.uniform(-1.0, 1.0, shape=shape, ctx=ctx) for _, shape in mod.data_shapes]
+    batch = mx.io.DataBatch(data, [])  # empty label
+
+    dry_run = 5                 # use 5 iterations to warm up
+    for i in range(dry_run):
+        mod.forward(batch, is_train=False)
+        for output in mod.get_outputs():
+            output.wait_to_read()
+
+    tic = time.time()
+    results = mod.score(eval_iter, metric, num_batch=num_batch)
+    speed = num / (time.time() - tic)
+    if logger is not None:
+        logger.info('Finished inference with %d images' % num)
+        logger.info('Finished with %f images per second', speed)
+
     for k, v in results:
         print("{}: {}".format(k, v))

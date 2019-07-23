@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  * Copyright (c) 2015 by Contributors
  * \file native_op-inl.h
@@ -52,10 +71,6 @@ class NDArrayOp : public Operator {
                         const std::vector<TBlob> &in_grad,
                         const std::vector<TBlob> &aux_args);
 
-  virtual ExecType exec_type() const {
-    return kAsync;
-  }
-
  private:
   NDArrayOpParam param_;
   Context get_ctx();
@@ -72,7 +87,7 @@ class NDArrayOpProp : public OperatorProperty {
     CHECK(param_.pinfo->list_arguments(&args, param_.pinfo->p_list_arguments));
     std::vector<std::string> ret;
     for (int i = 0; args[i] != NULL; ++i) {
-      ret.push_back(args[i]);
+      ret.emplace_back(args[i]);
     }
     return ret;
   }
@@ -82,7 +97,7 @@ class NDArrayOpProp : public OperatorProperty {
     CHECK(param_.pinfo->list_outputs(&args, param_.pinfo->p_list_outputs));
     std::vector<std::string> ret;
     for (int i = 0; args[i] != NULL; ++i) {
-      ret.push_back(args[i]);
+      ret.emplace_back(args[i]);
     }
     return ret;
   }
@@ -107,25 +122,30 @@ class NDArrayOpProp : public OperatorProperty {
   }
 
 
-  bool InferShape(std::vector<TShape> *in_shape,
-                  std::vector<TShape> *out_shape,
-                  std::vector<TShape> *aux_shape) const override {
-    std::vector<unsigned*> shapes;
+  bool InferShape(mxnet::ShapeVector *in_shape,
+                  mxnet::ShapeVector *out_shape,
+                  mxnet::ShapeVector *aux_shape) const override {
+    std::vector<uint32_t*> shapes;
     std::vector<int> ndims;
-    for (auto iter = in_shape->begin(); iter != in_shape->end(); ++iter) {
-      shapes.push_back(iter->data());
-      ndims.push_back(iter->ndim());
+    size_t size = 0;
+    for (const auto& s : *in_shape) size += s.ndim();
+    std::vector<uint32_t> shapes_buffer(size);
+    uint32_t *ptr = shapes_buffer.data();
+    for (const auto& shape : *in_shape) {
+      shapes.push_back(ptr);
+      ndims.push_back(shape.ndim());
+      ptr = nnvm::ShapeTypeCast(shape.begin(), shape.end(), ptr);
     }
     shapes.resize(param_.num_inputs_+param_.num_outputs_);
     ndims.resize(param_.num_inputs_+param_.num_outputs_);
     CHECK(param_.pinfo->infer_shape(shapes.size(), ndims.data(), shapes.data(),
                                     param_.pinfo->p_infer_shape));
     for (unsigned i = 0; i < in_shape->size(); ++i) {
-      SHAPE_ASSIGN_CHECK(*in_shape, i, TShape(shapes[i], shapes[i]+ndims[i]));
+      SHAPE_ASSIGN_CHECK(*in_shape, i, mxnet::TShape(shapes[i], shapes[i]+ndims[i]));
     }
     out_shape->clear();
     for (unsigned i = param_.num_inputs_; i < shapes.size(); ++i) {
-      out_shape->push_back(TShape(shapes[i], shapes[i]+ndims[i]));
+      out_shape->push_back(mxnet::TShape(shapes[i], shapes[i]+ndims[i]));
     }
     return true;
   }
@@ -163,6 +183,10 @@ class NDArrayOpProp : public OperatorProperty {
   }
 
   Operator* CreateOperator(Context ctx) const override;
+
+  ExecType exec_type() const override {
+    return ExecType::kAsync;
+  }
 
  private:
   NDArrayOpParam param_;

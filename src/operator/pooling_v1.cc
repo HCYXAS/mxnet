@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  * Copyright (c) 2015 by Contributors
  * \file pooling_v1.cc
@@ -11,7 +30,7 @@ namespace op {
 
 template<>
 Operator *CreateOp<cpu>(PoolingV1Param param, int dtype) {
-  Operator *op = NULL;
+  Operator *op = nullptr;
   MSHADOW_REAL_TYPE_SWITCH(dtype, DType, {
     switch (param.pool_type) {
       case pool_v1_enum::kMaxPooling:
@@ -25,7 +44,7 @@ Operator *CreateOp<cpu>(PoolingV1Param param, int dtype) {
         break;
       default:
         LOG(FATAL) << "unknown pooling type";
-        return NULL;
+        return nullptr;
     }
   })
 
@@ -33,9 +52,9 @@ Operator *CreateOp<cpu>(PoolingV1Param param, int dtype) {
 }
 
 // DO_BIND_DISPATCH comes from operator_common.h
-Operator* PoolingV1Prop::CreateOperatorEx(Context ctx, std::vector<TShape> *in_shape,
+Operator* PoolingV1Prop::CreateOperatorEx(Context ctx, mxnet::ShapeVector *in_shape,
                                      std::vector<int> *in_type) const {
-  std::vector<TShape> out_shape, aux_shape;
+  mxnet::ShapeVector out_shape, aux_shape;
   std::vector<int> out_type, aux_type;
   CHECK(InferType(in_type, &out_type, &aux_type));
   CHECK(InferShape(in_shape, &out_shape, &aux_shape));
@@ -56,7 +75,7 @@ The shapes for 2-D pooling is
     out_height = f(height, kernel[0], pad[0], stride[0])
     out_width = f(width, kernel[1], pad[1], stride[1])
 
-The defintion of *f* depends on ``pooling_convention``, which has two options:
+The definition of *f* depends on ``pooling_convention``, which has two options:
 
 - **valid** (default)::
 

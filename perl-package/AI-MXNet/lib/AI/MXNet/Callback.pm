@@ -1,14 +1,63 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
 package AI::MXNet::Callback;
 use strict;
 use warnings;
 use List::Util qw/max/;
+use AI::MXNet::NS;
 use AI::MXNet::Function::Parameters;
 use Mouse;
 use overload "&{}" => sub { my $self = shift; sub { $self->call(@_) } };
 
 =head1 NAME
 
-    AI::MXNet::Callback - A collection of predefined callback functions
+    AI::MXNet::Callback - A collection of predefined callback functions.
+=cut
+
+=head1 DESCRIPTION
+
+    A collection of predefined callback functions, mainly to be used in AI::MXNet::Module::Base::fit.
+=cut
+
+=head1 SYNOPSIS
+
+    my $model = mx->mod->Module(
+        symbol  => $net,
+        context => $contexts
+    );
+    $model->fit(
+        $data_iter,
+        eval_metric         => mx->metric->Perplexity,
+        kvstore             => $kv_store,
+        optimizer           => $optimizer,
+        optimizer_params    => {
+            learning_rate => $lr,
+            momentum      => $mom,
+            wd            => $wd,
+            clip_gradient => 5,
+            rescale_grad  => 1/$batch_size,
+            lr_scheduler  => AI::MXNet::FactorScheduler->new(step => 1000, factor => 0.99)
+        },
+        initializer         => mx->init->Xavier(factor_type => "in", magnitude => 2.34),
+        num_epoch           => $num_epoch,
+        batch_end_callback  => mx->callback->Speedometer($batch_size, $disp_batches),
+        ($chkp_epoch ? (epoch_end_callback  => [mx->callback->module_checkpoint($model, $chkp_prefix, $chkp_epoch), \&sample]) : ())
+    );
 =cut
 
 =head2 module_checkpoint
@@ -19,9 +68,9 @@ use overload "&{}" => sub { my $self = shift; sub { $self->call(@_) } };
     ----------
     $mod : subclass of AI::MXNet::Module::Base
         The module to checkpoint.
-    $prefix : str
+    $prefix : Str
         The file prefix to checkpoint to
-    $period=1 : int
+    $period=1 : Int
         How many epochs to wait before checkpointing. Default is 1.
     $save_optimizer_states=0 : Bool
         Whether to save optimizer states for later training.
@@ -92,7 +141,7 @@ extends 'AI::MXNet::Callback';
 
 =head1 NAME
 
-    AI::MXNet::Speedometer - A callback that logs training speed 
+    AI::MXNet::Speedometer - A callback that logs training speed
 =cut
 
 =head1 DESCRIPTION

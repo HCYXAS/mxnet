@@ -1,3 +1,20 @@
+<!--- Licensed to the Apache Software Foundation (ASF) under one -->
+<!--- or more contributor license agreements.  See the NOTICE file -->
+<!--- distributed with this work for additional information -->
+<!--- regarding copyright ownership.  The ASF licenses this file -->
+<!--- to you under the Apache License, Version 2.0 (the -->
+<!--- "License"); you may not use this file except in compliance -->
+<!--- with the License.  You may obtain a copy of the License at -->
+
+<!---   http://www.apache.org/licenses/LICENSE-2.0 -->
+
+<!--- Unless required by applicable law or agreed to in writing, -->
+<!--- software distributed under the License is distributed on an -->
+<!--- "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY -->
+<!--- KIND, either express or implied.  See the License for the -->
+<!--- specific language governing permissions and limitations -->
+<!--- under the License. -->
+
 Tutorial for Kaggle NDSB-1
 -----
 
@@ -30,7 +47,7 @@ Uncompress train.zip and test.zip folders.
 
 #### Step 3: Train Model
 - The network structure is defined in file symbol_dsb.py
-- We will use find_mxnet.py and train_model.py from the image-classification example folder. Generate simbolic links to those files ```ln -s ../image-classification/find_mxnet.py .``` and ```ln -s ../image-classification/train_model.py .```
+- We will use find_mxnet.py and train_model.py from the image-classification example folder. Generate symbolic links to those files ```ln -s ../image-classification/find_mxnet.py .``` and ```ln -s ../image-classification/train_model.py .```
 - ```mkdir models``` , if you want to save the models in that folder.
 - Run ```python train_dsb.py``` to train the model, look to the help of that file to change the parameters. (See Step 4 if you want to make training curve plot)
 - Sample settings would get you

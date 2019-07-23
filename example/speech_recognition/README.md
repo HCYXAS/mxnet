@@ -1,3 +1,20 @@
+<!--- Licensed to the Apache Software Foundation (ASF) under one -->
+<!--- or more contributor license agreements.  See the NOTICE file -->
+<!--- distributed with this work for additional information -->
+<!--- regarding copyright ownership.  The ASF licenses this file -->
+<!--- to you under the Apache License, Version 2.0 (the -->
+<!--- "License"); you may not use this file except in compliance -->
+<!--- with the License.  You may obtain a copy of the License at -->
+
+<!---   http://www.apache.org/licenses/LICENSE-2.0 -->
+
+<!--- Unless required by applicable law or agreed to in writing, -->
+<!--- software distributed under the License is distributed on an -->
+<!--- "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY -->
+<!--- KIND, either express or implied.  See the License for the -->
+<!--- specific language governing permissions and limitations -->
+<!--- under the License. -->
+
 **deepSpeech.mxnet: Rich Speech Example**
 =========================================
   
@@ -19,11 +36,18 @@ With rich functionalities and convenience explained above, you can build your ow
 ## **Environments**
 - MXNet version: 0.9.5+
 - GPU memory size: 2.4GB+
+- Install mxboard for logging
+<pre>
+<code>pip install mxboard</code>
+</pre>  
+
 - [SoundFile](https://pypi.python.org/pypi/SoundFile/0.8.1) for audio preprocessing (If encounter errors about libsndfile, follow [this tutorial](http://www.linuxfromscratch.org/blfs/view/svn/multimedia/libsndfile.html).)
 <pre>
 <code>pip install soundfile</code>
 </pre>
-- Warp CTC: Follow [this instruction](https://github.com/dmlc/mxnet/tree/master/example/warpctc) to install Baidu's Warp CTC.
+- Warp CTC: Follow [this instruction](https://github.com/baidu-research/warp-ctc) to compile Baidu's Warp CTC. (Note: If you are using V100, make sure to use this [fix](https://github.com/baidu-research/warp-ctc/pull/118))
+- You need to compile MXNet with WarpCTC, follow the instructions [here](https://github.com/apache/incubator-mxnet/tree/master/example/ctc)
+- You might need to set `LD_LIBRARY_PATH` to the right path if MXNet fails to find your `libwarpctc.so`
 - **We strongly recommend that you first test a model of small networks.**
 
 
@@ -39,18 +63,34 @@ You can download two wave files above from [this](https://github.com/samsungsds-
 
 
 ### **Setting the configuration file**
-**[Notice]** The configuration file "default.cfg" included describes DeepSpeech2 with slight changes. You can test the original DeepSpeech2 with a few line changes to the cfg file:  
-<pre><code>...
+**[Notice]** The configuration file "default.cfg" included describes DeepSpeech2 with slight changes. You can test the original DeepSpeech2("deepspeech.cfg") with a few line changes to the cfg file:  
+<pre><code>
+[common]
+...
+learning_rate = 0.0003
+# constant learning rate annealing by factor
+learning_rate_annealing = 1.1
+optimizer = sgd
+...
+is_bi_graphemes = True
+...
 [arch]
 ...
 num_rnn_layer = 7
 num_hidden_rnn_list = [1760, 1760, 1760, 1760, 1760, 1760, 1760]
 num_hidden_proj = 0
-
 num_rear_fc_layers = 1
 num_hidden_rear_fc_list = [1760]
 act_type_rear_fc_list = ["relu"]
-...</code></pre>
+...
+[train]
+...
+learning_rate = 0.0003
+# constant learning rate annealing by factor
+learning_rate_annealing = 1.1
+optimizer = sgd
+...
+</code></pre>
 
 
 * * *
@@ -97,8 +137,23 @@ Run the following line after all modification explained above.
 Train and test your own models by preparing two files.
 1) A new configuration file, i.e., custom.cfg, corresponding to the file 'default.cfg'.
 The new file should specify the items below the '[arch]' section of the original file. 
-2) A new implementation file, i.e., arch_custom.py, corresponing to the file 'arch_deepspeech.py'.
+2) A new implementation file, i.e., arch_custom.py, corresponding to the file 'arch_deepspeech.py'.
 The new file should implement two functions, prepare_data() and arch(), for building networks described in the new configuration file.
 
 Run the following line after preparing the files.   
 <pre><code>python main.py --configfile custom.cfg --archfile arch_custom</pre></code>
+
+***
+## **Further more**
+You can prepare full LibriSpeech dataset by following the instruction on https://github.com/baidu-research/ba-dls-deepspeech  
+**Change flac_to_wav.sh script of baidu to flac_to_wav.sh in repository to avoid bug**
+```bash
+git clone https://github.com/baidu-research/ba-dls-deepspeech
+cd ba-dls-deepspeech
+./download.sh
+cp -f /path/to/example/flac_to_wav.sh ./
+./flac_to_wav.sh
+python create_desc_json.py /path/to/ba-dls-deepspeech/LibriSpeech/train-clean-100 train_corpus.json
+python create_desc_json.py /path/to/ba-dls-deepspeech/LibriSpeech/dev-clean validation_corpus.json
+python create_desc_json.py /path/to/ba-dls-deepspeech/LibriSpeech/test-clean test_corpus.json
+```

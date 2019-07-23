@@ -1,4 +1,23 @@
-#include <hip/hip_runtime.h>
+#include "hip/hip_runtime.h"
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  * Copyright (c) 2016 by Contributors
  * \file multibox_detection.cu
@@ -33,7 +52,9 @@ __device__ void CalculateOverlap(const DType *a, const DType *b, DType *iou) {
 }
 
 template<typename DType>
-__global__ void DetectionForwardKernel(DType *out, const DType *cls_prob,
+__global__
+__launch_bounds__(cuda::kMaxThreadsPerBlock)
+void DetectionForwardKernel(DType *out, const DType *cls_prob,
                                        const DType *loc_pred, const DType *anchors,
                                        DType *temp_space, const int num_classes,
                                        const int num_anchors, const float threshold,
@@ -41,8 +62,8 @@ __global__ void DetectionForwardKernel(DType *out, const DType *cls_prob,
                                        const float vy, const float vw,
                                        const float vh, const float nms_threshold,
                                        const bool force_suppress, const int nms_topk) {
-  const int nbatch = hipBlockIdx_x;  // each block for each batch
-  int index = hipThreadIdx_x;
+  const int nbatch = blockIdx.x;  // each block for each batch
+  int index = threadIdx.x;
   __shared__ int valid_count;
   out += nbatch * num_anchors * 6;
   cls_prob += nbatch * num_anchors * num_classes;
@@ -54,7 +75,7 @@ __global__ void DetectionForwardKernel(DType *out, const DType *cls_prob,
   __syncthreads();
 
   // apply prediction to anchors
-  for (int i = index; i < num_anchors; i += hipBlockDim_x) {
+  for (int i = index; i < num_anchors; i += blockDim.x) {
     DType score = -1;
     int id = 0;
     for (int j = 1; j < num_classes; ++j) {
@@ -113,7 +134,7 @@ __global__ void DetectionForwardKernel(DType *out, const DType *cls_prob,
   DType *src = out;
   DType *dst = temp_space;
   for (int width = 2; width < (size << 1); width <<= 1) {
-    int slices = (size - 1) / (hipBlockDim_x * width) + 1;
+    int slices = (size - 1) / (blockDim.x * width) + 1;
     int start = width * index * slices;
     for (int slice = 0; slice < slices; ++slice) {
       if (start >= size) break;
@@ -148,7 +169,7 @@ __global__ void DetectionForwardKernel(DType *out, const DType *cls_prob,
 
   if (src == temp_space) {
     // copy from temp to out
-    for (int i = index; i < size * 6; i += hipBlockDim_x) {
+    for (int i = index; i < size * 6; i += blockDim.x) {
       out[i] = temp_space[i];
     }
     __syncthreads();
@@ -158,7 +179,7 @@ __global__ void DetectionForwardKernel(DType *out, const DType *cls_prob,
   int ntop = size;
   if (nms_topk > 0 && nms_topk < ntop) {
     ntop = nms_topk;
-    for (int i = ntop + index; i < size; i += hipBlockDim_x) {
+    for (int i = ntop + index; i < size; i += blockDim.x) {
       out[i * 6] = -1;
     }
     __syncthreads();
@@ -169,7 +190,7 @@ __global__ void DetectionForwardKernel(DType *out, const DType *cls_prob,
     DType compare_id = out[compare_pos * 6];
     if (compare_id < 0) continue;  // not a valid positive detection, skip
     DType *compare_loc_ptr = out + compare_pos * 6 + 2;
-    for (int i = compare_pos + index + 1; i < ntop; i += hipBlockDim_x) {
+    for (int i = compare_pos + index + 1; i < ntop; i += blockDim.x) {
       DType class_id = out[i * 6];
       if (class_id < 0) continue;
       if (force_suppress || (class_id == compare_id)) {
@@ -193,7 +214,7 @@ inline void MultiBoxDetectionForward(const Tensor<gpu, 3, DType> &out,
                                      const Tensor<gpu, 3, DType> &temp_space,
                                      const float threshold,
                                      const bool clip,
-                                     const nnvm::Tuple<float> &variances,
+                                     const mxnet::Tuple<float> &variances,
                                      const float nms_threshold,
                                      const bool force_suppress,
                                      const int nms_topk) {
@@ -205,7 +226,7 @@ inline void MultiBoxDetectionForward(const Tensor<gpu, 3, DType> &out,
   int num_blocks = num_batches;
   cuda::CheckLaunchParam(num_blocks, num_threads, "MultiBoxDetection Forward");
   hipStream_t stream = Stream<gpu>::GetStream(out.stream_);
-   hipLaunchKernelGGL(HIP_KERNEL_NAME(cuda::DetectionForwardKernel), dim3(num_blocks), dim3(num_threads), 0, stream,\
+  hipLaunchKernelGGL(HIP_KERNEL_NAME(cuda::DetectionForwardKernel), dim3(num_blocks), dim3(num_threads), 0, stream,\
         static_cast<DType*>(out.dptr_),\
         static_cast<const DType*>(cls_prob.dptr_),\
         static_cast<const DType*>(loc_pred.dptr_),\

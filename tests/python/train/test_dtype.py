@@ -1,3 +1,20 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
 # pylint: skip-file
 import sys
 sys.path.insert(0, '../../python')
@@ -5,7 +22,7 @@ import mxnet as mx
 import numpy as np
 import os, pickle, gzip
 import logging
-from common import get_data
+from mxnet.test_utils import get_cifar10
 
 batch_size = 128
 
@@ -22,7 +39,7 @@ def get_net():
     return softmax
 
 # check data
-get_data.GetCifar10()
+get_cifar10()
 
 def get_iterator_uint8(kv):
     data_shape = (3, 28, 28)
@@ -45,6 +62,86 @@ def get_iterator_uint8(kv):
         batch_size  = batch_size,
         num_parts   = kv.num_workers,
         part_index  = kv.rank)
+
+    return (train, val)
+
+def get_iterator_uint8_with_param(kv, ctx):
+    data_shape = (3, 28, 28)
+
+    train = mx.io.ImageRecordIter(
+        path_imgrec = "data/cifar/train.rec",
+        data_shape  = data_shape,
+        batch_size  = batch_size,
+        rand_crop   = True,
+        rand_mirror = True,
+        num_parts   = kv.num_workers,
+        part_index  = kv.rank,
+        dtype       ='uint8',
+        ctx         = ctx)
+    train = mx.io.PrefetchingIter(train)
+
+    val = mx.io.ImageRecordIter(
+        path_imgrec = "data/cifar/test.rec",
+        rand_crop   = False,
+        rand_mirror = False,
+        data_shape  = data_shape,
+        batch_size  = batch_size,
+        num_parts   = kv.num_workers,
+        part_index  = kv.rank,
+        dtype       ='uint8',
+        ctx         = ctx)
+
+    return (train, val)
+
+def get_iterator_int8(kv):
+    data_shape = (3, 28, 28)
+
+    train = mx.io.ImageRecordInt8Iter(
+        path_imgrec = "data/cifar/train.rec",
+        data_shape  = data_shape,
+        batch_size  = batch_size,
+        rand_crop   = True,
+        rand_mirror = True,
+        num_parts   = kv.num_workers,
+        part_index  = kv.rank)
+    train = mx.io.PrefetchingIter(train)
+
+    val = mx.io.ImageRecordInt8Iter(
+        path_imgrec = "data/cifar/test.rec",
+        rand_crop   = False,
+        rand_mirror = False,
+        data_shape  = data_shape,
+        batch_size  = batch_size,
+        num_parts   = kv.num_workers,
+        part_index  = kv.rank)
+
+    return (train, val)
+
+def get_iterator_int8_with_param(kv, ctx):
+    data_shape = (3, 28, 28)
+
+    train = mx.io.ImageRecordIter(
+        path_imgrec = "data/cifar/train.rec",
+        data_shape  = data_shape,
+        batch_size  = batch_size,
+        rand_crop   = True,
+        rand_mirror = True,
+        num_parts   = kv.num_workers,
+        part_index  = kv.rank,
+        dtype       ='int8',
+        ctx         = ctx)
+    train = mx.io.PrefetchingIter(train)
+
+    val = mx.io.ImageRecordIter(
+        path_imgrec = "data/cifar/test.rec",
+        rand_crop   = False,
+        rand_mirror = False,
+        data_shape  = data_shape,
+        batch_size  = batch_size,
+        num_parts   = kv.num_workers,
+        part_index  = kv.rank,
+        dtype       = 'int8',
+        ctx         = ctx)
 
     return (train, val)
 
@@ -82,7 +179,7 @@ def run_cifar10(train, val, use_module):
     devs = [mx.cpu(0)]
     net = get_net()
     mod = mx.mod.Module(net, context=devs)
-    optim_args = {'learning_rate': 0.05, 'wd': 0.00001, 'momentum': 0.9}
+    optim_args = {'learning_rate': 0.001, 'wd': 0.00001, 'momentum': 0.9}
     eval_metrics = ['accuracy']
     if use_module:
         executor = mx.mod.Module(net, context=devs)
@@ -158,7 +255,6 @@ def test_cifar10():
     console = logging.StreamHandler()
     console.setLevel(logging.DEBUG)
     logging.getLogger('').addHandler(console)
-
     kv = mx.kvstore.create("local")
     # test float32 input
     (train, val) = get_iterator_float32(kv)
@@ -173,6 +269,21 @@ def test_cifar10():
     (train, val) = get_iterator_uint8(kv)
     run_cifar10(train, val, use_module=False)
     run_cifar10(train, val, use_module=True)
-    
+
+    for ctx in ("gpu", "cpu"):
+        (train, val) = get_iterator_uint8_with_param(kv, ctx)
+        run_cifar10(train, val, use_module=False)
+        run_cifar10(train, val, use_module=True)
+
+    # test int8 input
+    (train, val) = get_iterator_int8(kv)
+    run_cifar10(train, val, use_module=False)
+    run_cifar10(train, val, use_module=True)
+
+    for ctx in ("gpu", "cpu"):
+        (train, val) = get_iterator_int8_with_param(kv, ctx)
+        run_cifar10(train, val, use_module=False)
+        run_cifar10(train, val, use_module=True)
+
 if __name__ == "__main__":
     test_cifar10()

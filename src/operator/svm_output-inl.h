@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  * Copyright (c) 2015 by Contributors
  * \file svm_output-inl.h
@@ -80,7 +99,7 @@ class SVMOutputOp : public Operator {
     CHECK_GE(in_grad.size(), 1U);
     CHECK_GE(req.size(), 1U);
     Stream<xpu> *s = ctx.get_stream<xpu>();
-    const TShape& label_shape = in_data[svm_enum::kLabel].shape_;
+    const mxnet::TShape& label_shape = in_data[svm_enum::kLabel].shape_;
 
     Tensor<xpu, 1, DType> label = in_data[svm_enum::kLabel].get_with_shape<xpu, 1, DType>(
         Shape1(label_shape.ProdShape(0, label_shape.ndim())), s);
@@ -118,15 +137,15 @@ class SVMOutputProp : public OperatorProperty {
     return param_.__DICT__();
   }
 
-  bool InferShape(std::vector<TShape> *in_shape,
-                  std::vector<TShape> *out_shape,
-                  std::vector<TShape> *aux_shape) const override {
+  bool InferShape(mxnet::ShapeVector *in_shape,
+                  mxnet::ShapeVector *out_shape,
+                  mxnet::ShapeVector *aux_shape) const override {
     using namespace mshadow;
     CHECK_EQ(in_shape->size(), 2U) << "Input:[data, label]";
-    const TShape &dshape = in_shape->at(0);
-    if (dshape.ndim() == 0) return false;
-    TShape label_shape(dshape.ndim() - 1);
-    for (index_t i = 0; i + 1 < dshape.ndim(); ++i)
+    const mxnet::TShape &dshape = in_shape->at(0);
+    if (!mxnet::ndim_is_known(dshape)) return false;
+    mxnet::TShape label_shape(dshape.ndim() - 1, -1);
+    for (int i = 0; i + 1 < dshape.ndim(); ++i)
       label_shape[i] = dshape[i];
     SHAPE_ASSIGN_CHECK(*in_shape, svm_enum::kLabel, label_shape);
     out_shape->clear();
@@ -140,13 +159,11 @@ class SVMOutputProp : public OperatorProperty {
     CHECK_GE(in_type->size(), 1U);
     int dtype = (*in_type)[0];
     CHECK_NE(dtype, -1) << "First input must have specified type";
-    for (index_t i = 0; i < in_type->size(); ++i) {
+    for (size_t i = 0; i < in_type->size(); ++i) {
       if ((*in_type)[i] == -1) {
         (*in_type)[i] = dtype;
       } else {
-        CHECK_EQ((*in_type)[i], dtype) << "This layer requires uniform type. "
-                                       << "Expected " << dtype << " v.s. given "
-                                       << (*in_type)[i] << " at " << ListArguments()[i];
+        UNIFORM_TYPE_CHECK((*in_type)[i], dtype, ListArguments()[i]);
       }
     }
     out_type->clear();
@@ -186,7 +203,7 @@ class SVMOutputProp : public OperatorProperty {
   }
 
   std::vector<ResourceRequest> BackwardResource(
-      const std::vector<TShape> &in_shape) const override {
+      const mxnet::ShapeVector &in_shape) const override {
     return {ResourceRequest::kTempSpace};
   }
 
@@ -195,7 +212,7 @@ class SVMOutputProp : public OperatorProperty {
     return NULL;
   }
 
-  Operator* CreateOperatorEx(Context ctx, std::vector<TShape> *in_shape,
+  Operator* CreateOperatorEx(Context ctx, mxnet::ShapeVector *in_shape,
                              std::vector<int> *in_type) const override;
 
  protected:

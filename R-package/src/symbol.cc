@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2015 by Contributors
  * \file symbol.cc
@@ -134,6 +153,12 @@ Symbol::RObjectType Symbol::GetInternals() const {
   return Symbol::RObject(out);
 }
 
+Symbol::RObjectType Symbol::GetChildren() const {
+  SymbolHandle out;
+  MX_CALL(MXSymbolGetChildren(handle_, &out));
+  return Symbol::RObject(out);
+}
+
 Symbol::RObjectType Symbol::GetOutput(mx_uint index) const {
   SymbolHandle out;
   MX_CALL(MXSymbolGetOutput(handle_, index - 1, &out));
@@ -142,8 +167,8 @@ Symbol::RObjectType Symbol::GetOutput(mx_uint index) const {
 
 // helper function to convert shape into Rcpp vector
 inline Rcpp::List BuildShapeData(mx_uint shape_size,
-                                 const mx_uint *shape_ndim,
-                                 const mx_uint **shape_data,
+                                 const int *shape_ndim,
+                                 const int **shape_data,
                                  const std::vector<std::string> &names) {
   Rcpp::List ret(shape_size);
   for (mx_uint i = 0; i < shape_size; ++i) {
@@ -160,7 +185,7 @@ SEXP Symbol::InferShape(const Rcpp::List& kwargs) const {
       << "Need to pass parameters in key=value style.\n";
   std::vector<std::string> keys = kwargs.names();
   std::vector<mx_uint> arg_ind_ptr(1, 0);
-  std::vector<mx_uint> arg_shape_data;
+  std::vector<int> arg_shape_data;
 
   for (size_t i = 0; i < kwargs.size(); ++i) {
     RCHECK(keys[i].length() != 0)
@@ -172,17 +197,17 @@ SEXP Symbol::InferShape(const Rcpp::List& kwargs) const {
   std::vector<const char*> c_keys = CKeys(keys);
 
   mx_uint in_shape_size;
-  const mx_uint *in_shape_ndim;
-  const mx_uint **in_shape_data;
+  const int *in_shape_ndim;
+  const int **in_shape_data;
   mx_uint out_shape_size;
-  const mx_uint *out_shape_ndim;
-  const mx_uint **out_shape_data;
+  const int *out_shape_ndim;
+  const int **out_shape_data;
   mx_uint aux_shape_size;
-  const mx_uint *aux_shape_ndim;
-  const mx_uint **aux_shape_data;
+  const int *aux_shape_ndim;
+  const int **aux_shape_data;
   int complete;
 
-  MX_CALL(MXSymbolInferShape(
+  MX_CALL(MXSymbolInferShapeEx(
       handle_, static_cast<mx_uint>(kwargs.size()), dmlc::BeginPtr(c_keys),
       dmlc::BeginPtr(arg_ind_ptr), dmlc::BeginPtr(arg_shape_data),
       &in_shape_size, &in_shape_ndim, &in_shape_data,
@@ -344,6 +369,8 @@ void Symbol::InitRcppModule() {
               "List the auxiliary state names of the symbol")
       .method("get.internals", &Symbol::GetInternals,
               "Get a symbol that contains all the internals")
+      .method("get.children", &Symbol::GetChildren,
+              "Get a symbol that contains all the children")
       .method("get.output", &Symbol::GetOutput,
               "Get index-th output symbol of current one")
       .method("[[", &Symbol::GetOutput,

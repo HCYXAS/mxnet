@@ -1,9 +1,28 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
 import argparse
-import tools.find_mxnet
 import mxnet as mx
 import os
-import sys
 from train.train_net import train_net
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Train a Single-shot detection network')
@@ -15,8 +34,8 @@ def parse_args():
                         default=os.path.join(os.getcwd(), 'data', 'val.rec'), type=str)
     parser.add_argument('--val-list', dest='val_list', help='validation list to use',
                         default="", type=str)
-    parser.add_argument('--network', dest='network', type=str, default='vgg16_ssd_300',
-                        choices=['vgg16_ssd_300', 'vgg16_ssd_512'], help='which network to use')
+    parser.add_argument('--network', dest='network', type=str, default='vgg16_reduced',
+                        help='which network to use')
     parser.add_argument('--batch-size', dest='batch_size', type=int, default=32,
                         help='training batch size')
     parser.add_argument('--resume', dest='resume', type=int, default=-1,
@@ -41,7 +60,7 @@ def parse_args():
                         help='set image shape')
     parser.add_argument('--label-width', dest='label_width', type=int, default=350,
                         help='force padding label width to sync across train and validation')
-    parser.add_argument('--lr', dest='learning_rate', type=float, default=0.004,
+    parser.add_argument('--lr', dest='learning_rate', type=float, default=0.002,
                         help='learning rate')
     parser.add_argument('--momentum', dest='momentum', type=float, default=0.9,
                         help='momentum')
@@ -53,9 +72,9 @@ def parse_args():
                         help='green mean value')
     parser.add_argument('--mean-b', dest='mean_b', type=float, default=104,
                         help='blue mean value')
-    parser.add_argument('--lr-steps', dest='lr_refactor_step', type=str, default='150, 200',
+    parser.add_argument('--lr-steps', dest='lr_refactor_step', type=str, default='80, 160',
                         help='refactor learning rate at specified epochs')
-    parser.add_argument('--lr-factor', dest='lr_refactor_ratio', type=str, default=0.1,
+    parser.add_argument('--lr-factor', dest='lr_refactor_ratio', type=float, default=0.1,
                         help='ratio to refactor learning rate')
     parser.add_argument('--freeze', dest='freeze_pattern', type=str, default="^(conv1_|conv2_).*",
                         help='freeze layer pattern')
@@ -78,12 +97,14 @@ def parse_args():
                         help='non-maximum suppression threshold')
     parser.add_argument('--overlap', dest='overlap_thresh', type=float, default=0.5,
                         help='evaluation overlap threshold')
-    parser.add_argument('--force', dest='force_nms', type=bool, default=False,
+    parser.add_argument('--force', dest='force_nms', action='store_true',
                         help='force non-maximum suppression on different class')
-    parser.add_argument('--use-difficult', dest='use_difficult', type=bool, default=False,
+    parser.add_argument('--use-difficult', dest='use_difficult', action='store_true',
                         help='use difficult ground-truths in evaluation')
-    parser.add_argument('--voc07', dest='use_voc07_metric', type=bool, default=True,
-                        help='use PASCAL VOC 07 11-point metric')
+    parser.add_argument('--no-voc07', dest='use_voc07_metric', action='store_false',
+                        help='dont use PASCAL VOC 07 11-point metric')
+    parser.add_argument('--kv-store', type=str, default='local',
+                        help='key-value store type')
     args = parser.parse_args()
     return args
 
@@ -92,9 +113,9 @@ def parse_class_names(args):
     num_class = args.num_class
     if len(args.class_names) > 0:
         if os.path.isfile(args.class_names):
-                # try to open it to read class names
-                with open(args.class_names, 'r') as f:
-                    class_names = [l.strip() for l in f.readlines()]
+            # try to open it to read class names
+            with open(args.class_names, 'r') as f:
+                class_names = [l.strip() for l in f.readlines()]
         else:
             class_names = [c.strip() for c in args.class_names.split(',')]
         assert len(class_names) == num_class, str(len(class_names))
@@ -131,4 +152,5 @@ if __name__ == '__main__':
               force_nms=args.force_nms,
               ovp_thresh=args.overlap_thresh,
               use_difficult=args.use_difficult,
-              voc07_metric=args.use_voc07_metric)
+              voc07_metric=args.use_voc07_metric,
+              kv_store=args.kv_store)

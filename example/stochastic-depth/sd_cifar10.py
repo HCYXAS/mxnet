@@ -1,3 +1,20 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
 ###########################################################################################
 # Implementation of the stochastic depth algorithm described in the paper
 #
@@ -60,9 +77,6 @@ import os
 import sys
 import mxnet as mx
 import logging
-
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from utils import get_data
 
 import sd_module
 
@@ -182,13 +196,31 @@ lr_scheduler = mx.lr_scheduler.FactorScheduler(step=max(int(epoch_size * lr_fact
 batch_end_callbacks = [mx.callback.Speedometer(batch_size, 50)]
 epoch_end_callbacks = [mx.callback.do_checkpoint('sd-%d' % (n_residual_blocks * 6 + 2))]
 
-
-args = type('', (), {})()
-args.batch_size = batch_size
-args.data_dir = os.path.join(os.path.dirname(__file__), "data")
+data_dir = os.path.join(os.path.dirname(__file__), "data", "cifar")
 kv = mx.kvstore.create(kv_store)
 
-train, val = get_data.get_cifar10_iterator(args, kv)
+mx.test_utils.get_cifar10()
+
+data_shape = (3, 28, 28)
+train = mx.io.ImageRecordIter(
+    path_imgrec = os.path.join(data_dir, "train.rec"),
+    mean_img    = os.path.join(data_dir, "mean.bin"),
+    data_shape  = data_shape,
+    batch_size  = batch_size,
+    rand_crop   = True,
+    rand_mirror = True,
+    num_parts   = kv.num_workers,
+    part_index  = kv.rank)
+
+val = mx.io.ImageRecordIter(
+    path_imgrec = os.path.join(data_dir, "test.rec"),
+    mean_img    = os.path.join(data_dir, "mean.bin"),
+    rand_crop   = False,
+    rand_mirror = False,
+    data_shape  = data_shape,
+    batch_size  = batch_size,
+    num_parts   = kv.num_workers,
+    part_index  = kv.rank)
 
 logging.basicConfig(level=logging.DEBUG)
 mod_seq.fit(train, val,
@@ -197,4 +229,3 @@ mod_seq.fit(train, val,
             num_epoch=num_epochs, batch_end_callback=batch_end_callbacks,
             epoch_end_callback=epoch_end_callbacks,
             initializer=initializer)
-

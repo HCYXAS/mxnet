@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2015 by Contributors
  * \file operator_util.cc
@@ -373,12 +392,12 @@ class SimpleOpPropBase : public OperatorProperty {
   }
 
   std::vector<ResourceRequest> ForwardResource(
-      const std::vector<TShape> &in_shape) const override {
+      const mxnet::ShapeVector &in_shape) const override {
     return source->resource_requests_;
   }
 
   std::vector<ResourceRequest> BackwardResource(
-      const std::vector<TShape> &in_shape) const override {
+      const mxnet::ShapeVector &in_shape) const override {
     return source->resource_requests_;
   }
 
@@ -388,13 +407,13 @@ class SimpleOpPropBase : public OperatorProperty {
     CHECK_LE(in_type->size(), this->ListArguments().size());
     int dtype = -1;
     // reduce dtype to a common one.
-    for (unsigned i = 0; i < in_type->size(); ++i) {
+    for (int i : *in_type) {
       if (dtype == -1) {
-        dtype = in_type->at(i);
+        dtype = i;
       } else {
-        CHECK(in_type->at(i) == -1 ||
-              in_type->at(i) == dtype) <<
-          "Non-uniform input data type. Expected " << dtype << "got " << in_type->at(i);
+        CHECK(i == -1 ||
+            i == dtype) <<
+          "Non-uniform input data type. Expected " << dtype << "got " << i;
       }
     }
 
@@ -449,7 +468,7 @@ void SimpleOpRegEntryImpl::RegisterSourceImperative() {
     }
     // shape inference.
     CHECK(source_shape_ != nullptr);
-    TShape dshape = source_shape_(env);
+    mxnet::TShape dshape = source_shape_(env);
     // check output shape.
     CHECK(!out->is_none());
     CHECK(out->shape() == dshape) << "target shape mismatch "
@@ -481,13 +500,13 @@ void SimpleOpRegEntryImpl::RegisterSourceImperative() {
     Engine::Get()->PushSync([ret, fun, dev_mask, req, env](RunContext ctx) {
         TBlob tmp = ret.data();
         (*fun)(env, &tmp, req, ctx);
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
         if (dev_mask == gpu::kDevMask) {
           ctx.get_stream<gpu>()->Wait();
         }
 #endif
       }, ret.ctx(), {}, write_vars,
-      FnProperty::kNormal, 0, PROFILER_MESSAGE("RegisterSourceImperative"));
+      FnProperty::kNormal, 0, "RegisterSourceImperative");
   };
   // register the function.
   NDArrayReg()
@@ -532,9 +551,9 @@ struct SimpleSourceOperator : public Operator {
 
 class SimpleSourceOpProp : public SimpleOpPropBase {
  public:
-  bool InferShape(std::vector<TShape> *in_shape,
-                  std::vector<TShape> *out_shape,
-                  std::vector<TShape> *aux_shape) const override {
+  bool InferShape(mxnet::ShapeVector *in_shape,
+                  mxnet::ShapeVector *out_shape,
+                  mxnet::ShapeVector *aux_shape) const override {
     CHECK_EQ(in_shape->size(), 0)
         << in_shape->size();
     CHECK(source->source_shape_ != nullptr);
@@ -612,7 +631,7 @@ void SimpleOpRegEntryImpl::RegisterUnaryImperative() {
         << "operator " << this->name << " do not take keyword arguments";
     }
     // shape inference.
-    TShape dshape;
+    mxnet::TShape dshape;
     if (unary_shape_ != nullptr) {
       dshape = unary_shape_(src.shape(), env);
     } else {
@@ -665,13 +684,13 @@ void SimpleOpRegEntryImpl::RegisterUnaryImperative() {
     Engine::Get()->PushSync([src, ret, fun, dev_mask, req, env](RunContext ctx) {
         TBlob tmp = ret.data();
         (*fun)(src.data(), env, &tmp, req, ctx);
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
         if (dev_mask == gpu::kDevMask) {
           ctx.get_stream<gpu>()->Wait();
         }
 #endif
       }, src.ctx(), const_vars, write_vars,
-      FnProperty::kNormal, 0, PROFILER_MESSAGE("RegisterUnaryImperative"));
+      FnProperty::kNormal, 0, "RegisterUnaryImperative");
   };
   // register the function.
   NDArrayReg()
@@ -749,13 +768,13 @@ struct SimpleUnaryOperator : public Operator {
 
 class SimpleUnaryOpProp : public SimpleOpPropBase {
  public:
-  bool InferShape(std::vector<TShape> *in_shape,
-                  std::vector<TShape> *out_shape,
-                  std::vector<TShape> *aux_shape) const override {
+  bool InferShape(mxnet::ShapeVector *in_shape,
+                  mxnet::ShapeVector *out_shape,
+                  mxnet::ShapeVector *aux_shape) const override {
     using namespace mshadow;
     CHECK_EQ(in_shape->size(), 1) << "Input:[data]";
-    const TShape &dshape = in_shape->at(0);
-    if (dshape.ndim() == 0) return false;
+    const mxnet::TShape &dshape = in_shape->at(0);
+    if (!shape_is_known(dshape)) return false;
     out_shape->clear();
     if (source->unary_shape_ == nullptr) {
       out_shape->push_back(dshape);
@@ -873,7 +892,7 @@ void SimpleOpRegEntryImpl::RegisterBinaryImperative() {
     }
 
     // shape inference.
-    TShape dshape;
+    mxnet::TShape dshape;
     if (binary_shape_ != nullptr) {
       dshape = binary_shape_(lhs.shape(), rhs.shape(), env);
     } else {
@@ -939,13 +958,13 @@ void SimpleOpRegEntryImpl::RegisterBinaryImperative() {
     Engine::Get()->PushSync([lhs, rhs, ret, fun, dev_mask, req, env](RunContext ctx) {
         TBlob tmp = ret.data();
         (*fun)(lhs.data(), rhs.data(), env, &tmp, req, ctx);
-        #if MXNET_USE_CUDA
+        #if MXNET_USE_GPU
         if (dev_mask == gpu::kDevMask) {
           ctx.get_stream<gpu>()->Wait();
         }
         #endif
       }, lhs.ctx(), const_vars, write_vars,
-      FnProperty::kNormal, 0, PROFILER_MESSAGE("RegisterBinaryImperative"));
+      FnProperty::kNormal, 0, "RegisterBinaryImperative");
   };
   // register the function.
   NDArrayReg()
@@ -1027,13 +1046,13 @@ struct SimpleBinaryOperator : public Operator {
 
 class SimpleBinaryOpProp : public SimpleOpPropBase {
  public:
-  bool InferShape(std::vector<TShape> *in_shape,
-                  std::vector<TShape> *out_shape,
-                  std::vector<TShape> *aux_shape) const override {
+  bool InferShape(mxnet::ShapeVector *in_shape,
+                  mxnet::ShapeVector *out_shape,
+                  mxnet::ShapeVector *aux_shape) const override {
     using namespace mshadow;
     CHECK_EQ(in_shape->size(), 2) << "Input:[lhs, rhs]";
-    const TShape& lshape = in_shape->at(0);
-    const TShape& rshape = in_shape->at(1);
+    const mxnet::TShape& lshape = in_shape->at(0);
+    const mxnet::TShape& rshape = in_shape->at(1);
     out_shape->clear();
     if (source->binary_shape_ == nullptr) {
       if (in_shape->at(0).ndim() != 0) {

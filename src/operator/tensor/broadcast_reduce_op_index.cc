@@ -1,7 +1,26 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2016 by Contributors
- * \file broadcast_reduce_op.cc
- * \brief CPU Implementation of broadcast and reduce functions.
+ * \file broadcast_reduce_op_index.cc
+ * \brief CPU Implementation of broadcast and reduce functions based on index.
  */
 #include "./broadcast_reduce_op.h"
 
@@ -84,12 +103,13 @@ Examples::
     param.keepdims = false;
     attrs->parsed = param;
   })
-.set_attr<nnvm::FInferShape>("FInferShape", ReduceAxisShape)
+.set_attr<mxnet::FInferShape>("FInferShape", ReduceAxisShape)
 .set_attr<nnvm::FInferType>("FInferType", ElemwiseType<1, 1>)
 .set_attr<FCompute>("FCompute<cpu>", SearchAxisCompute<cpu, mshadow::red::maximum>)
 .add_argument("data", "NDArray-or-Symbol", "The input array");
 
 NNVM_REGISTER_OP(pick)
+.add_alias("choose_element_0index")
 .describe(R"code(Picks elements from an input array according to the input indices along the given axis.
 
 Given an input array of shape ``(d0, d1)`` and indices of shape ``(i0,)``, the result will be
@@ -118,6 +138,14 @@ Examples::
        [ 0.],
        [ 2.]]
 
+  // picks elements with specified indices along axis 1 using 'wrap' mode
+  // to place indicies that would normally be out of bounds
+  pick(x, y=[2,-1,-2], 1, mode='wrap') = [ 1.,  4.,  5.]
+
+  y = [[ 1.],
+       [ 0.],
+       [ 2.]]
+
   // picks elements with specified indices along axis 1 and dims are maintained
   pick(x,y, 1, keepdims=True) = [[ 2.],
                                  [ 3.],
@@ -131,21 +159,21 @@ Examples::
   [](const NodeAttrs& attrs) {
     return std::vector<std::string>{"data", "index"};
   })
-.set_attr<nnvm::FInferShape>("FInferShape", PickOpShape)
+.set_attr<mxnet::FInferShape>("FInferShape", PickOpShape)
 .set_attr<nnvm::FInferType>("FInferType", PickOpType)
 .set_attr<FCompute>("FCompute<cpu>", PickOpForward<cpu>)
 .set_attr<nnvm::FGradient>("FGradient",
   [](const nnvm::NodePtr& n, const std::vector<nnvm::NodeEntry>& ograds) {
-    auto ret = MakeNonlossGradNode("_backward_pick", n, ograds,
-                                   {n->inputs[1]}, n->attrs.dict);
-    auto p = MakeNode("zeros_like", n->attrs.name + "_index_backward",
-                      {n->inputs[1]}, nullptr, &n);
-    ret.emplace_back(nnvm::NodeEntry{p, 0, 0});
+    if (CheckGradAllZero(ograds)) return MakeZeroGradNodes(n, ograds);
+    auto ret = MakeGradNode("_backward_pick", n, {ograds[0], n->inputs[1]},
+                            n->attrs.dict);
+    ret.emplace_back(MakeNode("zeros_like", n->attrs.name + "_index_backward",
+                     {n->inputs[1]}, nullptr, &n));
     return ret;
   })
 .add_argument("data", "NDArray-or-Symbol", "The input array")
 .add_argument("index", "NDArray-or-Symbol", "The index array")
-.add_arguments(ReduceAxisParam::__FIELDS__());
+.add_arguments(PickParam::__FIELDS__());
 
 
 NNVM_REGISTER_OP(_backward_pick)

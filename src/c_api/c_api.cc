@@ -1,20 +1,27 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  *  Copyright (c) 2015 by Contributors
  * \file c_api.cc
  * \brief C API of mxnet
  */
-#include <dmlc/base.h>
-#include <dmlc/logging.h>
-#include <dmlc/io.h>
-#include <dmlc/memory_io.h>
-#include <dmlc/recordio.h>
-#include <mxnet/base.h>
-#include <mxnet/ndarray.h>
-#include <mxnet/operator.h>
-#include <mxnet/io.h>
-#include <mxnet/c_api.h>
-#include <mxnet/kvstore.h>
-#include <mxnet/mxrtc.h>
 #include <vector>
 #include <sstream>
 #include <string>
@@ -22,9 +29,26 @@
 #include <memory>
 #include <functional>
 #include <utility>
+#include "dmlc/base.h"
+#include "dmlc/logging.h"
+#include "dmlc/io.h"
+#include "dmlc/memory_io.h"
+#include "dmlc/recordio.h"
+#include "dmlc/omp.h"
+#include "mxnet/base.h"
+#include "mxnet/ndarray.h"
+#include "mxnet/operator.h"
+#include "mxnet/io.h"
+#include "mxnet/c_api.h"
+#include "mxnet/kvstore.h"
+#include "mxnet/rtc.h"
+#include "mxnet/storage.h"
+#include "mxnet/libinfo.h"
+#include "mxnet/imperative.h"
 #include "./c_api_common.h"
 #include "../operator/custom/custom-inl.h"
-#include "../engine/profiler.h"
+#include "../operator/tensor/matrix_op-inl.h"
+#include "../common/utils.h"
 
 using namespace mxnet;
 
@@ -64,50 +88,74 @@ inline int MXAPIGetFunctionRegInfo(const FunRegType *e,
 }
 
 // NOTE: return value is added in API_END
+
+int MXLibInfoFeatures(const struct LibFeature **lib_features, size_t *size) {
+  using namespace features;
+  API_BEGIN();
+  LibInfo* lib_info = LibInfo::getInstance();
+  *lib_features = lib_info->getFeatures().data();
+  *size = lib_info->getFeatures().size();
+  API_END();
+}
+
 int MXRandomSeed(int seed) {
   API_BEGIN();
   mxnet::RandomSeed(seed);
   API_END();
 }
 
+int MXRandomSeedContext(int seed, int dev_type, int dev_id) {
+  API_BEGIN();
+  Context ctx = Context::Create(static_cast<Context::DeviceType>(dev_type), dev_id);
+  mxnet::RandomSeed(ctx, seed);
+  API_END();
+}
+
 int MXNotifyShutdown() {
   API_BEGIN();
+  mxnet::op::custom::CustomOperator::Get()->Stop();
   Engine::Get()->NotifyShutdown();
   API_END();
 }
 
-int MXSetProfilerConfig(int mode, const char* filename) {
-  // mode, kOnlySymbolic: 0, kAllOperator: 1
+int MXSetNumOMPThreads(int thread_num) {
   API_BEGIN();
-#if MXNET_USE_PROFILER
-  engine::Profiler::Get()->SetConfig(engine::Profiler::ProfilerMode(mode), std::string(filename));
-#else
-  LOG(FATAL) << "Need to compile with USE_PROFILER=1 for MXNet Profiler";
-#endif
+  omp_set_num_threads(thread_num);
   API_END();
 }
 
-int MXDumpProfile() {
+int MXEngineSetBulkSize(int bulk_size, int* prev_bulk_size) {
   API_BEGIN();
-#if MXNET_USE_PROFILER
-  engine::Profiler *profiler = engine::Profiler::Get();
-  CHECK(profiler->IsEnableOutput())
-    << "Profiler haven't been run. Config and start profiler first";
-  engine::Profiler::Get()->DumpProfile();
-#else
-  LOG(FATAL) << "Need to compile with USE_PROFILER=1 for MXNet Profiler";
-#endif
-  API_END()
+  *prev_bulk_size = Engine::Get()->set_bulk_size(bulk_size);
+  API_END();
 }
 
-int MXSetProfilerState(int state) {
-  // state, kNotRunning: 0, kRunning: 1
+int MXGetGPUCount(int* out) {
   API_BEGIN();
-#if MXNET_USE_PROFILER
-  engine::Profiler::Get()->SetState(engine::Profiler::ProfilerState(state));
-#else
-  LOG(FATAL) << "Need to compile with USE_PROFILER=1 for MXNet Profiler";
-#endif
+  *out = Context::GetGPUCount();
+  API_END();
+}
+
+// Deprecated: use MXGetGPUMemoryInformation64() instead.
+int MXGetGPUMemoryInformation(int dev, int *free_mem, int *total_mem) {
+  API_BEGIN();
+  uint64_t free_mem64 = 0UL;
+  uint64_t total_mem64 = 0UL;
+  Context::GetGPUMemoryInformation(dev, &free_mem64, &total_mem64);
+  *free_mem = static_cast<int>(free_mem64);
+  *total_mem = static_cast<int>(total_mem64);
+  API_END();
+}
+
+int MXGetGPUMemoryInformation64(int dev, uint64_t *free_mem, uint64_t *total_mem) {
+  API_BEGIN();
+  Context::GetGPUMemoryInformation(dev, free_mem, total_mem);
+  API_END();
+}
+
+int MXGetVersion(int *out) {
+  API_BEGIN();
+  *out = static_cast<int>(MXNET_VERSION);
   API_END();
 }
 
@@ -125,7 +173,7 @@ int MXNDArrayCreate(const mx_uint *shape,
                     NDArrayHandle *out) {
   API_BEGIN();
   *out = new NDArray(
-      TShape(shape, shape + ndim),
+      mxnet::TShape(shape, shape + ndim),
       Context::Create(static_cast<Context::DeviceType>(dev_type), dev_id),
       delay_alloc != 0);
   API_END();
@@ -140,12 +188,45 @@ int MXNDArrayCreateEx(const mx_uint *shape,
                     NDArrayHandle *out) {
   API_BEGIN();
   *out = new NDArray(
-      TShape(shape, shape + ndim),
+      mxnet::TShape(shape, shape + ndim),
       Context::Create(static_cast<Context::DeviceType>(dev_type), dev_id),
       delay_alloc != 0,
       dtype);
   API_END();
 }
+
+int MXNDArrayCreateSparseEx(int storage_type,
+                    const mx_uint *shape,
+                    mx_uint ndim,
+                    int dev_type,
+                    int dev_id,
+                    int delay_alloc,
+                    int dtype,
+                    mx_uint num_aux,
+                    int *aux_type,
+                    mx_uint *aux_ndims,
+                    const mx_uint *aux_shape,
+                    NDArrayHandle *out) {
+  API_BEGIN();
+  std::vector<int> aux_types;
+  mxnet::ShapeVector aux_shapes;
+  auto shape_start = aux_shape;
+  for (size_t i = 0; i < num_aux; i++) {
+    // types
+    aux_types.push_back(aux_type[i]);
+    // shapes
+    aux_shapes.emplace_back(shape_start, shape_start + aux_ndims[i]);
+    shape_start += aux_ndims[i];
+  }
+  *out = new NDArray(
+      NDArrayStorageType(storage_type),
+      mxnet::TShape(shape, shape + ndim),
+      Context::Create(static_cast<Context::DeviceType>(dev_type), dev_id),
+      delay_alloc != 0,
+      dtype, aux_types, aux_shapes);
+  API_END();
+}
+
 
 int MXNDArrayLoadFromRawBytes(const void *buf,
                               size_t size,
@@ -187,6 +268,30 @@ int MXNDArraySyncCopyToCPU(NDArrayHandle handle,
                            size_t size) {
   API_BEGIN();
   static_cast<NDArray*>(handle)->SyncCopyToCPU(data, size);
+  API_END();
+}
+
+/*!
+ * \brief Copy src.data() to dst.data() if i = -1, else dst.aux_data(i) if i >= 0
+ * This function blocks. Do not use it in performance critical code.
+ * \param handle_dst handle of a dst ndarray whose data/aux_data has been allocated
+ * \param handle_src handle of a src ndarray which has default storage type
+ * \param i dst data blob indicator
+ */
+int MXNDArraySyncCopyFromNDArray(NDArrayHandle handle_dst,
+                                 const NDArrayHandle handle_src,
+                                 const int i) {
+  API_BEGIN();
+  NDArray* dst = static_cast<NDArray*>(handle_dst);
+  NDArray* src = static_cast<NDArray*>(handle_src);
+  dst->SyncCopyFromNDArray(*src, -1, i);
+  API_END();
+}
+
+int MXNDArraySyncCheckFormat(NDArrayHandle handle, const bool full_check) {
+  API_BEGIN();
+  NDArray *arr = static_cast<NDArray*>(handle);
+  arr->SyncCheckFormat(full_check);
   API_END();
 }
 
@@ -262,6 +367,40 @@ int MXNDArrayLoad(const char* fname,
   API_END();
 }
 
+int MXNDArrayLoadFromBuffer(const void *ndarray_buffer,
+                            size_t size,
+                            mx_uint *out_size,
+                            NDArrayHandle** out_arr,
+                            mx_uint *out_name_size,
+                            const char*** out_names) {
+  MXAPIThreadLocalEntry *ret = MXAPIThreadLocalStore::Get();
+  ret->ret_vec_str.clear();
+  API_BEGIN();
+  CHECK_NOTNULL(ndarray_buffer);
+  std::vector<NDArray> data;
+  std::vector<std::string> &names = ret->ret_vec_str;
+  {
+    std::unique_ptr<dmlc::MemoryFixedSizeStream> fi(new dmlc::MemoryFixedSizeStream(
+        const_cast<void*>(ndarray_buffer), size));
+    mxnet::NDArray::Load(fi.get(), &data, &names);
+  }
+  ret->ret_handles.resize(data.size());
+  for (size_t i = 0; i < data.size(); ++i) {
+    NDArray *ptr = new NDArray();
+    *ptr = data[i];
+    ret->ret_handles[i] = ptr;
+  }
+  ret->ret_vec_charp.resize(names.size());
+  for (size_t i = 0; i < names.size(); ++i) {
+    ret->ret_vec_charp[i] = names[i].c_str();
+  }
+  *out_size = static_cast<mx_uint>(data.size());
+  *out_arr = dmlc::BeginPtr(ret->ret_handles);
+  *out_name_size = static_cast<mx_uint>(names.size());
+  *out_names = dmlc::BeginPtr(ret->ret_vec_charp);
+  API_END();
+}
+
 int MXNDArrayFree(NDArrayHandle handle) {
   API_BEGIN();
   delete static_cast<NDArray*>(handle);
@@ -274,7 +413,7 @@ int MXNDArraySlice(NDArrayHandle handle,
                    NDArrayHandle *out) {
   NDArray *ptr = new NDArray();
   API_BEGIN();
-  *ptr = static_cast<NDArray*>(handle)->Slice(
+  *ptr = static_cast<NDArray*>(handle)->SliceWithRecord(
       slice_begin, slice_end);
   *out = ptr;
   API_END_HANDLE_ERROR(delete ptr);
@@ -285,7 +424,7 @@ int MXNDArrayAt(NDArrayHandle handle,
                 NDArrayHandle *out) {
   NDArray *ptr = new NDArray();
   API_BEGIN();
-  *ptr = static_cast<NDArray*>(handle)->At(idx);
+  *ptr = static_cast<NDArray*>(handle)->AtWithRecord(idx);
   *out = ptr;
   API_END_HANDLE_ERROR(delete ptr);
 }
@@ -296,23 +435,108 @@ MXNET_DLL int MXNDArrayReshape(NDArrayHandle handle,
                                NDArrayHandle *out) {
   NDArray *ptr = new NDArray();
   API_BEGIN();
-  TShape new_shape(dims, dims+ndim);
-  *ptr = static_cast<NDArray*>(handle)->Reshape(new_shape);
+  NDArray *arr = static_cast<NDArray*>(handle);
+  mxnet::TShape new_shape(dims, dims+ndim);
+  int size = 1;
+  int pos = -1;
+  for (int i = 0; i < ndim; ++i) {
+    int dim = dims[i];
+    if (dim == -1) {
+      CHECK_EQ(pos, -1)
+        << "Invalid new shape " << new_shape
+        << ": more than one dimensions are -1";
+      pos = i;
+    } else {
+      if (dim == 0) {
+        CHECK_LT(i, arr->shape().ndim())
+          << "Invalid new shape " << new_shape
+          << ": 0 dimension exceeds original shape " << arr->shape();
+        dim = arr->shape()[i];
+      }
+      size *= dim;
+      new_shape[i] = dim;
+    }
+  }
+  if (pos >= 0) {
+    new_shape[pos] = arr->shape().Size() / size;
+  }
+  *ptr = arr->ReshapeWithRecord(new_shape);
   *out = ptr;
   API_END_HANDLE_ERROR(delete ptr);
+}
+
+MXNET_DLL int MXNDArrayReshape64(NDArrayHandle handle,
+                                 int ndim,
+                                 dim_t *dims,
+                                 bool reverse,
+                                 NDArrayHandle *out) {
+  NDArray *ptr = new NDArray();
+  API_BEGIN();
+  NDArray *arr = static_cast<NDArray*>(handle);
+  mxnet::Tuple<dim_t> shape(dims, dims+ndim);
+  CHECK_GT(arr->shape().Size(), 0) << "Source ndarray's shape is undefined. Input shape: "
+    << arr->shape();
+  mxnet::TShape new_shape = mxnet::op::InferReshapeShape(shape, arr->shape(), reverse);
+  *ptr = arr->ReshapeWithRecord(new_shape);
+  *out = ptr;
+  API_END_HANDLE_ERROR(delete ptr);
+}
+
+int MXNDArrayGetStorageType(NDArrayHandle handle,
+                     int *out_storage_type) {
+  API_BEGIN();
+  NDArray *arr = static_cast<NDArray*>(handle);
+  if (!arr->is_none()) {
+    *out_storage_type = arr->storage_type();
+  } else {
+    *out_storage_type = kUndefinedStorage;
+  }
+  API_END();
 }
 
 int MXNDArrayGetShape(NDArrayHandle handle,
                       mx_uint *out_dim,
                       const mx_uint **out_pdata) {
+  MXAPIThreadLocalEntry *ret = MXAPIThreadLocalStore::Get();
   API_BEGIN();
   NDArray *arr = static_cast<NDArray*>(handle);
   if (!arr->is_none()) {
-    const TShape &s = arr->shape();
+    const mxnet::TShape &s = arr->shape();
     *out_dim = s.ndim();
-    *out_pdata = s.data();
+    std::vector<uint32_t>& buffer = ret->arg_shape_buffer;
+    buffer.resize(s.ndim());
+    nnvm::ShapeTypeCast(s.begin(), s.end(), buffer.data());
+    *out_pdata = buffer.data();
   } else {
     *out_dim = 0;
+  }
+  API_END();
+}
+
+int MXNDArrayGetShapeEx(NDArrayHandle handle,
+                        int *out_dim,
+                        const int **out_pdata) {
+  MXAPIThreadLocalEntry *ret = MXAPIThreadLocalStore::Get();
+  API_BEGIN();
+  NDArray *arr = static_cast<NDArray*>(handle);
+  if (!arr->is_none()) {
+    mxnet::TShape s = arr->shape();
+    if (!Imperative::Get()->is_np_shape()) {
+      common::ConvertToLegacyShape(&s);
+    }
+    *out_dim = s.ndim();
+    if (s.ndim() >= 0) {
+      std::vector<int> &buffer = ret->arg_shape_buffer_ex;
+      buffer.resize(s.ndim());
+      mxnet::ShapeTypeCast(s.begin(), s.end(), buffer.data());
+      *out_pdata = buffer.data();
+    }
+  } else {
+    if (Imperative::Get()->is_np_shape()) {
+      *out_dim = -1;
+    } else {
+      *out_dim = 0;
+    }
   }
   API_END();
 }
@@ -322,15 +546,41 @@ int MXNDArrayGetData(NDArrayHandle handle,
   API_BEGIN();
   NDArray *arr = static_cast<NDArray*>(handle);
   if (!arr->is_none()) {
-    CHECK(arr->ctx().dev_mask() == cpu::kDevMask)
-        << "MXNDArrayGetData can only be called for NDArray on CPU";
-    const TBlob &b = arr->data();
-    CHECK(b.CheckContiguous());
-    MSHADOW_REAL_TYPE_SWITCH(arr->dtype(), DType, {
-      *out_pdata = b.FlatTo2D<cpu, DType>().dptr_;
-    });
+    *out_pdata = arr->data().dptr_;
   } else {
     *out_pdata = nullptr;
+  }
+  API_END();
+}
+
+int MXNDArrayToDLPack(NDArrayHandle handle,
+                      DLManagedTensorHandle *out_dlpack) {
+  API_BEGIN();
+  NDArray *arr = static_cast<NDArray*>(handle);
+  *out_dlpack = arr->ToDLPack();
+  API_END();
+}
+
+int MXNDArrayFromDLPack(DLManagedTensorHandle dlpack,
+                        NDArrayHandle *out_handle) {
+  return MXNDArrayFromDLPackEx(dlpack, false, out_handle);
+}
+
+int MXNDArrayFromDLPackEx(DLManagedTensorHandle dlpack,
+                          const bool transient_handle,
+                          NDArrayHandle *out_handle) {
+  API_BEGIN();
+  *out_handle = new NDArray(NDArray::FromDLPack(
+              static_cast<DLManagedTensor*>(dlpack),
+              transient_handle));
+  API_END();
+}
+
+int MXNDArrayCallDLPackDeleter(DLManagedTensorHandle dlpack) {
+  API_BEGIN();
+  if (dlpack != nullptr) {
+    DLManagedTensor *p_dlpack = static_cast<DLManagedTensor*>(dlpack);
+    p_dlpack->deleter(p_dlpack);
   }
   API_END();
 }
@@ -347,6 +597,42 @@ int MXNDArrayGetDType(NDArrayHandle handle,
   API_END();
 }
 
+int MXNDArrayGetAuxType(NDArrayHandle handle,
+                        mx_uint i,
+                        int *out_type) {
+  API_BEGIN();
+  NDArray *arr = static_cast<NDArray*>(handle);
+  *out_type = arr->aux_type(i);
+  API_END();
+}
+
+/*!
+ * \brief Get a deep copy of the ith aux data blob
+ * in the form of an NDArray of default storage type.
+ * This function blocks. Do not use it in performance critical code.
+ */
+int MXNDArrayGetAuxNDArray(NDArrayHandle handle,
+                           mx_uint i,
+                           NDArrayHandle *out) {
+  API_BEGIN();
+  NDArray *arr = static_cast<NDArray*>(handle);
+  *out = new NDArray(arr->aux_ndarray(i));
+  API_END();
+}
+
+/*!
+ * \brief Get a deep copy of the data blob
+ * in the form of an NDArray of default storage type.
+ * This function blocks. Do not use it in performance critical code.
+ */
+int MXNDArrayGetDataNDArray(NDArrayHandle handle,
+                            NDArrayHandle *out) {
+  API_BEGIN();
+  NDArray *arr = static_cast<NDArray*>(handle);
+  *out = new NDArray(arr->data_ndarray());
+  API_END();
+}
+
 int MXNDArrayGetContext(NDArrayHandle handle,
                         int *out_dev_type,
                         int *out_dev_id) {
@@ -360,6 +646,40 @@ int MXNDArrayGetContext(NDArrayHandle handle,
     *out_dev_type = 0;
     *out_dev_id = 0;
   }
+  API_END();
+}
+
+
+int MXNDArrayGetGrad(NDArrayHandle handle, NDArrayHandle *out) {
+  API_BEGIN();
+  NDArray *arr = static_cast<NDArray*>(handle);
+  NDArray ret = arr->grad();
+  if (ret.is_none()) {
+    *out = NULL;
+  } else {
+    *out = new NDArray(ret);
+  }
+  API_END();
+}
+
+int MXNDArrayDetach(NDArrayHandle handle, NDArrayHandle *out) {
+  API_BEGIN();
+  NDArray *arr = static_cast<NDArray*>(handle);
+  *out = new NDArray(arr->Detach());
+  API_END();
+}
+
+int MXNDArraySetGradState(NDArrayHandle handle, int state) {
+  API_BEGIN();
+  NDArray *arr = static_cast<NDArray*>(handle);
+  arr->set_fresh_out_grad(static_cast<bool>(state));
+  API_END();
+}
+
+int MXNDArrayGetGradState(NDArrayHandle handle, int *out) {
+  API_BEGIN();
+  NDArray *arr = static_cast<NDArray*>(handle);
+  *out = arr->fresh_out_grad();
   API_END();
 }
 
@@ -507,8 +827,8 @@ int MXDataIterGetLabel(DataIterHandle handle, NDArrayHandle *out) {
   NDArray* pndarray = new NDArray();
   // temp hack to make label 1D
   // TODO(tianjun) make label 1D when label_width=0
-  TShape shape = db.data[1].shape();
-  if (shape[1] == 1) {
+  mxnet::TShape shape = db.data[1].shape();
+  if (shape.ndim() > 1 && shape[1] == 1) {
     *pndarray = db.data[1].Reshape(mshadow::Shape1(shape[0]));
   } else {
     *pndarray = db.data[1];
@@ -548,6 +868,20 @@ int MXKVStoreCreate(const char *type,
   API_END();
 }
 
+int MXKVStoreSetGradientCompression(KVStoreHandle handle, mx_uint num_params,
+                                    const char** keys, const char** vals) {
+  API_BEGIN();
+  std::vector<std::pair<std::string, std::string> > params;
+  for (mx_uint i = 0; i < num_params; ++i) {
+    std::pair<std::string, std::string> p;
+    p.first = keys[i];
+    p.second = vals[i];
+    params.push_back(p);
+  }
+  static_cast<KVStore*>(handle)->SetGradientCompression(params);
+  API_END();
+}
+
 int MXKVStoreFree(KVStoreHandle handle) {
   API_BEGIN();
   delete static_cast<KVStore*>(handle);
@@ -560,6 +894,21 @@ int MXKVStoreInit(KVStoreHandle handle,
                   NDArrayHandle* vals) {
   API_BEGIN();
   std::vector<int> v_keys(num);
+  std::vector<NDArray> v_vals(num);
+  for (mx_uint i = 0; i < num; ++i) {
+    v_keys[i] = keys[i];
+    v_vals[i] = *static_cast<NDArray*>(vals[i]);
+  }
+  static_cast<KVStore*>(handle)->Init(v_keys, v_vals);
+  API_END();
+}
+
+int MXKVStoreInitEx(KVStoreHandle handle,
+                  mx_uint num,
+                  const char** keys,
+                  NDArrayHandle* vals) {
+  API_BEGIN();
+  std::vector<std::string> v_keys(num);
   std::vector<NDArray> v_vals(num);
   for (mx_uint i = 0; i < num; ++i) {
     v_keys[i] = keys[i];
@@ -585,6 +934,22 @@ int MXKVStorePush(KVStoreHandle handle,
   API_END();
 }
 
+int MXKVStorePushEx(KVStoreHandle handle,
+                  mx_uint num,
+                  const char** keys,
+                  NDArrayHandle* vals,
+                  int priority) {
+  API_BEGIN();
+  std::vector<std::string> v_keys(num);
+  std::vector<NDArray> v_vals(num);
+  for (mx_uint i = 0; i < num; ++i) {
+    v_keys[i] = keys[i];
+    v_vals[i] = *static_cast<NDArray*>(vals[i]);
+  }
+  static_cast<KVStore*>(handle)->Push(v_keys, v_vals, priority);
+  API_END();
+}
+
 int MXKVStorePull(KVStoreHandle handle,
                   mx_uint num,
                   const int* keys,
@@ -597,14 +962,99 @@ int MXKVStorePull(KVStoreHandle handle,
     v_keys[i] = keys[i];
     v_vals[i] = static_cast<NDArray*>(vals[i]);
   }
-  static_cast<KVStore*>(handle)->Pull(v_keys, v_vals, priority);
+  static_cast<KVStore*>(handle)->Pull(v_keys, v_vals, priority, true);
   API_END();
 }
 
-int MXKVStoreSetUpdater(KVStoreHandle handle,
-                        MXKVStoreUpdater updater,
-                        void* updater_handle) {
+int MXKVStorePullEx(KVStoreHandle handle,
+                    mx_uint num,
+                    const char** keys,
+                    NDArrayHandle* vals,
+                    int priority) {
   API_BEGIN();
+  std::vector<std::string> v_keys(num);
+  std::vector<NDArray*> v_vals(num);
+  for (mx_uint i = 0; i < num; ++i) {
+    v_keys[i] = keys[i];
+    v_vals[i] = static_cast<NDArray*>(vals[i]);
+  }
+  static_cast<KVStore*>(handle)->Pull(v_keys, v_vals, priority, true);
+  API_END();
+}
+
+int MXKVStorePullWithSparse(KVStoreHandle handle,
+                            mx_uint num,
+                            const int* keys,
+                            NDArrayHandle* vals,
+                            int priority,
+                            bool ignore_sparse) {
+  API_BEGIN();
+  std::vector<int> v_keys(num);
+  std::vector<NDArray*> v_vals(num);
+  for (mx_uint i = 0; i < num; ++i) {
+    v_keys[i] = keys[i];
+    v_vals[i] = static_cast<NDArray*>(vals[i]);
+  }
+  static_cast<KVStore*>(handle)->Pull(v_keys, v_vals, priority, ignore_sparse);
+  API_END();
+}
+
+int MXKVStorePullWithSparseEx(KVStoreHandle handle,
+                              mx_uint num,
+                              const char** keys,
+                              NDArrayHandle* vals,
+                              int priority,
+                              bool ignore_sparse) {
+  API_BEGIN();
+  std::vector<std::string> v_keys(num);
+  std::vector<NDArray*> v_vals(num);
+  for (mx_uint i = 0; i < num; ++i) {
+    v_keys[i] = keys[i];
+    v_vals[i] = static_cast<NDArray*>(vals[i]);
+  }
+  static_cast<KVStore*>(handle)->Pull(v_keys, v_vals, priority, ignore_sparse);
+  API_END();
+}
+
+int MXKVStorePullRowSparse(KVStoreHandle handle,
+                           mx_uint num,
+                           const int* keys,
+                           NDArrayHandle* vals,
+                           const NDArrayHandle* row_ids,
+                           int priority) {
+  API_BEGIN();
+  std::vector<int> v_keys(num);
+  std::vector<std::pair<NDArray*, NDArray>> v_val_rowids(num);
+  for (mx_uint i = 0; i < num; ++i) {
+    v_keys[i] = keys[i];
+    v_val_rowids[i] = std::make_pair(static_cast<NDArray*>(vals[i]),
+                                     *static_cast<NDArray*>(row_ids[i]));
+  }
+  static_cast<KVStore*>(handle)->PullRowSparse(v_keys, v_val_rowids, priority);
+  API_END();
+}
+
+int MXKVStorePullRowSparseEx(KVStoreHandle handle,
+                             mx_uint num,
+                             const char** keys,
+                             NDArrayHandle* vals,
+                             const NDArrayHandle* row_ids,
+                             int priority) {
+  API_BEGIN();
+  std::vector<std::string> v_keys(num);
+  std::vector<std::pair<NDArray*, NDArray>> v_val_rowids(num);
+  for (mx_uint i = 0; i < num; ++i) {
+    v_keys[i] = keys[i];
+    v_val_rowids[i] = std::make_pair(static_cast<NDArray*>(vals[i]),
+                                     *static_cast<NDArray*>(row_ids[i]));
+  }
+  static_cast<KVStore*>(handle)->PullRowSparse(v_keys, v_val_rowids, priority);
+  API_END();
+}
+
+void MXKVStoreSetUpdaterImpl(KVStoreHandle handle,
+                             MXKVStoreUpdater updater,
+                             void* updater_handle) {
   MXKVStoreUpdater * updater_temp = updater;
   void* updater_handle_temp = updater_handle;
   std::function<void(int, const NDArray&, NDArray*)> updt
@@ -614,6 +1064,36 @@ int MXKVStoreSetUpdater(KVStoreHandle handle,
     NDArray* local_copy = new NDArray();
     *local_copy = *local;
     updater_temp(key, recv_copy, local_copy, updater_handle_temp);
+  };
+  static_cast<KVStore*>(handle)->set_updater(updt);
+}
+
+int MXKVStoreSetUpdater(KVStoreHandle handle,
+                        MXKVStoreUpdater updater,
+                        void* updater_handle) {
+  API_BEGIN();
+  MXKVStoreSetUpdaterImpl(handle, updater, updater_handle);
+  API_END();
+}
+
+int MXKVStoreSetUpdaterEx(KVStoreHandle handle,
+                          MXKVStoreUpdater updater,
+                          MXKVStoreStrUpdater str_updater,
+                          void* updater_handle) {
+  API_BEGIN();
+  // set updater with int keys
+  MXKVStoreSetUpdaterImpl(handle, updater, updater_handle);
+  // set updater with string keys
+  MXKVStoreStrUpdater * updater_temp = str_updater;
+  void* updater_handle_temp = updater_handle;
+  std::function<void(const std::string&, const NDArray&, NDArray*)> updt
+  = [updater_temp, updater_handle_temp]
+    (const std::string& key, const NDArray& recv, NDArray* local) {
+    NDArray* recv_copy = new NDArray();
+    *recv_copy = recv;
+    NDArray* local_copy = new NDArray();
+    *local_copy = *local;
+    updater_temp(key.c_str(), recv_copy, local_copy, updater_handle_temp);
   };
   static_cast<KVStore*>(handle)->set_updater(updt);
   API_END();
@@ -806,26 +1286,20 @@ int MXRecordIOReaderSeek(RecordIOHandle handle, size_t pos) {
   API_END();
 }
 
+int MXRecordIOReaderTell(RecordIOHandle handle, size_t *pos) {
+  API_BEGIN();
+  MXRecordIOContext *context =
+    reinterpret_cast<MXRecordIOContext*>(handle);
+  *pos = context->reader->Tell();
+  API_END();
+}
+
 int MXRtcCreate(char* name, mx_uint num_input, mx_uint num_output,
                 char** input_names, char** output_names,
                 NDArrayHandle* inputs, NDArrayHandle* outputs,
                 char* kernel, RtcHandle *out) {
   API_BEGIN();
-#if ((MXNET_USE_CUDA) && (MXNET_USE_NVRTC))
-  std::vector<std::pair<std::string, NDArray> > input, output;
-  for (mx_uint i = 0; i < num_input; ++i) {
-    input.push_back(std::pair<std::string, NDArray>(input_names[i],
-                                                    *reinterpret_cast<NDArray*>(inputs[i])));
-  }
-  for (mx_uint i = 0; i < num_output; ++i) {
-    output.push_back(std::pair<std::string, NDArray>(output_names[i],
-                                                     *reinterpret_cast<NDArray*>(outputs[i])));
-  }
-  MXRtc *rtc = new MXRtc(name, input, output, kernel);
-  *out = reinterpret_cast<RtcHandle>(rtc);
-#else
-  LOG(FATAL) << "Need to compile with USE_CUDA=1 and USE_NVRTC=1 for MXRtc.";
-#endif  // ((MXNET_USE_CUDA) && (MXNET_USE_NVRTC))
+  LOG(FATAL) << "Old rtc API is deprecated. Please use CudaModule";
   API_END();
 }
 
@@ -838,39 +1312,271 @@ int MXRtcPush(RtcHandle handle, mx_uint num_input, mx_uint num_output,
               mx_uint blockDimY,
               mx_uint blockDimZ) {
   API_BEGIN();
-#if ((MXNET_USE_CUDA) && (MXNET_USE_NVRTC))
-  std::vector<NDArray> input, output;
-  for (mx_uint i = 0; i < num_input; ++i) {
-    input.push_back(*reinterpret_cast<NDArray*>(inputs[i]));
-  }
-  for (mx_uint i = 0; i < num_output; ++i) {
-    output.push_back(*reinterpret_cast<NDArray*>(outputs[i]));
-  }
-  reinterpret_cast<MXRtc*>(handle)->push(input, output,
-                                         gridDimX,
-                                         gridDimY,
-                                         gridDimZ,
-                                         blockDimX,
-                                         blockDimY,
-                                         blockDimZ);
-#else
-  LOG(FATAL) << "Need to compile with USE_CUDA=1 and USE_NVRTC=1 for MXRtc.";
-#endif  // ((MXNET_USE_CUDA) && (MXNET_USE_NVRTC))
+  LOG(FATAL) << "Old rtc API is deprecated. Please use CudaModule";
   API_END();
 }
 
 int MXRtcFree(RtcHandle handle) {
   API_BEGIN();
-#if ((MXNET_USE_CUDA) && (MXNET_USE_NVRTC))
-  delete reinterpret_cast<MXRtc*>(handle);
-#else
-  LOG(FATAL) << "Need to compile with USE_CUDA=1 and USE_NVRTC=1 for MXRtc.";
-#endif  // ((MXNET_USE_CUDA) && (MXNET_USE_NVRTC))
+  LOG(FATAL) << "Old rtc API is deprecated. Please use CudaModule";
   API_END();
 }
 
 int MXCustomOpRegister(const char* op_type, CustomOpPropCreator creator) {
   API_BEGIN();
-  mxnet::op::CustomOpProp::Register(op_type, creator);
+  mxnet::op::custom::CustomOperator::Get()->Register(op_type, creator);
+  API_END();
+}
+
+
+int MXRtcCudaModuleCreate(const char* source, int num_options,
+                          const char** options, int num_exports,
+                          const char** exports, CudaModuleHandle *out) {
+  API_BEGIN();
+#if MXNET_USE_GPU && MXNET_ENABLE_CUDA_RTC
+  std::vector<std::string> str_opts;
+  for (int i = 0; i < num_options; ++i) str_opts.emplace_back(options[i]);
+  std::vector<std::string> str_exports;
+  for (int i = 0; i < num_exports; ++i) str_exports.emplace_back(exports[i]);
+  *out = new rtc::CudaModule(source, str_opts, str_exports);
+#else
+  LOG(FATAL) << "Compile with USE_GPU=1 and ENABLE_CUDA_RTC=1 to have CUDA runtime compilation.";
+#endif
+  API_END();
+}
+
+int MXRtcCudaModuleFree(CudaModuleHandle handle) {
+  API_BEGIN();
+#if MXNET_USE_GPU && MXNET_ENABLE_CUDA_RTC
+  delete reinterpret_cast<rtc::CudaModule*>(handle);
+#else
+  LOG(FATAL) << "Compile with USE_GPU=1 and ENABLE_CUDA_RTC=1 to have CUDA runtime compilation.";
+#endif
+  API_END();
+}
+
+int MXRtcCudaKernelCreate(CudaModuleHandle handle, const char* name, int num_args,
+                          int* is_ndarray, int* is_const, int* arg_types,
+                          CudaKernelHandle *out) {
+  API_BEGIN();
+#if MXNET_USE_GPU && MXNET_ENABLE_CUDA_RTC
+  auto module = reinterpret_cast<rtc::CudaModule*>(handle);
+  std::vector<rtc::CudaModule::ArgType> signature;
+  for (int i = 0; i < num_args; ++i) {
+    signature.push_back(rtc::CudaModule::ArgType{
+        static_cast<bool>(is_ndarray[i]), static_cast<bool>(is_const[i]),
+        static_cast<mshadow::TypeFlag>(arg_types[i])});
+  }
+  auto kernel = module->GetKernel(name, signature);
+  *out = new std::shared_ptr<rtc::CudaModule::Kernel>(kernel);
+#else
+  LOG(FATAL) << "Compile with USE_GPU=1 and ENABLE_CUDA_RTC=1 to have CUDA runtime compilation.";
+#endif
+  API_END();
+}
+
+int MXRtcCudaKernelFree(CudaKernelHandle handle) {
+  API_BEGIN();
+#if MXNET_USE_GPU && MXNET_ENABLE_CUDA_RTC
+  delete reinterpret_cast<std::shared_ptr<rtc::CudaModule::Kernel>*>(handle);
+#else
+  LOG(FATAL) << "Compile with USE_GPU=1 and ENABLE_CUDA_RTC=1 to have CUDA runtime compilation.";
+#endif
+  API_END();
+}
+
+int MXRtcCudaKernelCall(CudaKernelHandle handle, int dev_id, void** args,
+                        mx_uint grid_dim_x, mx_uint grid_dim_y,
+                        mx_uint grid_dim_z, mx_uint block_dim_x,
+                        mx_uint block_dim_y, mx_uint block_dim_z,
+                        mx_uint shared_mem) {
+  API_BEGIN();
+#if MXNET_USE_GPU && MXNET_ENABLE_CUDA_RTC
+  auto kernel = reinterpret_cast<std::shared_ptr<rtc::CudaModule::Kernel>*>(handle);
+  const auto& signature = (*kernel)->signature();
+  std::vector<dmlc::any> any_args;
+  for (size_t i = 0; i < signature.size(); ++i) {
+    if (signature[i].is_ndarray) {
+      any_args.emplace_back(*static_cast<NDArray*>(args[i]));
+    } else {
+      MSHADOW_TYPE_SWITCH(signature[i].dtype, DType, {
+        any_args.emplace_back(*static_cast<DType*>(args[i]));
+      });
+    }
+  }
+  (*kernel)->Launch(Context::GPU(dev_id), any_args, grid_dim_x, grid_dim_y,
+                    grid_dim_z, block_dim_x, block_dim_y, block_dim_z, shared_mem);
+#else
+  LOG(FATAL) << "Compile with USE_GPU=1 and ENABLE_CUDA_RTC=1 to have CUDA runtime compilation.";
+#endif
+  API_END();
+}
+
+int MXNDArrayGetSharedMemHandle(NDArrayHandle handle, int* shared_pid, int* shared_id) {
+  API_BEGIN();
+  NDArray* arr = reinterpret_cast<NDArray*>(handle);
+  Storage::Handle shandle;
+  if (arr->ctx().dev_type == Context::kCPUShared) {
+    arr->WaitToRead();
+    shandle = arr->storage_handle();
+    Storage::Get()->SharedIncrementRefCount(shandle);
+  } else {
+    NDArray new_arr(arr->shape(), Context::CPUShared(0), false, arr->dtype());
+    CopyFromTo(*arr, new_arr);
+    new_arr.WaitToRead();
+    shandle = new_arr.storage_handle();
+    Storage::Get()->SharedIncrementRefCount(shandle);
+  }
+  *shared_pid = shandle.shared_pid;
+  *shared_id = shandle.shared_id;
+  API_END();
+}
+
+int MXNDArrayCreateFromSharedMem(int shared_pid, int shared_id, const mx_uint *shape,
+                                 mx_uint ndim, int dtype, NDArrayHandle *out) {
+  API_BEGIN();
+  *out = new NDArray(shared_pid, shared_id, mxnet::TShape(shape, shape + ndim), dtype);
+  API_END();
+}
+
+int MXNDArrayCreateFromSharedMemEx(int shared_pid, int shared_id, const int *shape,
+                                   int ndim, int dtype, NDArrayHandle *out) {
+  API_BEGIN();
+  *out = new NDArray(shared_pid, shared_id, mxnet::TShape(shape, shape + ndim), dtype);
+  API_END();
+}
+
+typedef Engine::VarHandle VarHandle;
+typedef Engine::CallbackOnComplete CallbackOnComplete;
+
+void AssertValidNumberVars(int num_const_vars, int num_mutable_vars) {
+  CHECK_GE(num_const_vars, 0) << "Non-negative number of const vars expected.";
+  CHECK_GE(num_mutable_vars, 0) << "Non-negative number of mutable vars expected.";
+}
+
+int MXEnginePushAsync(EngineAsyncFunc async_func, void* func_param,
+                      EngineFuncParamDeleter deleter, ContextHandle ctx_handle,
+                      EngineVarHandle const_vars_handle, int num_const_vars,
+                      EngineVarHandle mutable_vars_handle, int num_mutable_vars,
+                      EngineFnPropertyHandle prop_handle, int priority,
+                      const char* opr_name, bool wait) {
+  API_BEGIN();
+
+  auto exec_ctx = *static_cast<const Context*>(ctx_handle);
+  auto const_vars = static_cast<VarHandle*>(const_vars_handle);
+  auto mutable_vars = static_cast<VarHandle*>(mutable_vars_handle);
+  auto prop = FnProperty::kNormal;
+  if (prop_handle) {
+    prop = *static_cast<const FnProperty*>(prop_handle);
+  }
+
+  Engine::AsyncFn exec_fn;
+  if (deleter == nullptr) {
+    exec_fn = [async_func, func_param](RunContext rctx,
+                                       CallbackOnComplete on_complete) {
+      async_func(&rctx, &on_complete, func_param);
+    };
+  } else {
+    // Wrap func_param in a shared_ptr with deleter such that deleter
+    // will be called when the lambda goes out of scope.
+    std::shared_ptr<void> shared_func_param(func_param, deleter);
+    exec_fn = [async_func, shared_func_param](RunContext rctx,
+                                              CallbackOnComplete on_complete) {
+      async_func(&rctx, &on_complete, shared_func_param.get());
+    };
+  }
+
+  AssertValidNumberVars(num_const_vars, num_mutable_vars);
+  std::vector<VarHandle> const_var_vec(const_vars, const_vars + num_const_vars);
+  std::vector<VarHandle> mutable_var_vec(mutable_vars, mutable_vars + num_mutable_vars);
+  Engine::Get()->PushAsync(exec_fn, exec_ctx, const_var_vec, mutable_var_vec,
+                           prop, priority, opr_name, wait);
+
+  API_END();
+}
+
+int MXEnginePushSync(EngineSyncFunc sync_func, void* func_param,
+                     EngineFuncParamDeleter deleter, ContextHandle ctx_handle,
+                     EngineVarHandle const_vars_handle, int num_const_vars,
+                     EngineVarHandle mutable_vars_handle, int num_mutable_vars,
+                     EngineFnPropertyHandle prop_handle, int priority,
+                     const char* opr_name) {
+  API_BEGIN();
+
+  auto exec_ctx = *static_cast<const Context*>(ctx_handle);
+  auto const_vars = static_cast<VarHandle*>(const_vars_handle);
+  auto mutable_vars = static_cast<VarHandle*>(mutable_vars_handle);
+  auto prop = FnProperty::kNormal;
+  if (prop_handle) {
+    prop = *static_cast<const FnProperty*>(prop_handle);
+  }
+
+  Engine::SyncFn exec_fn;
+  if (deleter == nullptr) {
+    exec_fn = [sync_func, func_param](RunContext rctx) {
+      sync_func(&rctx, func_param);
+    };
+  } else {
+    // Wrap func_param in a shared_ptr with deleter such that deleter
+    // will be called when the lambda goes out of scope.
+    std::shared_ptr<void> shared_func_param(func_param, deleter);
+    exec_fn = [sync_func, shared_func_param](RunContext rctx) {
+      sync_func(&rctx, shared_func_param.get());
+    };
+  }
+
+  AssertValidNumberVars(num_const_vars, num_mutable_vars);
+  std::vector<VarHandle> const_var_vec(const_vars, const_vars + num_const_vars);
+  std::vector<VarHandle> mutable_var_vec(mutable_vars, mutable_vars + num_mutable_vars);
+  Engine::Get()->PushSync(exec_fn, exec_ctx, const_var_vec, mutable_var_vec,
+                          prop, priority, opr_name);
+
+  API_END();
+}
+
+int MXEnginePushAsyncND(EngineAsyncFunc async_func, void* func_param,
+                      EngineFuncParamDeleter deleter, ContextHandle ctx_handle,
+                      NDArrayHandle const_nds_handle, int num_const_nds,
+                      NDArrayHandle mutable_nds_handle, int num_mutable_nds,
+                      EngineFnPropertyHandle prop_handle, int priority,
+                      const char* opr_name, bool wait) {
+  API_BEGIN();
+  NDArray* const_nds = static_cast<NDArray*>(const_nds_handle);
+  NDArray* mutable_nds = static_cast<NDArray*>(mutable_nds_handle);
+  std::vector<VarHandle> const_var_vec(num_const_nds);
+  for (int i = 0; i < num_const_nds; ++i) const_var_vec[i] = (const_nds+i)->var();
+  std::vector<VarHandle> mutable_var_vec(num_mutable_nds);
+  for (int i = 0; i < num_mutable_nds; ++i) mutable_var_vec[i] = (mutable_nds+i)->var();
+  return MXEnginePushAsync(async_func, func_param, deleter, ctx_handle,
+                           const_var_vec.data(), num_const_nds,
+                           mutable_var_vec.data(), num_mutable_nds,
+                           prop_handle, priority, opr_name, wait);
+  API_END();
+}
+
+int MXEnginePushSyncND(EngineSyncFunc sync_func, void* func_param,
+                     EngineFuncParamDeleter deleter, ContextHandle ctx_handle,
+                     NDArrayHandle const_nds_handle, int num_const_nds,
+                     NDArrayHandle mutable_nds_handle, int num_mutable_nds,
+                     EngineFnPropertyHandle prop_handle, int priority,
+                     const char* opr_name) {
+  API_BEGIN();
+  NDArray* const_nds = static_cast<NDArray*>(const_nds_handle);
+  NDArray* mutable_nds = static_cast<NDArray*>(mutable_nds_handle);
+  std::vector<VarHandle> const_var_vec(num_const_nds);
+  for (int i = 0; i < num_const_nds; ++i) const_var_vec[i] = (const_nds+i)->var();
+  std::vector<VarHandle> mutable_var_vec(num_mutable_nds);
+  for (int i = 0; i < num_mutable_nds; ++i) mutable_var_vec[i] = (mutable_nds+i)->var();
+  return MXEnginePushSync(sync_func, func_param, deleter, ctx_handle,
+                          const_var_vec.data(), num_const_nds,
+                          mutable_var_vec.data(), num_mutable_nds,
+                          prop_handle, priority, opr_name);
+  API_END();
+}
+
+int MXStorageEmptyCache(int dev_type, int dev_id) {
+  API_BEGIN();
+  Context ctx = Context::Create(static_cast<Context::DeviceType>(dev_type), dev_id);
+  Storage::Get()->ReleaseAll(ctx);
   API_END();
 }

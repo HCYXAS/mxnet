@@ -1,3 +1,20 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
 package AI::MXNet::NDArray;
 
 =head1 NAME
@@ -5,14 +22,50 @@ package AI::MXNet::NDArray;
     AI::MXNet::NDArray - Multidimensional tensor object of MXNet.
 =cut
 
+=head1 DESCRIPTION
+
+    AI::MXNet::NDArray - Imperative tensor operations on CPU/GPU
+    In AI::MXNet, NDArray is the core data structure for all mathematical computations.
+    An NDArray represents a multidimensional, fixed-size homogenous array.
+    If you're familiar with the PDL, you might notice some similarities.
+    However, NDArray is row-major, unlike the PDL that is column-major.
+    Like the PDL, MXNet’s NDArray enables imperative computation.
+
+    Some NDArray advandages compared to PDL:
+    MXNet's NDArray supports fast execution on a wide range of hardware configurations, including CPU, GPU, and multi-GPU machines.
+    MXNet also scales to distributed systems in the cloud.
+    MXNet's NDArray executes code lazily, allowing it to automatically parallelize multiple operations across the available hardware.
+
+    An NDArray is a multidimensional array of numbers with the same type.
+    We could represent the coordinates of a point in 3D space, e.g. [2, 1, 6] as a 1D array with shape (3).
+    Similarly, we could represent a 2D array.
+    Below, we present an array with length 2 along the first axis and length 3 along the second axis.
+
+    [[0, 1, 2]
+     [3, 4, 5]]
+    Note that here the use of 'dimension' is overloaded. When we say a 2D array, we mean an array with 2 axes, not an array with two components.
+
+    Each NDArray supports some important attributes that you'll often want to query:
+
+    $ndarray->shape: The dimensions of the array.
+    It is an array ref of integers indicating the length of the array along each axis.
+    For a matrix with $n rows and $m columns, its shape will be [$n, $m].
+    $ndarray->dtype: A string describing the type of its elements.
+    Dtype (defined in AI::MXNet::Types) is one of (float32 float64 float16 uint8 int8 int32 int64)
+    $ndarray->size: The total number of components in the array - equal to the product of the components of its shape.
+    $ndarray->context: The device on which this array is stored, represented by an object of AI::MXNet::Context class, e.g. cpu() or gpu(1).
+
+=cut
+
 use strict;
 use warnings;
+use AI::MXNet::NS;
 use AI::MXNet::Base;
 use AI::MXNet::NDArray::Slice;
 use AI::MXNet::Context;
 use Mouse;
 use AI::MXNet::Function::Parameters;
-use overload 
+use overload
     '""' => \&stringify,
     '+'  => \&add,
     '+=' => \&iadd,
@@ -22,6 +75,8 @@ use overload
     '*=' => \&imultiply,
     '/'  => \&divide,
     '/=' => \&idivide,
+    '%'  => \&modulo,
+    '%=' => \&imodulo,
     '**' => \&power,
     '==' => \&equal,
     '!=' => \&not_equal,
@@ -30,7 +85,8 @@ use overload
     '<'  => \&lesser,
     '<=' => \&lesser_equal,
     '.=' => \&set,
-    '=' => sub { $_[0] };
+    '@{}'=> \&split_array,
+    '='  => sub { $_[0] };
 
 extends 'AI::MXNet::NDArray::Base';
 has 'writable' => (is => 'rw', isa => 'Int', default => 1, lazy => 1);
@@ -58,6 +114,11 @@ method STORABLE_thaw($cloning, $buf, $writable)
     $self->writable($$writable);
 }
 
+method split_array(@args)
+{
+     $self->shape->[0] > 1 ? $self->split(num_outputs => $self->shape->[0], squeeze_axis => @{ $self->shape } > 1 ? 1 : 0, axis => 0) : [$self];
+}
+
 method at(Index @indices)
 {
     confess("No idxs supplied") unless @indices;
@@ -66,17 +127,17 @@ method at(Index @indices)
     my $isize = @indices;
     confess("Dimensions size $dsize < indexes size $isize")
         if $dsize < $isize;
-    confess("Dimensions size $dsize = indexes size $isize, 
+    confess("Dimensions size $dsize = indexes size $isize,
                    ndarray only supports either ->at on dimension 0
                    or full crop")
         if $isize > 1 and $dsize != $isize;
     my $i = 0;
-    zip(sub {
-        my ($idx, $dim_size) = @_;
+    for(zip(\@indices, $shape)) {
+        my ($idx, $dim_size) = @$_;
         confess("Dimension $i mismatch Idx: $idx >= Dim Size: $dim_size")
             if $idx >= $dim_size or ($idx + $dim_size) < 0;
         ++$i;
-    }, \@indices, $shape);  
+    }
     $i = 0;
     for my $v (@indices)
     {
@@ -87,9 +148,35 @@ method at(Index @indices)
     return $self->slice(@indices);
 }
 
-method slice(Slice @slices)
+method len() { $self->shape->[0] }
+
+method slice(Slice|AdvancedSlice|InternalSlice @slices)
 {
     confess("No slices supplied") unless @slices;
+    if(grep { not ref and /^(?:begin|end|slice)$/ } @slices)
+    {
+        return $self->SUPER::slice(@slices);
+    }
+    if(ref $slices[0] eq 'ARRAY' and ref $slices[0]->[0])
+    {
+        my @indices;
+        my $key = $slices[0];
+        my $dtype = 'int32';
+        for my $idx_i (@{ $key })
+        {
+            if(not (blessed $idx_i and $idx_i->isa(__PACKAGE__)))
+            {
+                $idx_i = __PACKAGE__->array($idx_i, ctx=>$self->context, dtype=>$dtype);
+            }
+            else
+            {
+                $dtype = $idx_i->dtype;
+            }
+            push @indices, $idx_i;
+        }
+        my $indices = __PACKAGE__->stack(@indices);
+        return __PACKAGE__->gather_nd($self, $indices);
+    }
     my $shape = $self->shape;
     my $dsize = @$shape;
     my $isize = @slices;
@@ -102,10 +189,10 @@ method slice(Slice @slices)
     my $i = -1;
     @slices = map {
         ++$i;
-        ref $_ ? (@$_ == 1 ? [$_->[0], $shape->[$i] - 1] : $_) : ($_ eq 'X' ? [0, $shape->[$i] - 1] : [$_, $_]);
+        ref $_ ? (@$_ == 1 ? [$_->[0], $_->[0]] : $_) : ($_ eq 'X' ? [0, $shape->[$i] - 1] : [$_, $_]);
     } @slices;
-    zip(sub {
-        my ($slice, $dim_size) = @_;
+    for(zip(\@slices, $shape)) {
+        my ($slice, $dim_size) = @$_;
         my ($begin, $end, $stride) = @$slice;
         confess("NDArray does not support slice strides != 1")
             if ($stride//0) > 1;
@@ -113,7 +200,7 @@ method slice(Slice @slices)
             if $begin >= $dim_size or ($begin + $dim_size) < 0;
         confess("Dimension $i mismatch slice end : $end >= Dim Size: $dim_size")
             if $end >= $dim_size or ($end + $dim_size) < 0;
-    }, \@slices, $shape);
+    }
     $i = 0;
     my ($begin, $end) = ([], []);
     for my $s (@slices)
@@ -137,7 +224,7 @@ method set(AcceptableInput $value, $reverse=)
     ## plain number
     if(not ref $value)
     {
-        $self->_set_value($value, { out => $self });
+        $self->_set_value($value, out => $self);
     }
     # ndarray
     elsif(blessed($value) and $value->isa(__PACKAGE__))
@@ -161,6 +248,15 @@ method asscalar()
 {
     confess("ndarray size must be 1") unless $self->size == 1;
     return $self->aspdl->at(0);
+    ## code below works happily on CPU/segfaults on GPU
+    #$self->wait_to_read;
+    #my $perl_pack_type = DTYPE_MX_TO_PERL->{$self->dtype};
+    #my $length = {qw/f 4 d 8 S 2 C 1 l 4/}->{$perl_pack_type};
+    #return
+    #(map {
+    #        $perl_pack_type eq 'S' ? AI::MXNetCAPI::_half_to_float($_) : $_
+    #     } unpack("$perl_pack_type", check_call(AI::MXNetCAPI::NDArrayGetData($self->handle, $length)))
+    #)[0];
 }
 
 method _sync_copyfrom(ArrayRef|PDL|PDL::Matrix $source_array)
@@ -179,7 +275,7 @@ method _sync_copyfrom(ArrayRef|PDL|PDL::Matrix $source_array)
         my $convert_func = $pdl_type->convertfunc;
         $source_array = $source_array->$convert_func;
     }
-    $source_array = pdl($pdl_type, [@{ $source_array->unpdl } ? $source_array->unpdl->[0] : 0 ]) 
+    $source_array = pdl($pdl_type, [@{ $source_array->unpdl } ? $source_array->unpdl->[0] : 0 ])
         unless @{ $source_array->shape->unpdl };
     my $pdl_shape = $source_array->shape->unpdl;
     my $pdl_shape_str = join(',', ref($source_array) eq 'PDL' ? reverse @{ $pdl_shape } : @{ $pdl_shape });
@@ -189,17 +285,13 @@ method _sync_copyfrom(ArrayRef|PDL|PDL::Matrix $source_array)
         confess("Shape inconsistant: expected $ndary_shape_str vs got $pdl_shape_str")
     }
     my $perl_pack_type = DTYPE_MX_TO_PERL->{$dtype};
-    my $buf;
+    my $ptr = $source_array->get_dataref;
     ## special handling for float16
     if($perl_pack_type eq 'S')
     {
-        $buf = pack("S*", map { AI::MXNetCAPI::_float_to_half($_) } unpack ("f*", ${$source_array->get_dataref}));
+        $ptr = \( pack("S*", map { AI::MXNetCAPI::_float_to_half($_) } unpack ("f*", $$ptr)) );
     }
-    else
-    {
-        $buf = ${$source_array->get_dataref};
-    }
-    check_call(AI::MXNetCAPI::NDArraySyncCopyFromCPU($self->handle, $buf, $self->size));
+    check_call(AI::MXNetCAPI::NDArraySyncCopyFromCPU($self->handle, $$ptr, $self->size));
     return $self;
 }
 
@@ -219,14 +311,13 @@ method aspdl()
     my $pdl_type = PDL::Type->new(DTYPE_MX_TO_PDL->{ $dtype });
     my $pdl = PDL->new_from_specification($pdl_type, reverse @{ $self->shape });
     my $perl_pack_type = DTYPE_MX_TO_PERL->{$dtype};
-    my $buf = pack("$perl_pack_type*", (0)x$self->size);
-    check_call(AI::MXNetCAPI::NDArraySyncCopyToCPU($self->handle, $buf, $self->size)); 
+    my $ptr = $pdl->get_dataref;
+    check_call(AI::MXNetCAPI::NDArraySyncCopyToCPU($self->handle, $$ptr, $self->size));
     ## special handling for float16
     if($perl_pack_type eq 'S')
     {
-        $buf = pack("f*", map { AI::MXNetCAPI::_half_to_float($_) } unpack("S*", $buf));
+        $$ptr = pack("f*", map { AI::MXNetCAPI::_half_to_float($_) } unpack("S*", $$ptr));
     }
-    ${$pdl->get_dataref} = $buf;
     $pdl->upd_data;
     return $pdl;
 }
@@ -250,14 +341,13 @@ method asmpdl()
     my $pdl_type = PDL::Type->new(DTYPE_MX_TO_PDL->{ $dtype });
     my $pdl = PDL::Matrix->new_from_specification($pdl_type, @{ $self->shape });
     my $perl_pack_type = DTYPE_MX_TO_PERL->{$dtype};
-    my $buf = pack("$perl_pack_type*", (0)x$self->size);
-    check_call(AI::MXNetCAPI::NDArraySyncCopyToCPU($self->handle, $buf, $self->size)); 
+    my $ptr = $pdl->get_dataref;
+    check_call(AI::MXNetCAPI::NDArraySyncCopyToCPU($self->handle, $$ptr, $self->size));
     ## special handling for float16
     if($perl_pack_type eq 'S')
     {
-        $buf = pack("f*", map { AI::MXNetCAPI::_half_to_float($_) } unpack("S*", $buf));
+        $$ptr = pack("f*", map { AI::MXNetCAPI::_half_to_float($_) } unpack("S*", $$ptr));
     }
-    ${$pdl->get_dataref} = $buf;
     $pdl->upd_data;
     return $pdl;
 }
@@ -275,7 +365,7 @@ method asmpdl()
         Finishing index of slice.
 =cut
 
-method  _slice (
+method _slice (
     Index $start,
     Index $stop
 )
@@ -288,7 +378,7 @@ method  _slice (
             $stop
         )
     );
-    return __PACKAGE__->new(handle => $handle, writable => $self->writable);
+    return __PACKAGE__->_ndarray_cls($handle, $self->writable);
 }
 
 =head2  _at
@@ -309,38 +399,34 @@ method _at(Index $idx)
                     $self->handle, $idx >=0 ? $idx : $self->shape->[0] + $idx
                 )
     );
-    return __PACKAGE__->new(handle => $handle, writable => $self->writable);
+    return __PACKAGE__->_ndarray_cls($handle, $self->writable);
 }
 
 =head2 reshape
 
-    Returns a reshaped NDArray that shares the memory with current one.
+    Returns a **view** of this array with a new shape without altering any data.
     One shape dimension can be -1. In this case, the value is inferred
     from the length of the array and remaining dimensions.
 
     Parameters
     ----------
-    new_shape : Shape
+    $new_shape : Shape
         new shape of NDArray
+    :$reverse : bool, default 0
+        If true then the special values are inferred from right to left.
 =cut
 
-method reshape(ArrayRef[Int] $new_shape)
+method reshape(ArrayRef[Int] $new_shape, Bool :$reverse=0)
 {
-    my $i = -1;
-    my @inferred = map { $i++; $_ == -1 ? ($i) : () } @$new_shape;
-    assert((@inferred <= 1), 'Only one dimension can be inferred.');
-    if(@inferred)
-    {
-        $new_shape->[$inferred[0]] = product(@{ $self->shape })/product(map { abs($_) } @{ $new_shape });
-    }
     my $handle = check_call(
-                    AI::MXNetCAPI::NDArrayReshape(
+                    AI::MXNetCAPI::NDArrayReshape64(
                         $self->handle,
                         scalar(@$new_shape),
-                        $new_shape
+                        $new_shape,
+                        $reverse
                     )
     );
-    return __PACKAGE__->new(handle => $handle, writable => $self->writable);
+    return __PACKAGE__->_ndarray_cls($handle, $self->writable);
 }
 
 =head2 ndim
@@ -392,7 +478,7 @@ method moveaxis(Int $source, Int $dest)
 
 =head2 broadcast_to
 
-    Broadcasting the current NDArray into the given shape. 
+    Broadcasting the current NDArray into the given shape.
 
     Parameters
     ---------
@@ -402,7 +488,7 @@ method moveaxis(Int $source, Int $dest)
 method broadcast_to(Shape $shape)
 {
     my $cur_shape = $self->shape;
-    my $err_str = "operands could not be broadcast together with remapped shapes" 
+    my $err_str = "operands could not be broadcast together with remapped shapes"
                   ."[original->remapped]: [@$cur_shape] and requested shape [@$shape]";
     if(@$shape < @$cur_shape)
     {
@@ -450,7 +536,7 @@ method wait_to_read()
 
 method shape()
 {
-    return scalar(check_call(AI::MXNetCAPI::NDArrayGetShape($self->handle)));
+    return scalar(check_call(AI::MXNetCAPI::NDArrayGetShapeEx($self->handle)));
 }
 
 =head2 size
@@ -492,7 +578,7 @@ method context()
 
     Returns
     -------
-    a data type string ('float32', 'float64', 'float16', 'uint8', 'int32') 
+    a data type string ('float32', 'float64', 'float16', 'uint8', 'int32')
     representing the data type of the ndarray.
     'float32' is the default dtype for the ndarray class.
 =cut
@@ -643,35 +729,6 @@ method onehot_encode(AI::MXNet::NDArray $indices, AI::MXNet::NDArray $out)
     return __PACKAGE__->_onehot_encode($indices, $out, { out => $out });
 }
 
-=head2 _ufunc_helper(lhs, rhs, fn_array, lfn_scalar, rfn_scalar):
-
-    Helper function for element-wise operation
-    The function will perform numpy-like broadcasting if needed and call different functions
-
-    Parameters
-    ----------
-    lhs : NDArray or numeric value
-        left hand side operand
-
-    rhs : NDArray or numeric value
-        right hand side operand
-
-    fn_array : function
-        function to be called if both lhs and rhs are of NDArray type
-
-    lfn_scalar : function
-        function to be called if lhs is NDArray while rhs is numeric value
-
-    rfn_scalar : function
-        function to be called if lhs is numeric value while rhs is NDArray;
-        if none is provided, then the function is commutative, so rfn_scalar is equal to lfn_scalar
-
-    Returns
-    -------
-    out: NDArray
-        result array
-=cut
-
 sub  _ufunc_helper
 {
     my ($lhs, $rhs, $fn_array, $lfn_scalar, $rfn_scalar, $reverse) = @_;
@@ -705,7 +762,7 @@ method stringify($other=, $reverse=)
 method iadd(AI::MXNet::NDArray|Num $other, $reverse=)
 {
     confess('trying to add to a readonly NDArray') unless $self->writable;
-    return ref $other 
+    return ref $other
         ? __PACKAGE__->broadcast_add($self, $other, { out => $self })
         : __PACKAGE__->_plus_scalar($self, $other, { out => $self })
 }
@@ -750,9 +807,9 @@ method multiply(AI::MXNet::NDArray|Num $other, $reverse=)
 method imultiply(AI::MXNet::NDArray|Num $other, $reverse=)
 {
     confess('trying to add to a readonly NDArray') unless $self->writable;
-    return ref $other 
-        ? __PACKAGE__->broadcast_mul($self, $other, { out => $self }) 
-        : __PACKAGE__->_mul_scalar($self, $other, { out => $self }) 
+    return ref $other
+        ? __PACKAGE__->broadcast_mul($self, $other, { out => $self })
+        : __PACKAGE__->_mul_scalar($self, $other, { out => $self })
 }
 
 method divide(AI::MXNet::NDArray|Num $other, $reverse=)
@@ -768,9 +825,9 @@ method divide(AI::MXNet::NDArray|Num $other, $reverse=)
 method idivide(AI::MXNet::NDArray|Num $other, $reverse=)
 {
     confess('trying to add to a readonly NDArray') unless $self->writable;
-    return ref $other 
-        ? __PACKAGE__->broadcast_div($self, $other, { out => $self }) 
-        : __PACKAGE__->_div_scalar($self, $other, { out => $self }) 
+    return ref $other
+        ? __PACKAGE__->broadcast_div($self, $other, { out => $self })
+        : __PACKAGE__->_div_scalar($self, $other, { out => $self })
 }
 
 method power(AI::MXNet::NDArray|Num $other, $reverse=)
@@ -864,6 +921,24 @@ method true_divide(AI::MXNet::NDArray|Num $other, $reverse=)
     return $self->divide($other, $reverse);
 }
 
+method modulo(AI::MXNet::NDArray|Num $other, $reverse=)
+{
+    return _ufunc_helper(
+        $self,
+        $other,
+        qw/broadcast_mod _mod_scalar _rmod_scalar/,
+        $reverse
+    );
+}
+
+method imodulo(AI::MXNet::NDArray|Num $other, $reverse=)
+{
+    confess('trying to modulo to a readonly NDArray') unless $self->writable;
+    return ref $other
+        ? __PACKAGE__->broadcast_mod($self, $other, { out => $self })
+        : __PACKAGE__->_mod_scalar($self, $other, { out => $self })
+}
+
 =head2 empty
 
     Creates an empty uninitialized NDArray, with the specified shape.
@@ -879,14 +954,21 @@ method true_divide(AI::MXNet::NDArray|Num $other, $reverse=)
     :$dtype : Dtype, optional
         The dtype of the NDArray, defaults to 'float32'.
 
+    :$stype: Stype, optional
+        The stype of the NDArray, defaults to 'default'
+
     Returns
     -------
     out: Array
         The created NDArray.
 =cut
 
-method empty(Shape $shape, AI::MXNet::Context :$ctx=AI::MXNet::Context->current_ctx, Dtype :$dtype='float32')
+method empty(Shape $shape, AI::MXNet::Context :$ctx=AI::MXNet::Context->current_ctx, Dtype :$dtype='float32', Stype :$stype='default')
 {
+    if($stype ne 'default')
+    {
+        return AI::MXNet::NDArray::Sparse->empty($stype, $shape, ctx => $ctx, dtype => $dtype);
+    }
     return __PACKAGE__->new(
                 handle => _new_alloc_handle(
                     $shape,
@@ -912,15 +994,29 @@ method empty(Shape $shape, AI::MXNet::Context :$ctx=AI::MXNet::Context->current_
     :$dtype : Dtype, optional
         The dtype of the NDArray, defaults to 'float32'.
 
+    :$stype: Stype, optional
+        The stype of the NDArray, defaults to 'default'
     Returns
     -------
     out: Array
         The created NDArray.
 =cut
 
-method zeros(Shape $shape, AI::MXNet::Context :$ctx=AI::MXNet::Context->current_ctx, Dtype :$dtype='float32')
+method zeros(
+    Shape $shape,
+    AI::MXNet::Context :$ctx=AI::MXNet::Context->current_ctx,
+    Dtype :$dtype='float32',
+    Maybe[AI::MXNet::NDArray] :$out=,
+    Maybe[Str] :$name=,
+    Maybe[Str] :$__layout__=,
+    Stype :$stype='default'
+)
 {
-    return __PACKAGE__->_zeros({ shape => $shape, ctx => "$ctx", dtype => $dtype });
+    if($stype ne 'default')
+    {
+        return AI::MXNet::NDArray::Sparse->zeros($stype, $shape, ctx => $ctx, dtype => $dtype, out => $out);
+    }
+    return __PACKAGE__->_zeros({ shape => $shape, ctx => "$ctx", dtype => $dtype, ($out ? (out => $out) : ())  });
 }
 
 =head2 ones
@@ -944,9 +1040,16 @@ method zeros(Shape $shape, AI::MXNet::Context :$ctx=AI::MXNet::Context->current_
         The created NDArray.
 =cut
 
-method ones(Shape $shape, AI::MXNet::Context :$ctx=AI::MXNet::Context->current_ctx, Dtype :$dtype='float32')
+method ones(
+    Shape $shape,
+    AI::MXNet::Context :$ctx=AI::MXNet::Context->current_ctx,
+    Dtype :$dtype='float32',
+    Maybe[AI::MXNet::NDArray] :$out=,
+    Maybe[Str] :$name=,
+    Maybe[Str] :$__layout__=,
+)
 {
-    return __PACKAGE__->_ones({ shape => $shape, ctx => "$ctx", dtype => $dtype });
+    return __PACKAGE__->_ones({ shape => $shape, ctx => "$ctx", dtype => $dtype, ($out ? (out => $out) : ()) });
 }
 
 =head2 full
@@ -973,9 +1076,15 @@ method ones(Shape $shape, AI::MXNet::Context :$ctx=AI::MXNet::Context->current_c
         The created NDArray.
 =cut
 
-method full(Shape $shape, Num $val, AI::MXNet::Context :$ctx=AI::MXNet::Context->current_ctx, Dtype :$dtype='float32')
+method full(
+    Shape $shape, Num $val,
+    AI::MXNet::Context :$ctx=AI::MXNet::Context->current_ctx,
+    Dtype :$dtype='float32', Maybe[AI::MXNet::NDArray] :$out=,
+    Maybe[Str] :$name=,
+    Maybe[Str] :$__layout__=
+)
 {
-    return __PACKAGE__->_set_value({ src => $val, out => __PACKAGE__->empty($shape, ctx => $ctx, dtype => $dtype) });
+    return __PACKAGE__->_set_value({ src => $val, out => $out ? $out : __PACKAGE__->empty($shape, ctx => $ctx, dtype => $dtype) });
 }
 
 =head2 array
@@ -984,7 +1093,7 @@ method full(Shape $shape, Num $val, AI::MXNet::Context :$ctx=AI::MXNet::Context-
 
     Parameters
     ----------
-    $source_array : PDL, PDL::Matrix, Array ref in PDL::pdl format
+    $source_array : AI::MXNet::NDArray PDL, PDL::Matrix, Array ref in PDL::pdl format
         Source data to create NDArray from.
 
     :$ctx : AI::MXNet::Context, optional
@@ -999,8 +1108,19 @@ method full(Shape $shape, Num $val, AI::MXNet::Context :$ctx=AI::MXNet::Context-
         The created NDArray.
 =cut
 
-method array(PDL|PDL::Matrix|ArrayRef $source_array, AI::MXNet::Context :$ctx=AI::MXNet::Context->current_ctx, Dtype :$dtype='float32')
+method array(PDL|PDL::Matrix|PDL::CCS::Nd|ArrayRef|AI::MXNet::NDArray $source_array, AI::MXNet::Context :$ctx=AI::MXNet::Context->current_ctx, Dtype :$dtype='float32')
 {
+    if(blessed $source_array and $source_array->isa('AI::MXNet::NDArray'))
+    {
+        return AI::MXNet::NDArray::Sparse->array($source_array, ctx => $ctx, dtype => $dtype) unless $source_array->stype eq 'default';
+        my $arr = __PACKAGE__->empty($source_array->shape, ctx => $ctx, dtype => $dtype);
+        $arr .= $source_array;
+        return $arr;
+    }
+    elsif(blessed $source_array and $source_array->isa('PDL::CCS::Nd'))
+    {
+        return AI::MXNet::NDArray::Sparse->array($source_array, ctx => $ctx, dtype => $dtype);
+    }
     my $pdl_type = PDL::Type->new(DTYPE_MX_TO_PDL->{ $dtype });
     if(not blessed($source_array))
     {
@@ -1054,11 +1174,11 @@ method concatenate(ArrayRef[AI::MXNet::NDArray] $arrays, Index :$axis=0, :$alway
         $shape_axis += $arr->shape->[$axis];
         my $arr_shape_rest1 = [@{ $arr->shape }[0..($axis-1)]];
         my $arr_shape_rest2 = [@{ $arr->shape }[($axis+1)..(@{ $arr->shape }-1)]];
-        confess("first array $arrays->[0] and $i array $arr do not match") 
+        confess("first array $arrays->[0] and $i array $arr do not match")
             unless  join(',',@$arr_shape_rest1) eq join(',',@$shape_rest1);
-        confess("first array $arrays->[0] and $i array $arr do not match") 
+        confess("first array $arrays->[0] and $i array $arr do not match")
             unless  join(',',@$arr_shape_rest2) eq join(',',@$shape_rest2);
-        confess("first array $arrays->[0] and $i array $arr dtypes do not match") 
+        confess("first array $arrays->[0] and $i array $arr dtypes do not match")
             unless  join(',',@$arr_shape_rest2) eq join(',',@$shape_rest2);
         $i++;
     }
@@ -1078,8 +1198,8 @@ method concatenate(ArrayRef[AI::MXNet::NDArray] $arrays, Index :$axis=0, :$alway
             $begin->[$axis] = $idx;
             $end->[$axis] = $idx+$arr->shape->[$axis];
             __PACKAGE__->_crop_assign(
-                $ret, $arr, 
-                { 
+                $ret, $arr,
+                {
                     out => $ret,
                     begin => $begin,
                     end => $end
@@ -1100,13 +1220,16 @@ method concatenate(ArrayRef[AI::MXNet::NDArray] $arrays, Index :$axis=0, :$alway
     ----------
     :$start=0 : number, optional
         Start of interval. The interval includes this value. The default start value is 0.
-    $stop= : number, optional
+    :$stop= : number, optional
         End of interval. The interval does not include this value.
     :$step=1 : number, optional
         Spacing between the values
     :$repeat=1 : number, optional
         The repeating time of all elements.
         E.g repeat=3, the element a will be repeated three times --> a, a, a.
+    :$infer_range=0 : Bool
+        When set to 1, infer stop position from start, step, repeat, and
+        output tensor size.
     :$ctx : Context, optional
         The context of the NDArray, defaultw to current default context.
     :$dtype : data type, optional
@@ -1118,7 +1241,7 @@ method concatenate(ArrayRef[AI::MXNet::NDArray] $arrays, Index :$axis=0, :$alway
         The created NDArray
 =cut
 
-method arange(Index :$start=0, Index :$stop=, Index :$step=1, Index :$repeat=1,
+method arange(Index :$start=0, Maybe[Index] :$stop=, Index :$step=1, Index :$repeat=1, Bool :$infer_range=0,
               AI::MXNet::Context :$ctx=AI::MXNet::Context->current_ctx, Dtype :$dtype='float32')
 {
     return __PACKAGE__->_arange({
@@ -1127,6 +1250,7 @@ method arange(Index :$start=0, Index :$stop=, Index :$step=1, Index :$repeat=1,
                 step => $step,
                 repeat => $repeat,
                 dtype => $dtype,
+                infer_range => $infer_range,
                 ctx => "$ctx"
     });
 }
@@ -1160,7 +1284,7 @@ method load(Str $filename)
     my ($handles, $names) = check_call(AI::MXNetCAPI::NDArrayLoad($filename));
     if (not @$names)
     {
-        return [map { __PACKAGE__->new(handle => $_) } @$handles];
+        return [map { __PACKAGE__->_ndarray_cls($_) } @$handles];
     }
     else
     {
@@ -1168,7 +1292,43 @@ method load(Str $filename)
         my $h = @$handles;
         confess("Handles [$h] and names [$n] count mismatch") unless $h == $n;
         my %ret;
-        @ret{ @$names } = map { __PACKAGE__->new(handle => $_) } @$handles;
+        @ret{ @$names } = map { __PACKAGE__->_ndarray_cls($_) } @$handles;
+        return \%ret;
+    }
+}
+
+=head2 load_frombuffer
+
+    Loads an array dictionary or list from a buffer
+
+    See more details in 'save'.
+
+    Parameters
+    ----------
+    buf : str
+        Binary string containing contents of a file.
+
+    Returns
+    -------
+    array ref of AI::MXNet::NDArray, AI::MXNet::NDArrayRowSparseNDArray or AI::MXNet::NDArray::CSR, or
+    hash ref of AI::MXNet::NDArray, AI::MXNet::NDArrayRowSparseNDArray or AI::MXNet::NDArray::CSR
+        Loaded data.
+=cut
+
+method load_frombuffer(Str $buf)
+{
+    my ($handles, $names) = check_call(AI::MXNetCAPI::NDArrayLoadFromBuffer($buf, length($buf)));
+    if (not @$names)
+    {
+        return [map { __PACKAGE__->_ndarray_cls($_) } @$handles];
+    }
+    else
+    {
+        my $n = @$names;
+        my $h = @$handles;
+        confess("Handles [$h] and names [$n] count mismatch") unless $h == $n;
+        my %ret;
+        @ret{ @$names } = map { __PACKAGE__->_ndarray_cls($_) } @$handles;
         return \%ret;
     }
 }
@@ -1285,16 +1445,48 @@ sub _new_empty_handle
 
 func _new_alloc_handle($shape, $ctx, $delay_alloc, $dtype)
 {
-    my $hdl = check_call(AI::MXNetCAPI::NDArrayCreateEx(
-        $shape,
-        scalar(@$shape),
-        $ctx->device_type_id,
-        $ctx->device_id,
-        $delay_alloc,
-        $dtype)
+    my $hdl = check_call(
+        AI::MXNetCAPI::NDArrayCreateEx(
+            $shape,
+            scalar(@$shape),
+            $ctx->device_type_id,
+            $ctx->device_id,
+            $delay_alloc,
+            $dtype
+        )
     );
     return $hdl;
 }
+
+method _new_from_shared_mem($shared_pid, $shared_id, $shape, $dtype)
+{
+    my $hdl = check_call(
+        AI::MXNetCAPI::NDArrayCreateFromSharedMemEx(
+            $shared_pid,
+            $shared_id,
+            $shape,
+            scalar(@$shape),
+            DTYPE_STR_TO_MX->{$dtype}
+        )
+    );
+    return $hdl;
+}
+
+=head2 tostype
+
+        Return a copy of the array with chosen storage type.
+
+        Returns
+        -------
+        AI::MXNet::NDArray or AI::MXNet::NDArray::CSR or AI::MXNet::NDArray::RowSparse
+            A copy of the array with the chosen storage stype
+=cut
+
+method tostype(Stype $stype)
+{
+    return $self->cast_storage(stype => $stype);
+}
+
 
 =head2 waitall
 
@@ -1307,6 +1499,131 @@ method waitall()
     check_call(AI::MXNetCAPI::NDArrayWaitAll());
 }
 
+=head2 _fresh_grad
+
+        Parameters:
+        ----------
+        Maybe[Bool] $state=
+
+        Whether this array's corresponding gradient array
+        (registered via `autograd->mark_variables`) has been
+        updated by `autograd->backward` since last reset.
+
+        `_fresh_grad` need to be manually set to False
+        after consuming gradient (usually after updating this
+        array).
+=cut
+
+method _fresh_grad(Maybe[Bool] $state=)
+{
+    if(defined $state)
+    {
+        check_call(AI::MXNetCAPI::NDArraySetGradState($self->handle, $state));
+        return $state;
+    }
+    else
+    {
+        return scalar(check_call(AI::MXNetCAPI::NDArrayGetGradState($self->handle)));
+    }
+}
+
+=head2 detach
+
+    Returns a new NDArray, detached from the current graph.
+=cut
+
+method detach()
+{
+    my $handle = check_call(AI::MXNetCAPI::NDArrayDetach($self->handle));
+    return __PACKAGE__->_ndarray_cls($handle);
+}
+
+=head2 attach_grad
+
+        Attach a gradient buffer to this NDArray, so that `backward`
+        can compute gradient with respect to it.
+
+        Parameters
+        ----------
+        GradReq :$grad_req='write' : {'write', 'add', 'null'}
+            How gradient will be accumulated.
+            - 'write': gradient will be overwritten on every backward.
+            - 'add': gradient will be added to existing value on every backward.
+            - 'null': do not compute gradient for this NDArray.
+        Maybe[Str] :$stype= : str, optional
+            The storage type of the gradient array. Defaults to the same stype of this NDArray.
+=cut
+
+method attach_grad(GradReq :$grad_req='write', Maybe[Str] :$stype=)
+{
+    my $grad;
+    if(defined $stype)
+    {
+        $grad = __PACKAGE__->zeros($self->shape, stype => $stype);
+    }
+    else
+    {
+        $grad = $self->zeros_like;
+    }
+    $grad_req = GRAD_REQ_MAP->{$grad_req};
+    check_call(
+        AI::MXNetCAPI::AutogradMarkVariables(
+            1,
+            [$self->handle],
+            [$grad_req],
+            [$grad->handle]
+        )
+    );
+}
+
+=head2 grad
+
+    Returns gradient buffer attached to this NDArray.
+=cut
+
+method grad()
+{
+    my $handle = check_call(AI::MXNetCAPI::NDArrayGetGrad($self->handle));
+    return undef unless defined $handle;
+    return __PACKAGE__->_ndarray_cls($handle);
+}
+
+=head2 backward
+
+    Compute the gradients of this NDArray w.r.t variables.
+
+    Parameters
+    ----------
+    :$out_grad= : NDArray, optional
+        Gradient with respect to head.
+    :$retain_graph=0 : bool, optional
+        Whether to retain the computaion graph for another backward
+        pass on the same graph. By default the computaion history
+        is cleared.
+    :$train_mode=1 : bool, optional
+        Whether to compute gradient for training or inference.
+=cut
+
+method backward(Maybe[AI::MXNet::NDArray] :$out_grad=, Bool :$retain_graph=0, Bool :$train_mode=1)
+{
+    check_call(
+        AI::MXNetCAPI::AutogradBackwardEx(
+            1,
+            [$self->handle],
+            [defined $out_grad ? $out_grad->handle : undef],
+            0,
+            [],
+            $retain_graph,
+            0,
+            $train_mode
+        )
+    )
+}
+
+method CachedOp(@args) { AI::MXNet::CachedOp->new(@args) }
+
+method histogram(@args) { __PACKAGE__->_histogram(@args%2 ? ('data', @args) : @args) }
+
 my $lvalue_methods = join "\n", map {"use attributes 'AI::MXNet::NDArray', \\&AI::MXNet::NDArray::$_, 'lvalue';"}
 qw/at slice aspdl asmpdl reshape copy sever T astype as_in_context copyto empty zero ones full
                        array/;
@@ -1316,5 +1633,11 @@ eval << "EOV" if ($^V and $^V >= 5.006007);
   $lvalue_methods
 }
 EOV
+
+sub contrib { 'AI::MXNet::Contrib::NDArray' }
+sub random  { 'AI::MXNet::Random' }
+sub sparse  { 'AI::MXNet::NDArray::Sparse' }
+sub linalg  { 'AI::MXNet::LinAlg::NDArray' }
+sub image   { 'AI::MXNet::Image::NDArray' }
 
 __PACKAGE__->meta->make_immutable;

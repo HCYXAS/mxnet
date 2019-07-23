@@ -1,3 +1,20 @@
+<!--- Licensed to the Apache Software Foundation (ASF) under one -->
+<!--- or more contributor license agreements.  See the NOTICE file -->
+<!--- distributed with this work for additional information -->
+<!--- regarding copyright ownership.  The ASF licenses this file -->
+<!--- to you under the Apache License, Version 2.0 (the -->
+<!--- "License"); you may not use this file except in compliance -->
+<!--- with the License.  You may obtain a copy of the License at -->
+
+<!---   http://www.apache.org/licenses/LICENSE-2.0 -->
+
+<!--- Unless required by applicable law or agreed to in writing, -->
+<!--- software distributed under the License is distributed on an -->
+<!--- "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY -->
+<!--- KIND, either express or implied.  See the License for the -->
+<!--- specific language governing permissions and limitations -->
+<!--- under the License. -->
+
 # Module API
 The module API provides an intermediate and high-level interface for performing computation with neural networks in MXNet. A *module* is an instance of subclasses of the `BaseModule`. The most widely used module class is called `Module`. Module wraps a `Symbol` and one or more `Executors`. For a full list of functions, see `BaseModule`.
 A subclass of modules might have extra interface functions. This topic provides some examples of common use cases. All of the module APIs are in the `Module` namespace.
@@ -7,17 +24,17 @@ A subclass of modules might have extra interface functions. This topic provides 
 To construct a module, refer to the constructors for the module class. For example, the `Module` class accepts a `Symbol` as input:
 
 ```scala
-    import ml.dmlc.mxnet._
-    import ml.dmlc.mxnet.module.{FitParams, Module}
+    import org.apache.mxnet._
+    import org.apache.mxnet.module.{FitParams, Module}
 
     // construct a simple MLP
     val data = Symbol.Variable("data")
-    val fc1 = Symbol.FullyConnected(name = "fc1")(data)(Map("num_hidden" -> 128))
-    val act1 = Symbol.Activation(name = "relu1")(fc1)(Map("act_type" -> "relu"))
-    val fc2 = Symbol.FullyConnected(name = "fc2")(act1)(Map("num_hidden" -> 64))
-    val act2 = Symbol.Activation(name = "relu2")(fc2)(Map("act_type" -> "relu"))
-    val fc3 = Symbol.FullyConnected(name = "fc3")(act2)(Map("num_hidden" -> 10))
-    val out = Symbol.SoftmaxOutput(name = "softmax")(fc3)()
+    val fc1 = Symbol.api.FullyConnected(Some(data), num_hidden = 128, name = "fc1")
+    val act1 = Symbol.api.Activation(Some(fc1), "relu", "relu1")
+    val fc2 = Symbol.api.FullyConnected(Some(act1), num_hidden = 64, name = "fc2")
+    val act2 = Symbol.api.Activation(Some(fc2), "relu", "relu2")
+    val fc3 = Symbol.api.FullyConnected(Some(act2), num_hidden = 10, name = "fc3")
+    val out = Symbol.api.SoftmaxOutput(fc3, name = "softmax")
 
     // construct the module
     val mod = new Module(out)
@@ -40,7 +57,7 @@ Now you can compute with the module using functions like `forward()`, `backward(
 Modules provide high-level APIs for training, predicting, and evaluating. To fit a module, call the `fit()` function with some `DataIter`s:
 
 ```scala
-    import ml.dmlc.mxnet.optimizer.SGD
+    import org.apache.mxnet.optimizer.SGD
     val mod = new Module(softmax)
 
     mod.fit(train_dataiter, evalData = scala.Option(eval_dataiter), \
@@ -48,13 +65,13 @@ Modules provide high-level APIs for training, predicting, and evaluating. To fit
     .setOptimizer(new SGD(learningRate = 0.1f, momentum = 0.9f, wd = 0.0001f)))
 ```
 
-The interface is very similar to the old `FeedForward` class. You can pass in batch-end callbacks using `setBatchEndCallback` and epoch-end callbacks using `setEpochEndCallback`. You can also set parameters using methods like `setOptimizer` and `setEvalMetric`. To learn more about the `FitParams()`, see the [API page](http://mxnet.io/api/scala/docs/index.html#ml.dmlc.mxnet.module.FitParams). To predict with a module, call `predict()` with a `DataIter`:
+The interface is very similar to the old `FeedForward` class. You can pass in batch-end callbacks using `setBatchEndCallback` and epoch-end callbacks using `setEpochEndCallback`. You can also set parameters using methods like `setOptimizer` and `setEvalMetric`. To learn more about the `FitParams()`, see the [API page](http://mxnet.io/api/scala/docs/index.html#org.apache.mxnet.module.FitParams). To predict with a module, call `predict()` with a `DataIter`:
 
 ```scala
     mod.predict(val_dataiter)
 ```
 
-The module collects and returns all of the prediction results. For more details about the format of the return values, see the documentation for the [`predict()` function](http://mxnet.io/api/scala/docs/index.html#ml.dmlc.mxnet.module.BaseModule).
+The module collects and returns all of the prediction results. For more details about the format of the return values, see the documentation for the [`predict()` function](http://mxnet.incubator.apache.org/api/scala/docs/index.html#org.apache.mxnet.module.BaseModule).
 
 When prediction results might be too large to fit in memory, use the `predictEveryBatch` API:
 

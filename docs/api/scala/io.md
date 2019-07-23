@@ -1,3 +1,20 @@
+<!--- Licensed to the Apache Software Foundation (ASF) under one -->
+<!--- or more contributor license agreements.  See the NOTICE file -->
+<!--- distributed with this work for additional information -->
+<!--- regarding copyright ownership.  The ASF licenses this file -->
+<!--- to you under the Apache License, Version 2.0 (the -->
+<!--- "License"); you may not use this file except in compliance -->
+<!--- with the License.  You may obtain a copy of the License at -->
+
+<!---   http://www.apache.org/licenses/LICENSE-2.0 -->
+
+<!--- Unless required by applicable law or agreed to in writing, -->
+<!--- software distributed under the License is distributed on an -->
+<!--- "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY -->
+<!--- KIND, either express or implied.  See the License for the -->
+<!--- specific language governing permissions and limitations -->
+<!--- under the License. -->
+
 # MXNet Scala Data Loading API
 This topic introduces the data input method for MXNet. MXNet uses an iterator to provide data to the neural network.  Iterators do some preprocessing and generate batches for the neural network.
 
@@ -8,7 +25,7 @@ Topics:
 * [Data Iterator Parameters](#parameters-for-data-iterator) clarifies the different usages for dataiter parameters.
 * [Create a Data Iterator](#create-a-data-iterator) introduces how to create a data iterator in MXNet for Scala.
 * [How to Get Data](#how-to-get-data) introduces the data resource and data preparation tools.
-* [IO API Reference](http://mxnet.io/api/scala/docs/index.html#ml.dmlc.mxnet.IO$) explains the IO API.
+* [IO API Reference](http://mxnet.incubator.apache.org/api/scala/docs/index.html#org.apache.mxnet.IO$) explains the IO API.
 
 
 ## Data Iterator Parameters
@@ -83,7 +100,7 @@ First, explicitly specify the kind of data (MNIST, ImageRecord, etc.) to fetch. 
 ## How to Get Data
 
 
-We provide [scripts](https://github.com/dmlc/mxnet/tree/master/scala-package/core/scripts) to download MNIST data and CIFAR10 ImageRecord data. If you want to create your own dataset, we recommend using the Image RecordIO data format.
+We provide [scripts](https://github.com/apache/incubator-mxnet/tree/master/scala-package/core/scripts) to download MNIST data and CIFAR10 ImageRecord data. If you want to create your own dataset, we recommend using the Image RecordIO data format.
 
 ## Create a Dataset Using RecordIO
 
@@ -93,7 +110,7 @@ RecordIO implements a file format for a sequence of records. We recommend storin
 * Packing data together allows continuous reading on the disk.
 * RecordIO has a simple way to partition, simplifying distributed setting. We provide an example later.
 
-We provide the [im2rec tool](https://github.com/dmlc/mxnet/blob/master/tools/im2rec.cc) so you can create an Image RecordIO dataset by yourself. The following walkthrough shows you how.
+We provide the [im2rec tool](https://github.com/apache/incubator-mxnet/blob/master/tools/im2rec.cc) so you can create an Image RecordIO dataset by yourself. The following walkthrough shows you how.
 
 ### Prerequisites
 Download the data. You don't need to resize the images manually. You can use `im2rec` to resize them automatically. For details, see "Extension: Using Multiple Labels for a Single Image," later in this topic.

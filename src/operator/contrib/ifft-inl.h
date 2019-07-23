@@ -1,3 +1,22 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 /*!
  * Copyright (c) 2015 by Contributors
  * \file Ifft-inl.h
@@ -16,7 +35,7 @@
 #include "../operator_common.h"
 #include "../mshadow_op.h"
 
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
 #include <hipfft.h>
 #endif
 
@@ -36,6 +55,7 @@ struct IFFTParam : public dmlc::Parameter<IFFTParam> {
   }
 };
 
+#if MXNET_USE_GPU
 template<typename xpu, typename DType>
 class IFFTOp : public Operator {
  public:
@@ -68,8 +88,8 @@ class IFFTOp : public Operator {
     }
 
     Stream<xpu> *s = ctx.get_stream<xpu>();
-    const TShape& ishape = in_data[ifft::kData].shape_;
-    const TShape& oshape = out_data[ifft::kOut].shape_;
+    const mxnet::TShape& ishape = in_data[ifft::kData].shape_;
+    const mxnet::TShape& oshape = out_data[ifft::kOut].shape_;
     Tensor<xpu, 2, DType> data = in_data[ifft::kData].get_with_shape<xpu, 2, DType>(
           Shape2(n_iffts, dim_*2), s);
     Tensor<xpu, 2, DType> out = out_data[ifft::kOut].get_with_shape<xpu, 2, DType>(
@@ -80,7 +100,6 @@ class IFFTOp : public Operator {
                 Shape1(param_.compute_size*dim_*2), s);
     Tensor<xpu, 2, DType> complex_data = Tensor<xpu, 2, DType>(workspace.dptr_,
                                               Shape2(param_.compute_size, dim_*2), s);
-    #if MSHADOW_USE_CUDNN
     // start ifft
     hipfftHandle plan;
     hipfftPlanMany(&plan, 1, &dim_, nullptr, 0, 0, nullptr, 0, 0, HIPFFT_C2C, param_.compute_size);
@@ -88,7 +107,7 @@ class IFFTOp : public Operator {
       hipfftComplex* in_tmp = const_cast<hipfftComplex*>(
         reinterpret_cast<const hipfftComplex*>(data.dptr_ + 2*idx*stride_));
       hipfftComplex* out_tmp = reinterpret_cast<hipfftComplex*>(complex_data.dptr_);
-      CHECK_EQ(hipfftExecC2C(plan, in_tmp, out_tmp, HIPFFT_INVERSE), HIPFFT_SUCCESS);
+      CHECK_EQ(hipfftExecC2C(plan, in_tmp, out_tmp, HIPFFT_BACKWARD), HIPFFT_SUCCESS);
 
       Assign(out.Slice(idx*param_.compute_size, (idx+1)*param_.compute_size),
              req[ifft::kOut], complex_toreal(complex_data));
@@ -107,13 +126,12 @@ class IFFTOp : public Operator {
       hipfftComplex* in_tmp = const_cast<hipfftComplex*>(
         reinterpret_cast<const hipfftComplex*>(data.dptr_ + 2*num_compute*stride_));
       hipfftComplex* out_tmp = reinterpret_cast<hipfftComplex*>(complex_data.dptr_);
-      CHECK_EQ(hipfftExecC2C(plan_remain, in_tmp, out_tmp, HIPFFT_INVERSE), HIPFFT_SUCCESS);
+      CHECK_EQ(hipfftExecC2C(plan_remain, in_tmp, out_tmp, HIPFFT_BACKWARD), HIPFFT_SUCCESS);
         Assign(out.Slice(param_.compute_size*num_compute,
                          param_.compute_size*num_compute+remain_num),
              req[ifft::kOut], complex_toreal(complex_data));
       hipfftDestroy(plan_remain);
     }
-    #endif
     // commenting this out to be consistant with caffe
     // out /= dim_;
   }
@@ -132,19 +150,18 @@ class IFFTOp : public Operator {
 
     Stream<xpu> *s = ctx.get_stream<xpu>();
 
-    const TShape& ishape = in_grad[ifft::kData].shape_;
-    const TShape& oshape = out_grad[ifft::kOut].shape_;
+    const mxnet::TShape& ishape = in_grad[ifft::kData].shape_;
+    const mxnet::TShape& oshape = out_grad[ifft::kOut].shape_;
     Tensor<xpu, 2, DType> gdata = in_grad[ifft::kData].get_with_shape<xpu, 2, DType>(
           Shape2(n_iffts, dim_*2), s);
     Tensor<xpu, 2, DType> grad = out_grad[ifft::kOut].get_with_shape<xpu, 2, DType>(
           Shape2(n_iffts, dim_), s);
-    // need temp space to pad the data into complex numbers due to hipfft interface
+    // need temp space to pad the data into complex numbers due to cufft interface
     Tensor<xpu, 1, DType> workspace =
             ctx.requested[ifft::kTempSpace].get_space_typed<xpu, 1, DType>(
                 Shape1(param_.compute_size*dim_*2), s);
     Tensor<xpu, 2, DType> complex_data = Tensor<xpu, 2, DType>(workspace.dptr_,
                                               Shape2(param_.compute_size, dim_*2), s);
-    #if MSHADOW_USE_CUDNN
     // start fft
     hipfftHandle plan;
     hipfftPlanMany(&plan, 1, &dim_, nullptr, 0, 0, nullptr, 0, 0, HIPFFT_C2C, param_.compute_size);
@@ -176,16 +193,18 @@ class IFFTOp : public Operator {
       CHECK_EQ(hipfftExecC2C(plan_remain, in_tmp, out_tmp, HIPFFT_FORWARD), HIPFFT_SUCCESS);
       hipfftDestroy(plan_remain);
     }
-    #endif
     // commenting this out to be consistant with caffe
     // gdata /= dim_;
   }
 
  private:
   IFFTParam param_;
-  int dim_, stride_, num_compute, n_iffts;
+  int dim_, stride_, n_iffts;
+  size_t num_compute;
   bool init_hipfft_;
 };  // class IFFTOp
+
+#endif  // MXNET_USE_GPU
 
 // Declare Factory Function, used for dispatch specialization
 template<typename xpu>
@@ -205,14 +224,14 @@ class IFFTProp : public OperatorProperty {
     return param_.__DICT__();
   }
 
-  bool InferShape(std::vector<TShape> *in_shape,
-                  std::vector<TShape> *out_shape,
-                  std::vector<TShape> *aux_shape) const override {
+  bool InferShape(mxnet::ShapeVector *in_shape,
+                  mxnet::ShapeVector *out_shape,
+                  mxnet::ShapeVector *aux_shape) const override {
     using namespace mshadow;
     CHECK_EQ(in_shape->size(), 1) <<"Input:[data]";
-    const TShape &dshape = (*in_shape)[ifft::kData];
+    const mxnet::TShape &dshape = (*in_shape)[ifft::kData];
     // require data to be known
-    if (dshape.ndim() == 0) return false;
+    if (mxnet::op::shape_is_none(dshape)) return false;
 
     out_shape->clear();
     if (dshape.ndim() == 4) {
@@ -231,13 +250,11 @@ class IFFTProp : public OperatorProperty {
     CHECK_GE(in_type->size(), 1);
     int dtype = (*in_type)[0];
     CHECK_NE(dtype, -1) << "First input must have specified type";
-    for (index_t i=0; i < in_type->size(); ++i) {
+    for (size_t i=0; i < in_type->size(); ++i) {
       if ((*in_type)[i] == -1) {
         (*in_type)[i] = dtype;
       } else {
-        CHECK_EQ((*in_type)[i], dtype) << "This layer requires uniform type. "
-                                       << "Expected " << dtype << " v.s. given "
-                                       << (*in_type)[i] << " at " << ListArguments()[i];
+        UNIFORM_TYPE_CHECK((*in_type)[i], dtype, ListArguments()[i]);
       }
     }
     out_type->clear();
@@ -263,12 +280,12 @@ class IFFTProp : public OperatorProperty {
   }
 
   std::vector<ResourceRequest> ForwardResource(
-      const std::vector<TShape> &in_shape) const override {
+      const mxnet::ShapeVector &in_shape) const override {
     return {ResourceRequest::kTempSpace};
   }
 
   std::vector<ResourceRequest> BackwardResource(
-      const std::vector<TShape> &in_shape) const override {
+      const mxnet::ShapeVector &in_shape) const override {
     return {ResourceRequest::kTempSpace};
   }
 
@@ -285,7 +302,7 @@ class IFFTProp : public OperatorProperty {
     return NULL;
   }
 
-  Operator* CreateOperatorEx(Context ctx, std::vector<TShape> *in_shape,
+  Operator* CreateOperatorEx(Context ctx, mxnet::ShapeVector *in_shape,
                               std::vector<int> *in_type) const override;
 
  private:
