@@ -23,10 +23,10 @@
 [submodule "3rdparty/onnx-tensorrt"]
 	path = 3rdparty/onnx-tensorrt
 	url = https://github.com/onnx/onnx-tensorrt.git
-[submodule "3rdparty/mshadow"]
-	path = 3rdparty/mshadow
-	url = https://github.com/ROCmSoftwarePlatform/mshadow
-	branch = mxnet-v1.4.x
 [submodule "3rdparty/nvidia_cub"]
 	path = 3rdparty/nvidia_cub
 	url = https://github.com/NVlabs/cub.git
+[submodule "3rdparty/mshadow"]
+	path = 3rdparty/mshadow
+	url = https://github.com/ROCmSoftwarePlatform/mshadow
+	branch = mxnet-v1.5.x
