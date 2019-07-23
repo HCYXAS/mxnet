@@ -5,7 +5,7 @@
 #ifndef HIPWRAPPERS_H
 #define HIPWRAPPERS_H
 
-#if MXNET_USE_GPU
+#if defined(__HIPCC__)
 #include <hipblas.h>
 #include <hiprand.h>
 #include "hip/hip_runtime.h"
