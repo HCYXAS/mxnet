@@ -1,0 +1,58 @@
+diff --git a/cmake/config.cmake b/cmake/config.cmake
+index a92be7ce..afac0ddd 100644
+--- a/cmake/config.cmake
++++ b/cmake/config.cmake
+@@ -37,7 +37,7 @@ set(USE_CUDA OFF)
+ # - ON: enable ROCM with cmake's auto search
+ # - OFF: disbale ROCM
+ # - /path/to/rocm: use specific path to rocm
+-set(USE_ROCM OFF)
++set(USE_ROCM ON)
+ 
+ # Whether enable SDAccel runtime
+ set(USE_SDACCEL OFF)
+@@ -71,7 +71,7 @@ set(USE_OPENGL OFF)
+ # SGX_MODE := HW|SIM
+ set(USE_SGX OFF)
+ set(SGX_MODE "SIM")
+-set(RUST_SGX_SDK "/path/to/rust-sgx-sdk")
++#set(RUST_SGX_SDK "/path/to/rust-sgx-sdk")
+ 
+ # Whether enable RPC runtime
+ set(USE_RPC ON)
+@@ -92,7 +92,8 @@ set(USE_GRAPH_RUNTIME_DEBUG OFF)
+ # - ON: enable llvm with cmake's find search
+ # - OFF: disbale llvm
+ # - /path/to/llvm-config: enable specific LLVM when multiple llvm-dev is available.
+-set(USE_LLVM OFF)
++
++set(USE_LLVM ON)
+ 
+ #---------------------------------------------
+ # Contrib libraries
+@@ -124,7 +125,7 @@ set(USE_MIOPEN OFF)
+ set(USE_MPS OFF)
+ 
+ # Whether use rocBlas
+-set(USE_ROCBLAS OFF)
++set(USE_ROCBLAS ON)
+ 
+ # Whether use contrib sort
+ set(USE_SORT OFF)
+diff --git a/nnvm/include/nnvm/op.h b/nnvm/include/nnvm/op.h
+index 9d171bbd..bbf2a845 100644
+--- a/nnvm/include/nnvm/op.h
++++ b/nnvm/include/nnvm/op.h
+@@ -458,10 +458,10 @@ inline Op& Op::set_attr(  // NOLINT(*)
+                    std::make_pair(ValueType(), 0));
+       }
+       std::pair<ValueType, int>& p = vec[index_];
+-      CHECK(p.second != plevel)
++     /* CHECK(p.second != plevel)
+           << "Attribute " << attr_name
+           << " of operator " << this->name
+-          << " is already registered with same plevel=" << plevel;
++          << " is already registered with same plevel=" << plevel;*/
+       if (p.second < plevel) {
+         vec[index_] = std::make_pair(value, plevel);
+       }

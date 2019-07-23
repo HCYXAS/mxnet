@@ -5,11 +5,11 @@
 #ifndef HIPWRAPPERS_H
 #define HIPWRAPPERS_H
 
+#if MXNET_USE_GPU
 #include <hipblas.h>
 #include <hiprand.h>
 #include "hip/hip_runtime.h"
 #include "hip/hip_fp16.h"
-
 
 
 hipblasStatus_t hipblasSgemmEx  (hipblasHandle_t handle,
@@ -109,4 +109,5 @@ hipblasStatus_t hipblasDsyrk(hipblasHandle_t handle,
                              const double *beta,
                              double *C, 
 			     int ldc);
+#endif
 #endif //HIPWRAPPERS_H

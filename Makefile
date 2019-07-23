@@ -92,7 +92,11 @@ ifeq ($(DEBUG), 1)
 else
 	CFLAGS += -O3 -DNDEBUG=1
 endif
-HIPINCLUDE += -I. -I/opt/rocm/include -I/opt/rocm/hipblas/include -I/opt/rocm/hiprand/include -I/opt/rocm/rocfft/include -I/opt/rocm/hipcub/include/
+ifeq ($(USE_GPU), 1)
+	HIPINCLUDE += -I. -I/opt/rocm/include -I/opt/rocm/hipblas/include -I/opt/rocm/hiprand/include -I/opt/rocm/rocfft/include -I/opt/rocm/hipcub/include/
+else
+	HIPINCLUDE += -I.
+endif
 CFLAGS += $(HIPINCLUDE) -I$(TPARTYDIR)/mshadow/ -I$(TPARTYDIR)/dmlc-core/include -fPIC -I$(NNVM_PATH)/include -I$(DLPACK_PATH)/include -I$(TPARTYDIR)/tvm/include -Iinclude $(MSHADOW_CFLAGS)
 LDFLAGS = -pthread $(MSHADOW_LDFLAGS) $(DMLC_LDFLAGS)
 

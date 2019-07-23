@@ -149,7 +149,7 @@ void compute_alpha_kernel (const ProbT* log_probs, const int *label_sizes,
     // Set the first row of alpha neg_inf - it is much more efficient to do it
     // here than outside
     #pragma unroll
-    for (int idx = tid; idx < min(S, NV); idx += blockDim.x) {
+    for (int idx = tid; idx < std::min(S, NV); idx += blockDim.x) {
         alpha[idx] = ctc_helper::neg_inf<ProbT>();
     }
 
