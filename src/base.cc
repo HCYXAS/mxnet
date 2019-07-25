@@ -72,7 +72,7 @@ void Context::CudaLibChecks() {
 void Context::CuDNNLibChecks() {
   // One-time init here will emit a warning if runtime and compile-time cudnn lib versions mismatch.
   // Also if the user has recompiled their source to a version no longer tested by upstream CI.
-  static bool cudnn_lib_checks_performed = []() {
+  /*static bool cudnn_lib_checks_performed = []() {
     // Don't bother with checks if there are no GPUs visible (e.g. with CUDA_VISIBLE_DEVICES="")
     if (dmlc::GetEnv("MXNET_CUDNN_LIB_CHECKING", true) && GetGPUCount() > 0) {
       size_t linkedAgainstCudnnVersion = cudnnGetVersion();
@@ -88,7 +88,7 @@ void Context::CuDNNLibChecks() {
     }
     return true;
   }();
-  UNUSED(cudnn_lib_checks_performed);
+  UNUSED(cudnn_lib_checks_performed);*/
 }
 #endif  // MXNET_USE_CUDNN
 
