@@ -511,7 +511,7 @@ class BatchNormValidator : public test::op::Validator<DType, AccReal> {
     TEST_ISTRUE(compare(*info_1.executor_, *info_2.executor_, ForwardOutputs::kForOutData));
     CHECK_EQ(info_2.prop_->getParam().use_global_stats, info_1.prop_->getParam().use_global_stats);
 
-#if MXNET_USE_CUDNN != 1 /* CUDNN takes a different approach here on first pass */
+#if MXNET_USE_MIOPEN != 1 /* MIOPEN  takes a different approach here on first pass */
     // Aux
     TEST_ISTRUE(compare(*info_1.executor_, *info_2.executor_, ForwardOutputs::kForOutMean));
     TEST_ISTRUE(compare(*info_1.executor_, *info_2.executor_, ForwardOutputs::kForOutVar));
@@ -973,11 +973,11 @@ static void timingTest(const std::string& label,
   std::cout << std::endl << std::flush;
 }
 
-#if MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 5
+#if MXNET_USE_MIOPEN == 1 
 #define GPU_TEST_DIMENSIONS  2  /* Only support 2D */
 #else
 #define GPU_TEST_DIMENSIONS  0  /* Allow stochastic */
-#endif  // MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 5
+#endif  // MXNET_USE_MIOPEN == 1 
 
 /*! \brief Stress-test random batch size/channels/dimension(s) */
 TEST(BATCH_NORM, TestStochasticTiming_2D) {
@@ -1035,10 +1035,10 @@ MSHADOW_REAL_TYPE_SWITCH_EX(
       true, false,
       blank_kwargs_nocudnn,
       2, THISCOUNT);
-#if MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 5
-    // CUDA-CUDNN
+#if MXNET_USE_MIOPEN == 1 
+    // ROCm -MIOPEN
     timingTest<BatchNormCoreOpProp, BNOperatorExecutor<DType, AccReal>>(
-      "CUDNN BatchNormProp<gpu> 2D",
+      "Miopen BatchNormProp<gpu> 2D",
       true, false,
       blank_kwargs,
       2, THISCOUNT);

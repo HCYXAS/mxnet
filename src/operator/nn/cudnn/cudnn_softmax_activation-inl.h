@@ -36,7 +36,7 @@ class CuDNNSoftmaxActivationOp {
  public:
   CuDNNSoftmaxActivationOp() {
     dtype_ = miopenFloat;
-    CUDNN_CALL(miopenCreateTensorDescriptor(&shape_desc_));
+    MIOPEN_CALL(miopenCreateTensorDescriptor(&shape_desc_));
   }
 
   void Init(SoftmaxActivationParam param) {
@@ -44,7 +44,7 @@ class CuDNNSoftmaxActivationOp {
   }
 
   ~CuDNNSoftmaxActivationOp() {
-    CUDNN_CALL(miopenDestroyTensorDescriptor(shape_desc_));
+    MIOPEN_CALL(miopenDestroyTensorDescriptor(shape_desc_));
   }
 
   void Forward(const OpContext &ctx, const TBlob &in_data,
@@ -83,13 +83,13 @@ class CuDNNSoftmaxActivationOp {
     float alpha = 1.0f;
     float beta = 0.0f;
     CHECK_EQ(s->dnn_handle_ownership_, mshadow::Stream<gpu>::OwnHandle);
-    CUDNN_CALL(miopenSet4dTensorDescriptor(shape_desc_,
+    MIOPEN_CALL(miopenSet4dTensorDescriptor(shape_desc_,
                                           dtype_,
                                           data.shape_[0],
                                           data.shape_[1],
                                           data.shape_[2],
                                           data.shape_[3]));
-     CUDNN_CALL(miopenSoftmaxForward_V2(s->dnn_handle_,
+     MIOPEN_CALL(miopenSoftmaxForward_V2(s->dnn_handle_,
                                    &alpha,
                                    shape_desc_,
                                    data.dptr_,
@@ -141,13 +141,13 @@ class CuDNNSoftmaxActivationOp {
       softmax_mode = MIOPEN_SOFTMAX_MODE_CHANNEL;
     }
     CHECK_EQ(s->dnn_handle_ownership_, mshadow::Stream<gpu>::OwnHandle);
-    CUDNN_CALL(miopenSet4dTensorDescriptor(shape_desc_,
+    MIOPEN_CALL(miopenSet4dTensorDescriptor(shape_desc_,
                                           dtype_,
                                           input_grad.shape_[0],
                                           input_grad.shape_[1],
                                           input_grad.shape_[2],
                                           input_grad.shape_[3]));
-    CUDNN_CALL(miopenSoftmaxBackward_V2(s->dnn_handle_,
+    MIOPEN_CALL(miopenSoftmaxBackward_V2(s->dnn_handle_,
                                     &alpha,
                                     shape_desc_,
                                     output_data.dptr_,

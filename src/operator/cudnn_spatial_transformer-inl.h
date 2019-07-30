@@ -31,7 +31,7 @@
 #include "./spatial_transformer-inl.h"
 namespace mxnet {
 namespace op {
-#if defined(__HIPCC__) && MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 5
+#if defined(__HIPCC__) && MXNET_USE_MIOPEN == 1
 template<typename DType>
 class CuDNNSpatialTransformerOp : public Operator {
  public:
@@ -47,8 +47,8 @@ class CuDNNSpatialTransformerOp : public Operator {
   ~CuDNNSpatialTransformerOp() {
     if (init_cudnn_) {
      // CUDNN_CALL(cudnnDestroySpatialTransformerDescriptor(st_desc_)); //TODO unsupported in MIOpen
-      CUDNN_CALL(miopenDestroyTensorDescriptor(in_desc_));
-      CUDNN_CALL(miopenDestroyTensorDescriptor(out_desc_));
+      MIOPEN_CALL(miopenDestroyTensorDescriptor(in_desc_));
+      MIOPEN_CALL(miopenDestroyTensorDescriptor(out_desc_));
     }
   }
 
@@ -145,9 +145,6 @@ class CuDNNSpatialTransformerOp : public Operator {
                    const std::vector<TBlob> &in_data,
                    const std::vector<TBlob> &out_data) {
     using namespace mshadow;
-    #if CUDNN_MAJOR >= 5
-    //format_ = CUDNN_TENSOR_NCHW;
-    #endif
     CHECK_EQ(in_data.size(), 2U);
     CHECK_EQ(out_data.size(), 3U);
     if (!init_cudnn_) {
@@ -155,16 +152,16 @@ class CuDNNSpatialTransformerOp : public Operator {
       Tensor<gpu, 4, DType> data = in_data[st::kData].get<gpu, 4, DType>(s);
       Tensor<gpu, 4, DType> out = out_data[st::kOut].get<gpu, 4, DType>(s);
       //CUDNN_CALL(cudnnCreateSpatialTransformerDescriptor(&st_desc_)); //TODO unsupported in MIOpen
-      CUDNN_CALL(miopenCreateTensorDescriptor(&in_desc_));
-      CUDNN_CALL(miopenCreateTensorDescriptor(&out_desc_));
-      CUDNN_CALL(miopenSet4dTensorDescriptor(in_desc_,
+      MIOPEN_CALL(miopenCreateTensorDescriptor(&in_desc_));
+      MIOPEN_CALL(miopenCreateTensorDescriptor(&out_desc_));
+      MIOPEN_CALL(miopenSet4dTensorDescriptor(in_desc_,
                                             //format_,
                                             dtype_,
                                             data.size(0),
                                             data.size(1),
                                             data.size(2),
                                             data.size(3)));
-      CUDNN_CALL(miopenSet4dTensorDescriptor(out_desc_,
+      MIOPEN_CALL(miopenSet4dTensorDescriptor(out_desc_,
                                             //format_,
                                             dtype_,
                                             out.size(0),
@@ -189,9 +186,7 @@ class CuDNNSpatialTransformerOp : public Operator {
   miopenTensorDescriptor_t in_desc_;
   miopenTensorDescriptor_t out_desc_;
  // cudnnSamplerType_t sampler_;  //TODO unsupported in MIOpen
-  #if CUDNN_MAJOR >= 5
   //cudnnTensorFormat_t format_; //TODO unsupported in MIOpen
-  #endif
   SpatialTransformerParam param_;
 };
 #endif  // __HIPCC__ && CUDNN

@@ -25,14 +25,14 @@
 */
 #include "./softmax_activation-inl.h"
 #include "../mshadow_op.h"
-#if MXNET_USE_CUDNN == 1
+#if MXNET_USE_MIOPEN == 1
 #include "./cudnn/cudnn_softmax_activation-inl.h"
 #endif
 
 namespace mxnet {
 namespace op {
 
-#if MXNET_USE_CUDNN == 1
+#if MXNET_USE_MIOPEN == 1
 
 static inline CuDNNSoftmaxActivationOp &GetCuDNNSoftmaxActOp(const SoftmaxActivationParam& param) {
 #if DMLC_CXX11_THREAD_LOCAL

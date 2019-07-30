@@ -39,12 +39,12 @@ static bool DeconvolutionShape(const nnvm::NodeAttrs& attrs,
                                std::vector<TShape> *in_shape,
                                std::vector<TShape> *out_shape) {
   const DeconvolutionParam& param_ = nnvm::get<DeconvolutionParam>(attrs.parsed);
-#if MXNET_USE_CUDNN == 0
+#if MXNET_USE_MIOPEN == 0
   if (param_.kernel.ndim() > 2) {
     LOG(FATAL) << "If not using CUDNN, only 1D or 2D Deconvolution is supported";
     return false;
   }
-#endif  // CUDNN
+#endif  // MXNET_USE_MIOPEN
 
   using namespace mshadow;
   if (!param_.no_bias) {

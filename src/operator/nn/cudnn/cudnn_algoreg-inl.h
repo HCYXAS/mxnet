@@ -37,7 +37,7 @@
 #include "../deconvolution-inl.h"
 namespace mxnet {
 namespace op {
-#if MXNET_USE_CUDNN == 1
+#if MXNET_USE_MIOPEN == 1
 
 /*!
  * \brief A cuDNN algorithm: an algo number and whether it should be run in TENSOR CORE mode.
@@ -54,11 +54,6 @@ class CuDNNAlgo {
   }
   CuDNNAlgoType AlgoNumber() const { return algo_number_; }
   bool IsTensorCoreAlgo() const { return is_tensor_core_algo_; }
-/*  #if CUDNN_MAJOR >= 7
-  cudnnMathType_t MathType() {
-    return IsTensorCoreAlgo() ? CUDNN_TENSOR_OP_MATH : CUDNN_DEFAULT_MATH;
-  }
-  #endif*/ //TODO Commented as cudnnMathType_t is unsupported in MIOpen
  private:
   CuDNNAlgoType algo_number_;
   bool is_tensor_core_algo_;

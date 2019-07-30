@@ -25,14 +25,14 @@
 */
 
 #include "./deconvolution-inl.h"
-#if MXNET_USE_CUDNN == 1
+#if MXNET_USE_MIOPEN == 1
 #include "./cudnn/cudnn_deconvolution-inl.h"
-#endif  // MXNET_USE_CUDNN
+#endif  // MXNET_USE_MIOPEN
 
 namespace mxnet {
 namespace op {
 
-#if MXNET_USE_CUDNN == 1
+#if MXNET_USE_MIOPEN == 1
 template<typename DType>
 static CuDNNDeconvolutionOp<DType> &GetCuDNNDeconvOp(const DeconvolutionParam& param,
                                                      int forward_compute_type,
@@ -92,7 +92,7 @@ void DeconvolutionCompute<gpu>(const nnvm::NodeAttrs& attrs,
   const DeconvolutionParam& param = nnvm::get<DeconvolutionParam>(attrs.parsed);
   int dtype = inputs[0].type_flag_;
 
-#if MXNET_USE_CUDNN == 1
+#if MXNET_USE_MIOPEN == 1
   // On fp16-I/O instances, use fp32 compute (i.e. pseudo-fp16).
   int compute_type = (dtype == mshadow::kFloat16) ? mshadow::kFloat32 : dtype;
 
@@ -126,7 +126,7 @@ void DeconvolutionCompute<gpu>(const nnvm::NodeAttrs& attrs,
     op.Init(param);
     op.Forward(ctx, inputs, req, outputs);
   })
-#endif  // MXNET_USE_CUDNN
+#endif  // MXNET_USE_MIOPEN
 }
 
 template<>
@@ -141,7 +141,7 @@ void DeconvolutionGradCompute<gpu>(const nnvm::NodeAttrs& attrs,
   const std::vector<TBlob> &in_grad = outputs;
   int dtype = out_grad.type_flag_;
 
-#if MXNET_USE_CUDNN == 1
+#if MXNET_USE_MIOPEN == 1
   // On fp16-I/O instances, use fp32 compute (i.e. pseudo-fp16).
   int compute_type = (dtype == mshadow::kFloat16) ? mshadow::kFloat32 : dtype;
 
@@ -175,7 +175,7 @@ void DeconvolutionGradCompute<gpu>(const nnvm::NodeAttrs& attrs,
     op.Init(param);
     op.Backward(ctx, std::vector<TBlob>{out_grad}, in_data, req, in_grad);
   })
-#endif  // MXNET_USE_CUDNN
+#endif  // MXNET_USE_MIOPEN
 }
 
 NNVM_REGISTER_OP(Deconvolution)

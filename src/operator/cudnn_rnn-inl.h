@@ -26,7 +26,7 @@
 #ifndef MXNET_OPERATOR_CUDNN_RNN_INL_H_
 #define MXNET_OPERATOR_CUDNN_RNN_INL_H_
 
-#define USE_CUDNN_LSTM_PROJ MXNET_USE_CUDNN == 1 && CUDNN_VERSION >= 7200
+#define USE_CUDNN_LSTM_PROJ MXNET_USE_MIOPEN == 1 &&  0  /*CUDNN_VERSION >= 7200 */
 
 #include <mxnet/storage.h>
 #include <vector>
@@ -38,7 +38,7 @@
 
 namespace mxnet {
 namespace op {
-#if defined(__HIPCC__) && MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 5
+#if defined(__HIPCC__) && MXNET_USE_MIOPEN == 1 
 template<typename DType>
 class CuDNNRNNOp : public Operator {
  public:
@@ -106,19 +106,19 @@ class CuDNNRNNOp : public Operator {
       param_.lstm_q_ = false;
 
     // Create descriptors
-    CUDNN_CALL(miopenCreateTensorDescriptor(&hx_desc_));
-    CUDNN_CALL(miopenCreateTensorDescriptor(&cx_desc_));
-    CUDNN_CALL(miopenCreateTensorDescriptor(&hy_desc_));
-    CUDNN_CALL(miopenCreateTensorDescriptor(&cy_desc_));
-    CUDNN_CALL(miopenCreateTensorDescriptor(&dhx_desc_));
-    CUDNN_CALL(miopenCreateTensorDescriptor(&dcx_desc_));
-    CUDNN_CALL(miopenCreateTensorDescriptor(&dhy_desc_));
-    CUDNN_CALL(miopenCreateTensorDescriptor(&dcy_desc_));
+    MIOPEN_CALL(miopenCreateTensorDescriptor(&hx_desc_));
+    MIOPEN_CALL(miopenCreateTensorDescriptor(&cx_desc_));
+    MIOPEN_CALL(miopenCreateTensorDescriptor(&hy_desc_));
+    MIOPEN_CALL(miopenCreateTensorDescriptor(&cy_desc_));
+    MIOPEN_CALL(miopenCreateTensorDescriptor(&dhx_desc_));
+    MIOPEN_CALL(miopenCreateTensorDescriptor(&dcx_desc_));
+    MIOPEN_CALL(miopenCreateTensorDescriptor(&dhy_desc_));
+    MIOPEN_CALL(miopenCreateTensorDescriptor(&dcy_desc_));
 
-    CUDNN_CALL(miopenCreateTensorDescriptor(&w_desc_));
-    CUDNN_CALL(miopenCreateTensorDescriptor(&dw_desc_));
+    MIOPEN_CALL(miopenCreateTensorDescriptor(&w_desc_));
+    MIOPEN_CALL(miopenCreateTensorDescriptor(&dw_desc_));
 
-    CUDNN_CALL(miopenCreateRNNDescriptor(&rnn_desc_)); 
+    MIOPEN_CALL(miopenCreateRNNDescriptor(&rnn_desc_)); 
    /*CUDNN_CALL(cudnnCreateDropoutDescriptor(&dropout_desc_)); */ //TODO cudnnCreateDropoutDescriptor not supported in MIOpen
 
    /* #if USE_CUDNN_LSTM_PROJ
@@ -130,26 +130,26 @@ class CuDNNRNNOp : public Operator {
   }
 
   ~CuDNNRNNOp() {
-    CUDNN_CALL(miopenDestroyTensorDescriptor(hx_desc_));
-    CUDNN_CALL(miopenDestroyTensorDescriptor(cx_desc_));
-    CUDNN_CALL(miopenDestroyTensorDescriptor(hy_desc_));
-    CUDNN_CALL(miopenDestroyTensorDescriptor(cy_desc_));
-    CUDNN_CALL(miopenDestroyTensorDescriptor(dhx_desc_));
-    CUDNN_CALL(miopenDestroyTensorDescriptor(dcx_desc_));
-    CUDNN_CALL(miopenDestroyTensorDescriptor(dhy_desc_));
-    CUDNN_CALL(miopenDestroyTensorDescriptor(dcy_desc_));
+    MIOPEN_CALL(miopenDestroyTensorDescriptor(hx_desc_));
+    MIOPEN_CALL(miopenDestroyTensorDescriptor(cx_desc_));
+    MIOPEN_CALL(miopenDestroyTensorDescriptor(hy_desc_));
+    MIOPEN_CALL(miopenDestroyTensorDescriptor(cy_desc_));
+    MIOPEN_CALL(miopenDestroyTensorDescriptor(dhx_desc_));
+    MIOPEN_CALL(miopenDestroyTensorDescriptor(dcx_desc_));
+    MIOPEN_CALL(miopenDestroyTensorDescriptor(dhy_desc_));
+    MIOPEN_CALL(miopenDestroyTensorDescriptor(dcy_desc_));
 //using Tensor as no equivalent available for Filter (2APIs)
-    CUDNN_CALL(miopenDestroyTensorDescriptor(w_desc_));
-    CUDNN_CALL(miopenDestroyTensorDescriptor(dw_desc_));
-    CUDNN_CALL(miopenDestroyRNNDescriptor(rnn_desc_));
+    MIOPEN_CALL(miopenDestroyTensorDescriptor(w_desc_));
+    MIOPEN_CALL(miopenDestroyTensorDescriptor(dw_desc_));
+    MIOPEN_CALL(miopenDestroyRNNDescriptor(rnn_desc_));
     //CUDNN_CALL(cudnnDestroyDropoutDescriptor(dropout_desc_));
 
     if (init_cudnn_) {
       for (size_t i = 0; i < x_desc_vec_.size(); ++i) {
-        CUDNN_CALL(miopenDestroyTensorDescriptor(x_desc_vec_[i]));
-        CUDNN_CALL(miopenDestroyTensorDescriptor(y_desc_vec_[i]));
-        CUDNN_CALL(miopenDestroyTensorDescriptor(dx_desc_vec_[i]));
-        CUDNN_CALL(miopenDestroyTensorDescriptor(dy_desc_vec_[i]));
+        MIOPEN_CALL(miopenDestroyTensorDescriptor(x_desc_vec_[i]));
+        MIOPEN_CALL(miopenDestroyTensorDescriptor(y_desc_vec_[i]));
+        MIOPEN_CALL(miopenDestroyTensorDescriptor(dx_desc_vec_[i]));
+        MIOPEN_CALL(miopenDestroyTensorDescriptor(dy_desc_vec_[i]));
       }
       init_cudnn_ = false;
 
@@ -293,7 +293,7 @@ class CuDNNRNNOp : public Operator {
                                            reserve_space_.dptr,
                                            reserve_space_byte_)); */ //TODO as cudnnRNNForwardTrainingEx not supported in MIOpen
       #else
-      CUDNN_CALL(miopenRNNForwardTraining(s->dnn_handle_,
+      MIOPEN_CALL(miopenRNNForwardTraining(s->dnn_handle_,
                                          rnn_desc_,
                                          param_.seq_length_,
                                          x_desc_vec_.data(),
@@ -344,7 +344,7 @@ class CuDNNRNNOp : public Operator {
                                             temp_space.dptr_,
                                             workspace_byte_));*/ //TODO as cudnnRNNForwardInferenceEx is not supported
       #else
-      CUDNN_CALL(miopenRNNForwardInference(s->dnn_handle_,
+      MIOPEN_CALL(miopenRNNForwardInference(s->dnn_handle_,
                                           rnn_desc_,
                                           param_.seq_length_,
                                           x_desc_vec_.data(),
@@ -481,7 +481,7 @@ class CuDNNRNNOp : public Operator {
                                          reserve_space_.dptr,
                                          reserve_space_byte_)); */ //TODO as cudnnRNNBackwardWeightsEx not supported in MIOPen 
     #else
-    CUDNN_CALL(miopenRNNBackwardData(s->dnn_handle_,
+    MIOPEN_CALL(miopenRNNBackwardData(s->dnn_handle_,
                                     rnn_desc_,
                                     param_.seq_length_,
                                     y_desc_vec_.data(),
@@ -524,7 +524,7 @@ class CuDNNRNNOp : public Operator {
                                        reserve_space_.dptr,
                                        reserve_space_byte_));*/
 
-   CUDNN_CALL(miopenRNNBackwardWeights(s->dnn_handle_,
+   MIOPEN_CALL(miopenRNNBackwardWeights(s->dnn_handle_,
                                        rnn_desc_,
                                        param_.seq_length_,
                                        x_desc_vec_.data(),
@@ -547,9 +547,6 @@ class CuDNNRNNOp : public Operator {
                    const std::vector<TBlob> &in_data,
                    const std::vector<TBlob> &out_data) {
     using namespace mshadow;
-    #if CUDNN_MAJOR >= 5
-    //format_ = CUDNN_TENSOR_NCHW;
-    #endif
     size_t in_expected = param_.lstm_q_ ? 4 : 3;
     size_t out_expected = param_.lstm_q_ ? 3 : 2;
     if (!param_.state_outputs)
@@ -574,10 +571,10 @@ class CuDNNRNNOp : public Operator {
       int dimA[3];
       int strideA[3];
       for (int i = 0; i < param_.seq_length_; i++) {
-        CUDNN_CALL(miopenCreateTensorDescriptor(&x_vec[i]));
-        CUDNN_CALL(miopenCreateTensorDescriptor(&y_vec[i]));
-        CUDNN_CALL(miopenCreateTensorDescriptor(&dx_vec[i]));
-        CUDNN_CALL(miopenCreateTensorDescriptor(&dy_vec[i]));
+        MIOPEN_CALL(miopenCreateTensorDescriptor(&x_vec[i]));
+        MIOPEN_CALL(miopenCreateTensorDescriptor(&y_vec[i]));
+        MIOPEN_CALL(miopenCreateTensorDescriptor(&dx_vec[i]));
+        MIOPEN_CALL(miopenCreateTensorDescriptor(&dy_vec[i]));
 
         dimA[0] = param_.batch_size_;
         dimA[1] = param_.input_size_;
@@ -586,12 +583,12 @@ class CuDNNRNNOp : public Operator {
         strideA[1] = dimA[2];
         strideA[2] = 1;
 
-        CUDNN_CALL(miopenSetTensorDescriptor(x_vec[i],
+        MIOPEN_CALL(miopenSetTensorDescriptor(x_vec[i],
                                               dtype_,  // TODO Currently only miopenFloat is implemented
                                               3,
                                               dimA,
                                               strideA));
-        CUDNN_CALL(miopenSetTensorDescriptor(dx_vec[i],
+        MIOPEN_CALL(miopenSetTensorDescriptor(dx_vec[i],
                                               dtype_, // TODO Currently only miopenFloat is implemented
                                               3,
                                               dimA,
@@ -603,12 +600,12 @@ class CuDNNRNNOp : public Operator {
         strideA[1] = dimA[2];
         strideA[2] = 1;
 
-        CUDNN_CALL(miopenSetTensorDescriptor(y_vec[i],
+        MIOPEN_CALL(miopenSetTensorDescriptor(y_vec[i],
                                              dtype_, // TODO Currently only miopenFloat is implemented
                                              3,
                                              dimA,
                                              strideA));
-        CUDNN_CALL(miopenSetTensorDescriptor(dy_vec[i],
+        MIOPEN_CALL(miopenSetTensorDescriptor(dy_vec[i],
                                               dtype_, // TODO Currently only miopenFloat is implemented
                                               3,
                                               dimA,
@@ -639,73 +636,73 @@ class CuDNNRNNOp : public Operator {
       #endif
 
       #if USE_CUDNN_LSTM_PROJ
-      CUDNN_CALL(miopeSetTensorDescriptor(hx_desc_,
+      MIOPEN_CALL(miopeSetTensorDescriptor(hx_desc_,
                                             dtype_,// TODO Currently only miopenFloat is implemented
                                             3,
                                             dimB,
                                             strideB));
       #else
-      CUDNN_CALL(miopenSetTensorDescriptor(hx_desc_,
+      MIOPEN_CALL(miopenSetTensorDescriptor(hx_desc_,
                                             dtype_, // TODO Currently only miopenFloat is implemented
                                             3,
                                             dimA,
                                             strideA));
       #endif
-      CUDNN_CALL(miopenSetTensorDescriptor(cx_desc_,
+      MIOPEN_CALL(miopenSetTensorDescriptor(cx_desc_,
                                             dtype_, // TODO Currently only miopenFloat is implemented
                                             3,
                                             dimA,
                                             strideA));
       #if USE_CUDNN_LSTM_PROJ
-      CUDNN_CALL(miopenSetTensorDescriptor(hy_desc_,
+      MIOPEN_CALL(miopenSetTensorDescriptor(hy_desc_,
                                             dtype_, // TODO Currently only miopenFloat is implemented
                                             3,
                                             dimB,
                                             strideB));
       #else
-      CUDNN_CALL(miopenSetTensorDescriptor(hy_desc_,
+      MIOPEN_CALL(miopenSetTensorDescriptor(hy_desc_,
                                             dtype_, // TODO Currently only miopenFloat is implemented
                                             3,
                                             dimA,
                                             strideA));
       #endif
-      CUDNN_CALL(miopenSetTensorDescriptor(cy_desc_,
+      MIOPEN_CALL(miopenSetTensorDescriptor(cy_desc_,
                                             dtype_, // TODO Currently only miopenFloat is implemented
                                             3,
                                             dimA,
                                             strideA));
       #if USE_CUDNN_LSTM_PROJ
-      CUDNN_CALL(miopenSetTensorDescriptor(dhx_desc_,
+      MIOPEN_CALL(miopenSetTensorDescriptor(dhx_desc_,
                                             dtype_, // TODO Currently only miopenFloat is implemented
                                             3,
                                             dimB,
                                             strideB));
       #else
-      CUDNN_CALL(miopenSetTensorDescriptor(dhx_desc_,
+      MIOPEN_CALL(miopenSetTensorDescriptor(dhx_desc_,
                                             dtype_, // TODO Currently only miopenFloat is implemented
                                             3,
                                             dimA,
                                             strideA));
       #endif
-      CUDNN_CALL(miopenSetTensorDescriptor(dcx_desc_,
+      MIOPEN_CALL(miopenSetTensorDescriptor(dcx_desc_,
                                             dtype_, // TODO Currently only miopenFloat is implemented
                                             3,
                                             dimA,
                                             strideA));
       #if USE_CUDNN_LSTM_PROJ
-      CUDNN_CALL(miopenSetTensorDescriptor(dhy_desc_,
+      MIOPEN_CALL(miopenSetTensorDescriptor(dhy_desc_,
                                             dtype_, // TODO Currently only miopenFloat is implemented
                                             3,
                                             dimB,
                                             strideB));
       #else
-      CUDNN_CALL(miopenSetTensorDescriptor(dhy_desc_,
+      MIOPEN_CALL(miopenSetTensorDescriptor(dhy_desc_,
                                             dtype_, // TODO Currently only miopenFloat is implemented
                                             3,
                                             dimA,
                                             strideA));
       #endif
-      CUDNN_CALL(miopenSetTensorDescriptor(dcy_desc_,
+      MIOPEN_CALL(miopenSetTensorDescriptor(dcy_desc_,
                                             dtype_, // TODO Currently only miopenFloat is implemented
                                             3,
                                             dimA,
@@ -725,20 +722,7 @@ class CuDNNRNNOp : public Operator {
                                            dropout_states_.dptr, dropout_byte_,
                                            seed_));*/ //TODO MIOpen does not support Dropout
       // RNN descriptors
-      /*#if CUDNN_MAJOR >= 6
-      cudnnRNNAlgo_t rnn_algo = CUDNN_RNN_ALGO_STANDARD;
-      CUDNN_CALL(cudnnSetRNNDescriptor_v6(s->dnn_handle_,
-                                          rnn_desc_,
-                                          param_.state_size,
-                                          param_.num_layers,
-                                          dropout_desc_,
-                                          input_mode_,
-                                          direction_,
-                                          mode_,
-                                          rnn_algo,
-                                          dtype_));
-      #else*/// TODO commented as not supported in MIOpen
-      CUDNN_CALL(miopenSetRNNDescriptor(rnn_desc_,
+      MIOPEN_CALL(miopenSetRNNDescriptor(rnn_desc_,
                                        param_.state_size,
                                        param_.num_layers,
                                        input_mode_,
@@ -747,7 +731,6 @@ class CuDNNRNNOp : public Operator {
                                        miopenRNNwithBias,
                                        miopenRNNdefault,
                                        dtype_));
-      //#endif
       /*#if CUDNN_MAJOR >= 7
         cudnnMathType_t math_type = CUDNN_DEFAULT_MATH;
         if (cudnn_tensor_core_ && rnn_algo == CUDNN_RNN_ALGO_STANDARD) {
@@ -760,21 +743,22 @@ class CuDNNRNNOp : public Operator {
       #endif
         CUDNN_CALL(cudnnSetRNNMatrixMathType(rnn_desc_, math_type));
       #endif*/ //TODO commented as unsupported in MIOpen
+      
       #if USE_CUDNN_LSTM_PROJ
       if (param_.projection_size.has_value()) {
-        CUDNN_CALL(cudnnSetRNNProjectionLayers(s->dnn_handle_,
+        MIOPEN_CALL(cudnnSetRNNProjectionLayers(s->dnn_handle_,
                                                rnn_desc_,
                                                param_.projection_size.value(),
                                                0));
       }
       #endif
       // Get temp space sizes
-      CUDNN_CALL(miopenGetRNNWorkspaceSize(s->dnn_handle_,
+      MIOPEN_CALL(miopenGetRNNWorkspaceSize(s->dnn_handle_,
                                           rnn_desc_,
                                           param_.seq_length_,
                                           x_desc_vec_.data(),
                                           &workspace_byte_));
-      CUDNN_CALL(miopenGetRNNTrainingReserveSize(s->dnn_handle_,
+      MIOPEN_CALL(miopenGetRNNTrainingReserveSize(s->dnn_handle_,
                                                 rnn_desc_,
                                                 param_.seq_length_,
                                                 x_desc_vec_.data(),
@@ -785,7 +769,7 @@ class CuDNNRNNOp : public Operator {
 
       // Check that number of params are correct
       size_t cudnn_param_size;
-       CUDNN_CALL(miopenGetRNNParamsSize(s->dnn_handle_,
+       MIOPEN_CALL(miopenGetRNNParamsSize(s->dnn_handle_,
                                        rnn_desc_,
                                        x_desc_vec_[0],
                                        &cudnn_param_size,
@@ -800,15 +784,13 @@ class CuDNNRNNOp : public Operator {
       stride_w[0] = dim_w[2] * dim_w[1];
       stride_w[1] = dim_w[2];
       stride_w[2] = 1;
-      CUDNN_CALL(miopenSetTensorDescriptor(w_desc_,
+      MIOPEN_CALL(miopenSetTensorDescriptor(w_desc_,
                                             dtype_,
-                                            //format_,
                                             3,
                                             dim_w,
                                             stride_w));
-      CUDNN_CALL(miopenSetTensorDescriptor(dw_desc_,
+      MIOPEN_CALL(miopenSetTensorDescriptor(dw_desc_,
                                             dtype_,
-                                            //format_,
                                             3,
                                             dim_w,
                                             stride_w));
@@ -874,10 +856,6 @@ class CuDNNRNNOp : public Operator {
   miopenTensorDescriptor_t w_desc_, dw_desc_;
   // Allow TensorCore algo policy
   bool cudnn_tensor_core_;
-
-  /*#if CUDNN_MAJOR >= 5
-  cudnnTensorFormat_t format_;
-  #endif*/
   RNNParam param_;
 };
 #endif  // __HIPCC__ && CUDNN

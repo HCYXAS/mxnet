@@ -25,14 +25,14 @@
 */
 #include <vector>
 #include "./pooling-inl.h"
-#if MXNET_USE_CUDNN == 1
+#if MXNET_USE_MIOPEN == 1
 #include "./cudnn/cudnn_pooling-inl.h"
-#endif  // MXNET_USE_CUDNN
+#endif  // MXNET_USE_MIOPEN
 
 namespace mxnet {
 namespace op {
 
-#if MXNET_USE_CUDNN == 1
+#if MXNET_USE_MIOPEN == 1
 template<typename DType>
 static CuDNNPoolingOp<DType> &GetCuDNNPoolingOp(const PoolingParam &param) {
 #if DMLC_CXX11_THREAD_LOCAL
@@ -55,7 +55,7 @@ void PoolingCompute<gpu>(const nnvm::NodeAttrs& attrs,
   CHECK_EQ(inputs.size(), 1U);
   CHECK_EQ(outputs.size(), GetNumOutputs(param));
 
-#if MXNET_USE_CUDNN == 1
+#if MXNET_USE_MIOPEN == 1
   if (!param.cudnn_off && param.kernel.ndim() > 1) {
     MSHADOW_REAL_TYPE_SWITCH(inputs[0].type_flag_, DType, {
       switch (param.pool_type) {
@@ -72,7 +72,7 @@ void PoolingCompute<gpu>(const nnvm::NodeAttrs& attrs,
       }
     });
   }
-#endif  // MXNET_USE_CUDNN
+#endif  // MXNET_USE_MIOPEN
 
   MSHADOW_REAL_TYPE_SWITCH(inputs[0].type_flag_, DType, {
     if (pool_enum::kMaxPooling == param.pool_type
@@ -110,7 +110,7 @@ void PoolingGradCompute<gpu>(const nnvm::NodeAttrs& attrs,
     out_data_idx = 2;
   }
 
-#if MXNET_USE_CUDNN == 1
+#if MXNET_USE_MIOPEN == 1
   if (!param.cudnn_off && param.kernel.ndim() > 1) {
     MSHADOW_REAL_TYPE_SWITCH(inputs[0].type_flag_, DType, {
       switch (param.pool_type) {
@@ -129,7 +129,7 @@ void PoolingGradCompute<gpu>(const nnvm::NodeAttrs& attrs,
       }
     });
   }
-#endif  // MXNET_USE_CUDNN
+#endif  // MXNET_USE_MIOPEN
 
   MSHADOW_REAL_TYPE_SWITCH(inputs[0].type_flag_, DType, {
     if (pool_enum::kMaxPooling == param.pool_type

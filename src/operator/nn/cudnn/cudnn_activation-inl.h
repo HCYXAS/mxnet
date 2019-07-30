@@ -37,8 +37,8 @@ class CuDNNActivationOp {
  public:
   CuDNNActivationOp() {
     dtype_ = mshadow::DataType<DType>::kCudnnFlag;
-    CUDNN_CALL(miopenCreateActivationDescriptor(&desc_));
-    CUDNN_CALL(miopenCreateTensorDescriptor(&shape_desc_));
+    MIOPEN_CALL(miopenCreateActivationDescriptor(&desc_));
+    MIOPEN_CALL(miopenCreateTensorDescriptor(&shape_desc_));
   }
 
   void Init(const ActivationParam &param) {
@@ -62,12 +62,12 @@ class CuDNNActivationOp {
         LOG(FATAL) << "Not implmented";
         break;
     }
-    CUDNN_CALL(miopenSetActivationDescriptor(desc_, mode_, alpha, beta, relu_ceil_));//TODO Temporary fix for input parameters
+    MIOPEN_CALL(miopenSetActivationDescriptor(desc_, mode_, alpha, beta, relu_ceil_));
   }
 
   ~CuDNNActivationOp() {
-    CUDNN_CALL(miopenDestroyTensorDescriptor(shape_desc_));
-    CUDNN_CALL(miopenDestroyActivationDescriptor(desc_));
+    MIOPEN_CALL(miopenDestroyTensorDescriptor(shape_desc_));
+    MIOPEN_CALL(miopenDestroyActivationDescriptor(desc_));
   }
 
   void Forward(const OpContext &ctx, const TBlob &in_data,
@@ -100,13 +100,13 @@ class CuDNNActivationOp {
     typename DataType<DType>::ScaleType alpha = 1.0f;
     typename DataType<DType>::ScaleType beta = 0.0f;
     CHECK_EQ(s->dnn_handle_ownership_, mshadow::Stream<gpu>::OwnHandle);
-    CUDNN_CALL(miopenSet4dTensorDescriptor(shape_desc_,
+    MIOPEN_CALL(miopenSet4dTensorDescriptor(shape_desc_,
                                           dtype_,
                                           data.shape_[0],
                                           data.shape_[1],
                                           data.shape_[2],
                                           data.shape_[3]));
-    CUDNN_CALL(miopenActivationForward(s->dnn_handle_,
+    MIOPEN_CALL(miopenActivationForward(s->dnn_handle_,
                                      desc_,
                                      &alpha,
                                      shape_desc_,
@@ -156,13 +156,13 @@ class CuDNNActivationOp {
       input_grad = in_grad.get_with_shape<gpu, 4, DType>(dshape, s);
     }
     CHECK_EQ(s->dnn_handle_ownership_, mshadow::Stream<gpu>::OwnHandle);
-    CUDNN_CALL(miopenSet4dTensorDescriptor(shape_desc_,
+    MIOPEN_CALL(miopenSet4dTensorDescriptor(shape_desc_,
                                           dtype_,
                                           data.shape_[0],
                                           data.shape_[1],
                                           data.shape_[2],
                                           data.shape_[3]));
-    CUDNN_CALL(miopenActivationBackward(s->dnn_handle_,
+    MIOPEN_CALL(miopenActivationBackward(s->dnn_handle_,
                                        desc_,
                                        &alpha,
                                        shape_desc_,

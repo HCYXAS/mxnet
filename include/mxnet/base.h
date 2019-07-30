@@ -53,8 +53,8 @@
 /*!
  *\brief whether to use cudnn library for convolution
  */
-#ifndef MXNET_USE_CUDNN
-#define MXNET_USE_CUDNN MSHADOW_USE_CUDNN
+#ifndef MXNET_USE_MIOPEN
+#define MXNET_USE_MIOPEN  MSHADOW_USE_MIOPEN
 #endif
 
 /*!

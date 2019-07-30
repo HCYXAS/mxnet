@@ -421,7 +421,7 @@ NNVM_REGISTER_OP(_backward_Pooling)
 .set_attr<nnvm::FInplaceOption>(
     "FInplaceOption",
     [](const NodeAttrs &attrs) {
-#if MXNET_USE_CUDNN == 1
+#if MXNET_USE_MIOPEN == 1
   return std::vector<std::pair<int, int> >();
 #else
   return std::vector<std::pair<int, int> >{{1, 0}};

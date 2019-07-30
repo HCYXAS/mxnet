@@ -29,7 +29,7 @@
 
 namespace mxnet {
 namespace op {
-#if CUDNN_MAJOR == 4
+#if  0
 
 template<typename DType>
 static CuDNNBatchNormOp<DType> &GetCuDNNOp(const BatchNormParam& param) {
@@ -84,7 +84,7 @@ NNVM_REGISTER_OP(CuDNNBatchNorm)
 NNVM_REGISTER_OP(_backward_CuDNNBatchNorm)
 .set_attr<FCompute>("FCompute<gpu>", BatchNormGradCompute_CuDNNv4);
 
-#endif  // CUDNN_MAJOR == 4
+#endif 
 }  // namespace op
 }  // namespace mxnet
 

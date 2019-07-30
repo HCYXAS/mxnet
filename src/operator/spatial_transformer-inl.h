@@ -267,12 +267,10 @@ class SpatialTransformerProp : public OperatorProperty {
     return {ResourceRequest::kTempSpace};
   }
 
-  #if CUDNN_MAJOR >= 5
   std::vector<ResourceRequest> BackwardResource(
       const std::vector<TShape> &in_shape) const override {
     return {ResourceRequest::kTempSpace};
   }
-  #endif
 
   Operator* CreateOperator(Context ctx) const override {
     LOG(FATAL) << "Not Implemented.";

@@ -217,8 +217,8 @@ ifeq ($(USE_LAPACK), 1)
 	CFLAGS += -DMXNET_USE_LAPACK
 endif
 
-ifeq ($(USE_CUDNN), 1)
-	CFLAGS += -DMSHADOW_USE_CUDNN=1
+ifeq ($(USE_MIOPEN), 1)
+	CFLAGS += -DMSHADOW_USE_MIOPEN=1
 	LDFLAGS += -L/opt/rocm/miopen/lib -lMIOpen #-lcudnn
 endif
 

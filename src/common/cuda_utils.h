@@ -425,11 +425,11 @@ inline cublasMath_t SetCublasMathMode(hipblasHandle_t blas_handle, cublasMath_t 
 
 #endif  // MXNET_USE_GPU
 
-#if MXNET_USE_CUDNN
+#if MXNET_USE_MIOPEN
 
 #include <miopen/miopen.h>
 
-#define CUDNN_CALL(func)                                                      \
+#define MIOPEN_CALL(func)                                                      \
   {                                                                           \
     miopenStatus_t e = (func);                                                 \
     CHECK_EQ(e, miopenStatusSuccess) << "cuDNN: " << (e); \
@@ -443,13 +443,7 @@ inline cublasMath_t SetCublasMathMode(hipblasHandle_t blas_handle, cublasMath_t 
  *         want to populate.
  */
 inline int MaxForwardAlgos(miopenHandle_t cudnn_handle) {
-/*#if CUDNN_MAJOR >= 7 && defined( __HIP_PLATFORM_NVCC__)  //TODO cudnnGetConvolutionForwardAlgorithmMaxCount() not supported in MIOpen
-  int max_algos = 0;
-  CUDNN_CALL(cudnnGetConvolutionForwardAlgorithmMaxCount(cudnn_handle, &max_algos));
-  return max_algos;
-#else*/
   return 10;
-//#endif
 }
 
 /*!
@@ -460,14 +454,7 @@ inline int MaxForwardAlgos(miopenHandle_t cudnn_handle) {
  *         want to populate.
  */
 inline int MaxBackwardFilterAlgos(miopenHandle_t cudnn_handle) {
-/*#if CUDNN_MAJOR >= 7 && defined( __HIP_PLATFORM_NVCC__)
-  int max_algos = 0;
-  CUDNN_CALL(cudnnGetConvolutionBackwardFilterAlgorithmMaxCount(cudnn_handle, &max_algos));
-  return max_algos;
-#else*/
- //TODO cudnnGetConvolutionBackwardFilterAlgorithmMaxCount() no supported API in MIOpen
   return 10;
-//#endif
 }
 
 /*!
@@ -478,17 +465,10 @@ inline int MaxBackwardFilterAlgos(miopenHandle_t cudnn_handle) {
  *         want to populate.
  */
 inline int MaxBackwardDataAlgos(miopenHandle_t cudnn_handle) {
-/*#if CUDNN_MAJOR >= 7 && defined( __HIP_PLATFORM_NVCC__)
-  int max_algos = 0;
-  CUDNN_CALL(cudnnGetConvolutionBackwardDataAlgorithmMaxCount(cudnn_handle, &max_algos));
-  return max_algos;
-#else*/
- //TODO cudnnGetConvolutionBackwardDataAlgorithmMaxCount() no supported API in MIOpen
   return 10;
-//#endif
 }
 
-#endif  // MXNET_USE_CUDNN
+#endif  // MXNET_USE_MIOPEN
 
 // Overload atomicAdd to work for floats on all architectures
 #if (__HIP_DEVICE_COMPILE__ && (__CUDA_ARCH__ < 600) && defined(__HIP_PLATFORM_NVCC__))

@@ -460,7 +460,7 @@ if(USE_CUDNN AND USE_CUDA)
     add_definitions(-DUSE_CUDNN)
     include_directories(SYSTEM ${CUDNN_INCLUDE})
     list(APPEND mxnet_LINKER_LIBS ${CUDNN_LIBRARY})
-      add_definitions(-DMSHADOW_USE_CUDNN=1)
+    add_definitions(-DMSHADOW_USE_MIOPEN=1)
   endif()
 endif()
 
