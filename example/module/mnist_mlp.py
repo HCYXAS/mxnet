@@ -78,7 +78,7 @@ logging.basicConfig(level=logging.DEBUG)
 train_dataiter.reset()
 mod = mx.mod.Module(softmax)
 mod.fit(train_dataiter, eval_data=val_dataiter,
-        optimizer_params={'learning_rate':0.01, 'momentum': 0.9}, num_epoch=n_epoch,ctx=mx.gpu(0))
+        optimizer_params={'learning_rate':0.01, 'momentum': 0.9}, num_epoch=n_epoch)
 
 # prediction iterator API
 for preds, i_batch, batch in mod.iter_predict(val_dataiter):

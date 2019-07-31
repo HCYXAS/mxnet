@@ -144,7 +144,7 @@ class WarpCTCOp : public Operator {
       info.loc = CTC_CPU;
       info.num_threads = 1;
     } else if (data.dev_mask() == gpu::kDevMask) {
-#if MXNET_USE_GPU
+#if MXNET_USE_CUDA
       info.loc = CTC_GPU;
       info.stream = ctx.get_stream<gpu>()->stream_;
     } else {
@@ -161,21 +161,21 @@ class WarpCTCOp : public Operator {
       input_lengths.push_back(T);
     }
 
-#if MXNET_USE_GPU
-    hipError_t cuda_status;
+#if MXNET_USE_CUDA
+    cudaError_t cuda_status;
 #endif
     float* activations = static_cast<float*>(data.dptr_);
     int* flat_labels = static_cast<int*>(label.dptr_);
     int* cpu_raw_labels = flat_labels;
     float* grads = static_cast<float*>(in_grad[warpctc_enum::kData].dptr_);
     if (data.dev_mask() == gpu::kDevMask) {
-#if MXNET_USE_GPU
+#if MXNET_USE_CUDA
       cpu_raw_labels = reinterpret_cast<int*>(malloc(sizeof(int) * label.Size()));
-      cuda_status = hipMemcpyAsync(cpu_raw_labels, flat_labels,
+      cuda_status = cudaMemcpyAsync(cpu_raw_labels, flat_labels,
                                     label.Size()*sizeof(int),
-                                    hipMemcpyDeviceToHost,
+                                    cudaMemcpyDeviceToHost,
                                     ctx.get_stream<gpu>()->stream_);
-      CHECK_EQ(cuda_status, hipSuccess) << "cuda memcpy label error";
+      CHECK_EQ(cuda_status, cudaSuccess) << "cuda memcpy label error";
 #endif
     }
 
@@ -215,7 +215,7 @@ class WarpCTCOp : public Operator {
     if (data.dev_mask() == cpu::kDevMask) {
       free(cpu_labels);
     } else if (data.dev_mask() == gpu::kDevMask) {
-#if MXNET_USE_GPU
+#if MXNET_USE_CUDA
       free(cpu_raw_labels);
       free(cpu_labels);
 #endif
@@ -254,7 +254,7 @@ class WarpCTCProp : public OperatorProperty {
     CHECK_EQ(in_shape->size(), 2) << "Input:[data, label]";
     const mxnet::TShape &dshape = in_shape->at(0);
     if (dshape.ndim() == 0) return false;
-    mxnet::TShape label_shape(dshape.ndim() - 1);
+    mxnet::TShape label_shape(dshape.ndim() - 1, 1);
     label_shape[0] = param_.label_length * (dshape[0] / param_.input_length);
     SHAPE_ASSIGN_CHECK(*in_shape, warpctc_enum::kLabel, label_shape);
 

@@ -30,7 +30,7 @@
 #include <thread>
 #include "./profiler.h"
 
-#if MXNET_USE_GPU
+#if MXNET_USE_CUDA
 #include "../common/cuda_utils.h"
 #endif
 
@@ -60,7 +60,7 @@ Profiler::Profiler()
   if (!this->cpu_num_) {
     this->cpu_num_ = 64;
   }
-#if MXNET_USE_GPU
+#if MXNET_USE_CUDA
   int kMaxNumGpus = 32;
   this->gpu_num_ = kMaxNumGpus;
 #else
