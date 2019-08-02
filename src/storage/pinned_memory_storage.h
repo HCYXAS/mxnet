@@ -52,7 +52,7 @@ class PinnedMemoryStorage {
 
 inline void* PinnedMemoryStorage::Alloc(size_t size) {
   void* ret = nullptr;
-#if MXNET_USE_NCCL
+#if MXNET_USE_RCCL
   std::lock_guard<std::mutex> lock(Storage::Get()->GetMutex(Context::kGPU));
 #endif
   // make the memory available across all devices
@@ -61,7 +61,7 @@ inline void* PinnedMemoryStorage::Alloc(size_t size) {
 }
 
 inline void PinnedMemoryStorage::Free(void* ptr) {
-#if MXNET_USE_NCCL
+#if MXNET_USE_RCCL
   std::lock_guard<std::mutex> lock(Storage::Get()->GetMutex(Context::kGPU));
 #endif
   hipError_t err = hipHostFree(ptr);

@@ -62,37 +62,7 @@
         return HIPBLAS_STATUS_NOT_SUPPORTED;
   }
 
-hipblasStatus_t hipblasStrsm(hipblasHandle_t handle,
-                            hipblasSideMode_t side, 
-                            hipblasFillMode_t uplo,
-                            hipblasOperation_t trans, 
-                            hipblasDiagType_t diag,
-                            int m, 
-                            int n,
-                            const float *alpha,
-                            const float *A, 
-                            int lda,
-                            float *B, 
-                            int ldb)
-  {
-        return HIPBLAS_STATUS_NOT_SUPPORTED;
-  }
 
- hipblasStatus_t hipblasDtrsm(hipblasHandle_t handle,
-                             hipblasSideMode_t side, 
-                             hipblasFillMode_t uplo,
-                             hipblasOperation_t trans, 
-                             hipblasDiagType_t diag,
-                             int m, 
-                             int n,
-                             const double *alpha,
-                             const double *A,
-                             int lda,
-                             double *B, 
-                             int ldb)
-  {
-        return HIPBLAS_STATUS_NOT_SUPPORTED;
-  }
 
  hipblasStatus_t hipblasSsyrk(hipblasHandle_t handle,
                              hipblasFillMode_t uplo, 

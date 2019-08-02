@@ -22,7 +22,7 @@
  * \file kvstore_utils.cu
  * \brief gpu implementation of util functions
  */
-#if defined(_MSC_VER) && __CUDACC_VER_MAJOR__ == 8 && __CUDACC_VER_BUILD__ != 44
+#if defined(_MSC_VER) && (defined(__HIP_PLATFORM_NVCC__) && __CUDACC_VER_MAJOR__ == 8 && __CUDACC_VER_BUILD__ != 44)
 // Many CUDA 8 compilers other than V8.0.44 crash on Windows
 #pragma warning("Potential crash on CUDA compiler detected. Switching sorting from CUB to Thrust")
 #define SORT_WITH_THRUST

@@ -84,9 +84,9 @@ ENABLE_CUDA_RTC = 0
 USE_MIOPEN = 0
 
 #whether to use NCCL library
-USE_NCCL = 0
+USE_RCCL = 0
 #add the path to NCCL library
-USE_NCCL_PATH = NONE
+USE_RCCL_PATH = /opt/rocm/rccl
 
 # whether use opencv during compilation
 # you can disable it, however, you will not able to use

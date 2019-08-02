@@ -104,13 +104,12 @@ MGPU_DEVICE uint prmt_ptx(uint a, uint b, uint index) {
 
 #endif // __CUDA_ARCH__ >= 200
 
-#if defined (HIP_PLATFORM_HCC) || (defined (HIP_PLATFORM_NVCC) && CUDA_VERSION >= 9000)
+#if defined (__HIP_PLATFORM_HCC__) || (defined (__HIP_PLATFORM_NVCC__) && CUDA_VERSION >= 9000)
 ////////////////////////////////////////////////////////////////////////////////
 // shfl_add
 
 MGPU_DEVICE int shfl_add(int x, int offset, int width = WARP_SIZE, unsigned int threadmask = 0xFFFFFFFF) {
 	int result = 0;
-//#if __CUDA_ARCH__ >= 300 && defined(__HIP_PLATFORM_NVCC__)
 #if __HIP_ARCH_HAS_WARP_SHUFFLE__
 	int mask = (WARP_SIZE - width)<< 8;
 	asm(
@@ -126,7 +125,6 @@ MGPU_DEVICE int shfl_add(int x, int offset, int width = WARP_SIZE, unsigned int 
 
 MGPU_DEVICE int shfl_max(int x, int offset, int width = WARP_SIZE, unsigned int threadmask = 0xFFFFFFFF) {
 	int result = 0;
-//#if __CUDA_ARCH__ >= 300 && defined(__HIP_PLATFORM_NVCC__)
 #if __HIP_ARCH_HAS_WARP_SHUFFLE__
 	int mask = (WARP_SIZE - width)<< 8;
 	asm(

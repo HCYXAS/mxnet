@@ -5,10 +5,11 @@
 #ifndef HIPWRAPPERS_H
 #define HIPWRAPPERS_H
 
+#include "hip/hip_runtime.h"
+
 #if defined(__HIPCC__)
 #include <hipblas.h>
 #include <hiprand.h>
-#include "hip/hip_runtime.h"
 #include "hip/hip_fp16.h"
 
 
@@ -60,31 +61,6 @@ hipblasStatus_t hipblasDtrmm(hipblasHandle_t handle,
                              double *C, 
 			     int ldc);
 
-hipblasStatus_t hipblasStrsm(hipblasHandle_t handle,
-                            hipblasSideMode_t side, 
-			    hipblasFillMode_t uplo,
-                            hipblasOperation_t trans, 
-			    hipblasDiagType_t diag,
-                            int m, 
-			    int n,
-                            const float *alpha,
-                            const float *A, 
-			    int lda,
-                            float *B, 
-			    int ldb);
-
-hipblasStatus_t hipblasDtrsm(hipblasHandle_t handle,
-                             hipblasSideMode_t side, 
-		             hipblasFillMode_t uplo,
-                             hipblasOperation_t trans, 
-			     hipblasDiagType_t diag,
-                             int m, 
-			     int n,
-                             const double *alpha,
-                             const double *A,
-			     int lda,
-                             double *B, 
-			     int ldb);
 
 hipblasStatus_t hipblasSsyrk(hipblasHandle_t handle,
                              hipblasFillMode_t uplo, 
