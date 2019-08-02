@@ -23,6 +23,7 @@
  * \brief
  * \author Junyuan Xie
 */
+#include "hip/hip_runtime.h"
 #include "./native_op-inl.h"
 namespace mxnet {
 namespace op {

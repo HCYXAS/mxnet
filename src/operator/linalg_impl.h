@@ -256,10 +256,10 @@ void linalg_gemm<gpu, mshadow::half::half_t>(const Tensor<gpu, 2, mshadow::half:
 
 #if defined(__HIP_PLATFORM_HCC__) || (defined(__HIP_PLATFORM_NVCC__) && CUDA_VERSION >= 7050)
   auto blas_handle = Stream<gpu>::GetBlasHandle(s);
-#if defined(__HIP_PLATFORM_HCC__) || (defined(__HIP_PLATFORM_NVCC__) && CUDA_VERSION >= 9000)
-  /*auto cublas_math_mode = GetEnvAllowTensorCore() ? CUBLAS_TENSOR_OP_MATH
+#if (defined(__HIP_PLATFORM_NVCC__) && CUDA_VERSION >= 9000)
+/*  auto cublas_math_mode = GetEnvAllowTensorCore() ? CUBLAS_TENSOR_OP_MATH
                                                   : CUBLAS_DEFAULT_MATH;
-  auto previous_math_mode = SetCublasMathMode(blas_handle, cublas_math_mode);*/ // hip porting for the cublas apis not supported
+  auto previous_math_mode = SetCublasMathMode(blas_handle, cublas_math_mode); // hip porting for the cublas apis not supported */
 #endif
 
   // pseudo-fp16 (fp32 math with fp16 I/O)
@@ -281,8 +281,8 @@ void linalg_gemm<gpu, mshadow::half::half_t>(const Tensor<gpu, 2, mshadow::half:
                             reinterpret_cast<const float *>(A.dptr_), A.stride_,
                             &beta_f,
                             reinterpret_cast<float *>(C.dptr_), C.stride_));
-#if CUDA_VERSION >= 9000
-  SetCublasMathMode(blas_handle, previous_math_mode);
+#if (defined(__HIP_PLATFORM_NVCC__) && CUDA_VERSION >= 9000 ) 
+  //SetCublasMathMode(blas_handle, previous_math_mode);
 #endif
 #else
   LOG(FATAL) << "FP16 gemm requires CUDA version >= 7.5!";
@@ -338,9 +338,11 @@ void linalg_gemm<gpu, mshadow::half::half_t>(const Tensor<gpu, 2, mshadow::half:
           GetEnvAllowTensorCore() && GetEnvAllowTensorCoreConversion();
 
       using namespace mshadow::cuda;
-      auto hipblas_math_mode =
-          use_tensor_ops ? HIPBLAS_TENSOR_OP_MATH : HIPBLAS_DEFAULT_MATH;
-    /*  auto previous_math_mode = SetCublasMathMode(blas_handle, hipblas_math_mode);*/ //CublasmathMode not supported
+      /*auto hipblas_math_mode =
+          use_tensor_ops ? HIPBLAS_TENSOR_OP_MATH : HIPBLAS_DEFAULT_MATH; */
+     #if (defined(__HIP_PLATFORM_NVCC__) && CUDA_VERSION < 9010)
+      //auto previous_math_mode = SetCublasMathMode(blas_handle, hipblas_math_mode); //CublasmathMode not supported in HIP 
+     #endif
 
       // hipblasGemmStridedBatchedEx is only supported for GPU with architecture
       // capabilities equal or greater than 5.0. Fall back to
@@ -355,7 +357,7 @@ void linalg_gemm<gpu, mshadow::half::half_t>(const Tensor<gpu, 2, mshadow::half:
             B.stride_, B.size(1) * B.stride_, A.dptr_, HIPBLAS_R_32F, A.stride_,
             A.size(1) * A.stride_, &beta, C.dptr_, HIPBLAS_R_32F, C.stride_,
             C.size(1) * C.stride_, A.size(0), HIPBLAS_R_32F,
-            HIPBLAS_GEMM_DEFAULT_TENSOR_OP));
+            HIPBLAS_GEMM_DEFAULT));//HIPBLAS_GEMM_DEFAULT_TENSOR_OP));
       } else {
         HIPBLAS_CALL(hipblasSgemmStridedBatched(
             blas_handle, (tB ? HIPBLAS_OP_T : HIPBLAS_OP_N),
@@ -364,7 +366,9 @@ void linalg_gemm<gpu, mshadow::half::half_t>(const Tensor<gpu, 2, mshadow::half:
             B.size(1) * B.stride_, A.dptr_, A.stride_, A.size(1) * A.stride_,
             &beta, C.dptr_, C.stride_, C.size(1) * C.stride_, A.size(0)));
       }
-      /*SetCublasblasMathMode(blas_handle, previous_math_mode);*/ //Not supported
+      #if defined(__HIP_PLATFORM_NVCC__) && CUDA_VERSION < 9010
+      //SetCublasblasMathMode(blas_handle, previous_math_mode); //Not supported
+      #endif
     }
   #endif  // CUDA_VERSION < 9010
 
@@ -1167,7 +1171,7 @@ LINALG_CPU_SYEVD_WORKSPACE_QUERY(dsyevd, double)
 #ifdef __HIPCC__
 
 // SYEVD only available with cuda8 or higher.
-#if defined(__HIP_PLATFORM_NVCC__) && CUDA_VERSION >= 8000
+#if defined(__HIP_PLATFORM_NVCC__) && CUDA_VERSION >= 8000 && MXNET_USE_CUSOLVER == 1
 
 // Row-major vs. col-major handled by using upper triangular
 // in cusolver-call.
@@ -1231,7 +1235,7 @@ LINALG_GPU_SYEVD(DnDsyevd, double)
 //LINALG_GPU_SYEVD_WORKSPACE_QUERY(DnSsyevd, float) // not ported
 //LINALG_GPU_SYEVD_WORKSPACE_QUERY(DnDsyevd, double) // not ported
 
-#endif  // __CUDACC__
+#endif  // __HIPCC__
 
 //////////////////////////////// GETRF ////////////////////////////////////////////
 
@@ -1253,7 +1257,7 @@ void linalg_getrf<cpu, DType>(const Tensor<cpu, 2, DType>& A, \
 LINALG_CPU_GETRF(sgetrf, float)
 LINALG_CPU_GETRF(dgetrf, double)
 
-#ifdef __CUDACC__
+#ifdef __HIPCC__
 
 // "getrfBatched" and "getriBatched" in cuBLAS must have DType *matrices[] as input
 // to store the pointers of each batch matrix. This kernel is used to build the
@@ -1290,7 +1294,7 @@ void linalg_batch_getrf<gpu, DType>(const Tensor<gpu, 3, DType>& A, \
   Kernel<set_matrix, gpu>::Launch(s, temp.size(0), \
                                   A_ptr, temp.dptr_, \
                                   temp.size(1) * temp.size(2)); \
-  CUBLAS_CALL(cublas##fname(Stream<gpu>::GetBlasHandle(s), \
+  HIPBLAS_CALL(hipblas##fname(Stream<gpu>::GetBlasHandle(s), \
                             A.size(1), A_ptr, A.size(2), pivot, \
                             info, A.size(0))) \
   Storage::Get()->Free(A_ptr_buf); \
@@ -1385,7 +1389,7 @@ void linalg_batch_getri<gpu, DType>(const Tensor<gpu, 3, DType>& A, \
   Kernel<set_matrix, gpu>::Launch(s, temp.size(0), \
                                   B_ptr, temp.dptr_, \
                                   temp.size(1) * temp.size(2)); \
-  CUBLAS_CALL(cublas##fname(Stream<gpu>::GetBlasHandle(s), \
+  HIPBLAS_CALL(hipblas##fname(Stream<gpu>::GetBlasHandle(s), \
                             A.size(1), const_cast<const DType **>(B_ptr), \
                             B.size(2), const_cast<const int *>(pivot), \
                             A_ptr, A.size(2), info, A.size(0))) \

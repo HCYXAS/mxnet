@@ -24,7 +24,7 @@
 */
 #ifndef MXNET_OPERATOR_CONTRIB_SYNC_BATCH_NORM_INL_H_
 #define MXNET_OPERATOR_CONTRIB_SYNC_BATCH_NORM_INL_H_
-
+#include "hip/hip_runtime.h"
 #include <dmlc/logging.h>
 #include <dmlc/parameter.h>
 #include <mxnet/operator.h>

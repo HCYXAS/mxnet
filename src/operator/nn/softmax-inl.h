@@ -193,7 +193,7 @@ __global__ void softmax_compute_kernel(DType *in, OType *out, index_t M, int axi
 
   red::maximum::SetInitValue(smem[x]);
   for (index_t i = x; i < M; i += x_size) {
-    smem[x] = ::max(smem[x], negate ? -in[base + i*sa] : in[base + i*sa]);
+    smem[x] = ::max((DType)smem[x], negate ? -in[base + i*sa] : in[base + i*sa]);
   }
   __syncthreads();
   cuda::Reduce1D<red::maximum, x_bits>(smem);

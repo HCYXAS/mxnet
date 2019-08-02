@@ -35,8 +35,10 @@
 #include <hipcub/hipcub.hpp>
 #undef SORT_WITH_THRUST
 #endif
-#if defined(__HIP_PLATFORM_HCC__) || (defined(__HIP_PLATFORM_NVCC__) && CUDA_VERSION >= 7000)
+#if defined(__HIP_PLATFORM_HCC__)
 #include <thrust/system/hip/execution_policy.h>
+#elif (defined(__HIP_PLATFORM_NVCC__) && CUDA_VERSION >= 7000)
+#include <thrust/system/cuda/execution_policy.h>
 #endif
 
 namespace mxnet {
@@ -140,13 +142,26 @@ SortByKeyImpl(mshadow::Tensor<gpu, 1, KDType> keys,
     thrust::device_ptr<KDType> key_iter = thrust::device_pointer_cast(keys.dptr_);
     thrust::device_ptr<VDType> value_iter = thrust::device_pointer_cast(values.dptr_);
     if (is_ascend) {
+#if defined(__HIP_PLATFORM_HCC__)
       thrust::stable_sort_by_key(
         thrust::hip::par.on(stream),
         key_iter, key_iter + keys.size(0), value_iter, thrust::less<KDType>());
+#elif defined(__HIP_PLATFORM_NVCC__)
+    thrust::stable_sort_by_key(
+        thrust::cuda::par.on(stream),
+        key_iter, key_iter + keys.size(0), value_iter, thrust::less<KDType>());
+
+#endif
     } else {
+ #if defined(__HIP_PLATFORM_HCC__)
       thrust::stable_sort_by_key(
         thrust::hip::par.on(stream),
         key_iter, key_iter + keys.size(0), value_iter, thrust::greater<KDType>());
+ #elif defined(__HIP_PLATFORM_NVCC__)
+       thrust::stable_sort_by_key(
+        thrust::cuda::par.on(stream),
+        key_iter, key_iter + keys.size(0), value_iter, thrust::greater<KDType>());
+#endif
     }
 #ifndef SORT_WITH_THRUST
   }
@@ -171,14 +186,28 @@ SortByKeyImpl(mshadow::Tensor<gpu, 1, KDType> keys,
   thrust::device_ptr<KDType> key_iter = thrust::device_pointer_cast(keys.dptr_);
   thrust::device_ptr<half> value_iter = thrust::device_pointer_cast(
     reinterpret_cast<half*>(values.dptr_));
+
   if (is_ascend) {
+#if defined(__HIP_PLATFORM_HCC__)
     thrust::stable_sort_by_key(
       thrust::hip::par.on(stream),
       key_iter.get(), key_iter.get() + (keys.size(0)), value_iter.get(), thrust::less<KDType>());
+#elif defined(__HIP_PLATFORM_NVCC__)
+	thrust::stable_sort_by_key(
+      thrust::cuda::par.on(stream),
+      key_iter.get(), key_iter.get() + (keys.size(0)), value_iter.get(), thrust::less<KDType>());
+#endif
+
   } else {
+#if defined(__HIP_PLATFORM_HCC__)
     thrust::stable_sort_by_key(
       thrust::hip::par.on(stream),
       key_iter.get(), key_iter.get() + (keys.size(0)), value_iter.get(), thrust::greater<KDType>());
+#elif defined(__HIP_PLATFORM_NVCC__)
+      thrust::stable_sort_by_key(
+      thrust::cuda::par.on(stream),
+      key_iter.get(), key_iter.get() + (keys.size(0)), value_iter.get(), thrust::greater<KDType>());
+#endif
   }
   MSHADOW_CUDA_POST_KERNEL_CHECK(SortByKey);
 #else
@@ -201,13 +230,25 @@ SortByKeyImpl(mshadow::Tensor<gpu, 1, KDType> keys,
     reinterpret_cast<half*>(keys.dptr_));
   thrust::device_ptr<VDType> value_iter = thrust::device_pointer_cast(values.dptr_);
   if (is_ascend) {
+#if defined(__HIP_PLATFORM_HCC__)
     thrust::stable_sort_by_key(
       thrust::hip::par.on(stream),
       key_iter, key_iter + (keys.size(0)), value_iter, cuda::less_half<half>());
+#elif defined(__HIP_PLATFORM_NVCC__)
+      thrust::stable_sort_by_key(
+      thrust::cuda::par.on(stream),
+      key_iter, key_iter + (keys.size(0)), value_iter, cuda::less_half<half>());
+#endif
   } else {
+  #if defined(__HIP_PLATFORM_HCC__)
     thrust::stable_sort_by_key(
       thrust::hip::par.on(stream),
       key_iter, key_iter + (keys.size(0)), value_iter, cuda::greater_half<half>());
+#elif defined(__HIP_PLATFORM_NVCC__)
+      thrust::stable_sort_by_key(
+      thrust::cuda::par.on(stream),
+      key_iter, key_iter + (keys.size(0)), value_iter, cuda::greater_half<half>());
+#endif
   }
   MSHADOW_CUDA_POST_KERNEL_CHECK(SortByKey);
 #else
@@ -232,13 +273,26 @@ SortByKeyImpl(mshadow::Tensor<gpu, 1, KDType> keys,
   thrust::device_ptr<half> value_iter = thrust::device_pointer_cast(
     reinterpret_cast<half*>(values.dptr_));
   if (is_ascend) {
-    thrust::stable_sort_by_key(
+ #if defined(__HIP_PLATFORM_HCC__)
+     thrust::stable_sort_by_key(
       thrust::hip::par.on(stream),
       key_iter, key_iter + (keys.size(0)), value_iter, cuda::less_half<half>());
-  } else {
+#elif defined(__HIP_PLATFORM_NVCC__)
     thrust::stable_sort_by_key(
+      thrust::cuda::par.on(stream),
+      key_iter, key_iter + (keys.size(0)), value_iter, cuda::less_half<half>());
+#endif
+  } else {
+#if defined(__HIP_PLATFORM_HCC__)
+   thrust::stable_sort_by_key(
       thrust::hip::par.on(stream),
       key_iter, key_iter + (keys.size(0)), value_iter, cuda::greater_half<half>());
+#elif defined(__HIP_PLATFORM_NVCC__)
+    thrust::stable_sort_by_key(
+      thrust::cuda::par.on(stream),
+      key_iter, key_iter + (keys.size(0)), value_iter, cuda::greater_half<half>());
+#endif
+
   }
   MSHADOW_CUDA_POST_KERNEL_CHECK(SortByKey);
 #else

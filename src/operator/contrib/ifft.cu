@@ -24,7 +24,16 @@
  * \author Chen Zhu
 */
 
-#include "./ifft-inl.h"
+
+#include "hip/hip_runtime.h"
+#if defined(__HIP_PLATFORM_HCC__) && !defined(__HIP_PLATFORM_NVCC__)
+#include "./rocifft-inl.h"
+#elif defined(__HIP_PLATFORM_NVCC__) && !defined(__HIP_PLATFORM_HCC__)
+#include "./cudaifft-inl.h"
+#else
+#error("Must define exactly one of __HIP_PLATFORM_HCC__ or __HIP_PLATFORM_NVCC__");
+#endif
+
 namespace mxnet {
 namespace op {
 

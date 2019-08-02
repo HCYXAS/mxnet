@@ -104,7 +104,7 @@ MGPU_DEVICE uint prmt_ptx(uint a, uint b, uint index) {
 
 #endif // __CUDA_ARCH__ >= 200
 
-#if defined (HIP_PLATFORM_HCC) || (defined (HIP_PLATFORM_NVCC) && CUDA_VERSION >= 9000)
+#if defined (__HIP_PLATFORM_HCC__) || (defined (__HIP_PLATFORM_NVCC__) && CUDA_VERSION >= 9000)
 ////////////////////////////////////////////////////////////////////////////////
 // shfl_add
 

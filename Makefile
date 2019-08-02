@@ -101,18 +101,25 @@ ifeq ($(DEBUG), 1)
 else
 	CFLAGS += -O3 -DNDEBUG=1
 endif
-HIPINCLUDE += -I. -I/opt/rocm/include -I/opt/rocm/hipblas/include -I/opt/rocm/hiprand/include -I/opt/rocm/rocfft/include -I/opt/rocm/hipcub/include/
+
+ifeq ($(USE_GPU), 1)
+        HIPINCLUDE += -I. -I/opt/rocm/include -I/opt/rocm/hipblas/include -I/opt/rocm/hiprand/include -I/opt/rocm/hipcub/include/
+else
+        HIPINCLUDE += -I.
+endif
 CFLAGS += $(HIPINCLUDE) -I$(TPARTYDIR)/mshadow/ -I$(TPARTYDIR)/dmlc-core/include -fPIC -I$(NNVM_PATH)/include -I$(DLPACK_PATH)/include -I$(TPARTYDIR)/tvm/include -Iinclude $(MSHADOW_CFLAGS)
 LDFLAGS = -pthread $(MSHADOW_LDFLAGS) $(DMLC_LDFLAGS)
+	
+CXXFLAGS    = -std=c++11
+HIPCCFLAGS  = $(CFLAGS)
 
 ifeq ($(HIP_PLATFORM), nvcc)
 	CCBINCLUDES = -ccbin $(CXX)
-	CXXFLAGS    = -std=c++11
-	HIPCCFLAGS  = \"$(CFLAGS)\"
+#	HIPCCFLAGS  = \"$(CFLAGS)\"
 	LINKER      = $(CXX)
 else ifeq ($(HIP_PLATFORM), hcc)
-	CXXFLAGS    = -std=c++11
-	HIPCCFLAGS  = $(CFLAGS)
+#	CXXFLAGS    = -std=c++11
+#	HIPCCFLAGS  = $(CFLAGS)
 	LINKER      = $(NVCC)
 endif
 
@@ -509,12 +516,11 @@ ifeq ($(USE_GPU), 1)
 	LDFLAGS += -L/opt/rocm/hipblas/lib  -lhipblas
 	LDFLAGS += -L/opt/rocm/hiprand/lib  -lhiprand
 	ifneq (, $(findstring nvcc, $(HIP_PLATFORM)))
-		CFLAGS  += -I$(ROOTDIR)/3rdparty/cub -I/opt/rocm/hipcub/include/hipcub/cub
-		LDFLAGS += -L/opt/rocm/rocfft/lib -lrocfft
+		CFLAGS  += -I$(ROOTDIR)/3rdparty/nvidia_cub -I/opt/rocm/hipcub/include/hipcub/cub
 		LDFLAGS += -lcudart -lcuda -lcufft -lcublas
 		LDFLAGS += -L/usr/local/cuda/lib64/stubs
 	else
-		HIPINCLUDE += -I/opt/rocm/rocblas/include -I/opt/rocm/rocrand/include
+		CFLAGS  += -I/opt/rocm/rocfft/include -I/opt/rocm/rocblas/include -I/opt/rocm/rocrand/include
 		CFLAGS  += -I/opt/rocm/hipcub/include/hipcub/rocprim
 		LDFLAGS += -L/opt/rocm/rocfft/lib    -lrocfft
 		LDFLAGS += -L/opt/rocm/rocblas/lib  -lrocblas

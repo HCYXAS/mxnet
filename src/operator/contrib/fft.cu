@@ -23,7 +23,15 @@
  * \brief
  * \author Chen Zhu
  */
-#include "./fft-inl.h"
+
+#include "hip/hip_runtime.h"
+#if defined(__HIP_PLATFORM_HCC__) && !defined(__HIP_PLATFORM_NVCC__)
+#include "./rocfft-inl.h"
+#elif defined(__HIP_PLATFORM_NVCC__) && !defined(__HIP_PLATFORM_HCC__)
+#include "./cudafft-inl.h"
+#else
+#error("Must define exactly one of __HIP_PLATFORM_HCC__ or __HIP_PLATFORM_NVCC__");
+#endif
 
 namespace mxnet {
 namespace op {

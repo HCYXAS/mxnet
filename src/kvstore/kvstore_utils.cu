@@ -28,7 +28,11 @@
 #define SORT_WITH_THRUST
 #include <thrust/device_ptr.h>
 #include <thrust/sort.h>
+#if defined (__HIP_PLATFORM_HCC__) 
 #include <thrust/system/hip/execution_policy.h>
+#elif defined(__HIP_PLATFORM_NVCC__)
+#include <thrust/system/cuda/execution_policy.h>
+#endif	
 #else
 #undef SORT_WITH_THRUST
 #endif
@@ -80,8 +84,13 @@ size_t UniqueImplGPU(NDArray *workspace, mshadow::Stream<gpu> *s,
   hipcub::DeviceRadixSort::SortKeys(temp_storage, sort_temp_bytes, dptr, sort_output_ptr,
                                  size, begin_bit, end_bit, stream);
 #else
+#if defined(__HIP_PLATFORM_HCC__)
   thrust::sort(thrust::hip::par.on(stream),
                dptr, dptr + size, thrust::greater<IType>());
+#elif defined(__HIP_PLATFORM_NVCC__)
+   thrust::sort(thrust::cuda::par.on(stream),
+               dptr, dptr + size, thrust::greater<IType>());
+#endif
   CUDA_CALL(hipMemcpy(sort_output_ptr, dptr, sort_output_bytes,
                        hipMemcpyDeviceToDevice));
 #endif
