@@ -84,7 +84,7 @@ endif
 ENABLE_CUDA_RTC = 0
 
 # whether use CuDNN R3 library
-USE_CUDNN = 0
+USE_CUDNN = 1
 
 # whether to use NVTX when profiling
 USE_NVTX = 0
