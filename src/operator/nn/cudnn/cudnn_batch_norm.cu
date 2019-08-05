@@ -23,13 +23,17 @@
  * \brief
  * \author Junyuan Xie, Da Zheng
 */
-
+#if MXNET_USE_CUDNN == 1
 #include "./cudnn_batch_norm-inl.h"
+#endif
+#if MXNET_USE_MIOPEN == 1
+#include "../miopen/miopen_batch_norm-inl.h"
+#endif
 #include <vector>
 
 namespace mxnet {
 namespace op {
-#if CUDNN_MAJOR == 4
+#if MXNET_USE_CUDNN == 1 && CUDNN_MAJOR == 4 || MXNET_USE_MIOPEN == 1
 
 template<typename DType>
 static CuDNNBatchNormOp<DType> &GetCuDNNOp(const BatchNormParam& param) {
@@ -46,7 +50,7 @@ static void BatchNormCompute_CuDNNv4(const nnvm::NodeAttrs& attrs,
     const OpContext& ctx, const std::vector<TBlob>& inputs,
     const std::vector<OpReqType>& req,
     const std::vector<TBlob>& outputs) {
-#if CUDNN_MAJOR >= 5
+#if (MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 5) || MXNET_USE_MIOPEN == 1
   LOG(FATAL) << "CuDNNBatchNorm is merged into BatchNorm for cudnn version above v5."
     "Use the later instead.";
 #else
@@ -62,7 +66,7 @@ static void BatchNormGradCompute_CuDNNv4(const nnvm::NodeAttrs& attrs,
     const OpContext& ctx, const std::vector<TBlob>& inputs,
     const std::vector<OpReqType>& req,
     const std::vector<TBlob>& outputs) {
-#if CUDNN_MAJOR >= 5
+#if (MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 5) || MXNET_USE_MIOPEN == 1
   LOG(FATAL) << "CuDNNBatchNorm is merged into BatchNorm for cudnn version above v5."
     "Use the later instead.";
 #else

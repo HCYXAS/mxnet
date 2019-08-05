@@ -81,7 +81,23 @@ endif
 ENABLE_CUDA_RTC = 0
 
 # whether use CuDNN R3 library
-USE_CUDNN = 0
+USE_CUDNN = 1
+ifeq ($(HIP_PLATFORM),hcc)
+  ifeq ($(USE_CUDNN), 1)
+	USE_MIOPEN=1
+	USE_CUDNN=0
+  else
+        USE_MIOPEN=0
+  endif
+else ifeq ($(HIP_PLATFORM),nvcc)
+  ifeq ($(USE_CUDNN), 1)
+        USE_MIOPEN=0
+  else
+        USE_MIOPEN=0
+  endif
+else
+     USE_MIOPEN=0
+endif
 
 # whether to use NVTX when profiling
 USE_NVTX = 0

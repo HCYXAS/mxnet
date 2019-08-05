@@ -23,10 +23,8 @@
  * \brief
  * \author Sebastian Bodenstein
 */
-
-#include "./rnn-inl.h"
 #include <algorithm>
-
+#include "./rnn-include.h"
 namespace mxnet {
 namespace op {
 

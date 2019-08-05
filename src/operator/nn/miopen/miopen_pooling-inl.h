@@ -39,9 +39,13 @@ class CuDNNPoolingOp {
   CuDNNPoolingOp() {
     // TODO(xxx): fp16
     dtype_ = mshadow::DataType<DType>::kCudnnFlag;
-    CUDNN_CALL(cudnnCreatePoolingDescriptor(&pooling_desc_));
-    CUDNN_CALL(cudnnCreateTensorDescriptor(&in_desc_));
-    CUDNN_CALL(cudnnCreateTensorDescriptor(&out_desc_));
+    MIOPEN_CALL(miopenCreatePoolingDescriptor(&pooling_desc_));
+    MIOPEN_CALL(miopenCreateTensorDescriptor(&in_desc_));
+    MIOPEN_CALL(miopenCreateTensorDescriptor(&out_desc_));
+    //added for testing
+    workspaceSize =0 ;
+    workspace = nullptr;
+
   }
 
   void Init(const PoolingParam &p) {
@@ -49,18 +53,21 @@ class CuDNNPoolingOp {
     switch (param_.pool_type) {
       case pool_enum::kMaxPooling:
       #if CUDNN_MAJOR >= 7
-        mode_ = dmlc::GetEnv("MXNET_ENFORCE_DETERMINISM", false) ?
+       /* mode_ = dmlc::GetEnv("MXNET_ENFORCE_DETERMINISM", false) ?
           CUDNN_POOLING_MAX_DETERMINISTIC : CUDNN_POOLING_MAX;
-      #else
-        mode_ = CUDNN_POOLING_MAX;
+      #else */ // TODO CUDNN_POOLING_MAX_DETERMINISTIC is not supported in MIOpen
+       // mode_ = CUDNN_POOLING_MAX;
+        mode_ = miopenPoolingMax;
       #endif
         break;
       case pool_enum::kAvgPooling:
         if (param_.count_include_pad.has_value() && !param_.count_include_pad.value()) {
-          mode_ = CUDNN_POOLING_AVERAGE_COUNT_EXCLUDE_PADDING;
-        } else {
-          mode_ = CUDNN_POOLING_AVERAGE_COUNT_INCLUDE_PADDING;
-        }
+		mode_ = miopenPoolingAverage;
+         /* mode_ = CUDNN_POOLING_AVERAGE_COUNT_EXCLUDE_PADDING;*/
+        } else { 
+          //mode_ = CUDNN_POOLING_AVERAGE_COUNT_INCLUDE_PADDING;
+           mode_= miopenPoolingAverageInclusive;
+         }
         break;
       default:
         LOG(FATAL) << "Pooling type not implemented by cuDNN.";
@@ -68,9 +75,12 @@ class CuDNNPoolingOp {
   }
 
   ~CuDNNPoolingOp() {
-    CUDNN_CALL(cudnnDestroyTensorDescriptor(in_desc_));
-    CUDNN_CALL(cudnnDestroyTensorDescriptor(out_desc_));
-    CUDNN_CALL(cudnnDestroyPoolingDescriptor(pooling_desc_));
+    MIOPEN_CALL(miopenDestroyTensorDescriptor(in_desc_));
+    MIOPEN_CALL(miopenDestroyTensorDescriptor(out_desc_));
+    MIOPEN_CALL(miopenDestroyPoolingDescriptor(pooling_desc_));
+    if(workspace !=nullptr)
+        hipFree(workspace);
+
   }
 
   void Forward(const OpContext &ctx, const TBlob &in_data,
@@ -88,28 +98,50 @@ class CuDNNPoolingOp {
       Tensor<gpu, 4, DType> out = out_data.get<gpu, 4, DType>(s);
       CHECK_EQ(data.CheckContiguous(), true);
       CHECK_EQ(out.CheckContiguous(), true);
-      CUDNN_CALL(cudnnPoolingForward(s->dnn_handle_,
+
+      size_t temp_workspaceSize = 0;
+      MIOPEN_CALL(miopenPoolingGetWorkSpaceSize(out_desc_, &temp_workspaceSize));
+      if (temp_workspaceSize > 0 && (temp_workspaceSize > workspaceSize || workspace == nullptr)) {
+            workspaceSize = temp_workspaceSize;
+            hipFree(workspace);
+            hipMalloc(&workspace, workspaceSize);
+          }
+
+      MIOPEN_CALL(miopenPoolingForward(s->dnn_handle_,
                                      pooling_desc_,
                                      &alpha,
                                      in_desc_,
                                      data.dptr_,
                                      &beta,
                                      out_desc_,
-                                     out.dptr_));
+                                     out.dptr_,
+                                     true,
+                                     workspace,
+                                     workspaceSize));
     } else if (param_.kernel.ndim() == 3) {
       // 3d pool
       Tensor<gpu, 5, DType> data = in_data.get<gpu, 5, DType>(s);
       Tensor<gpu, 5, DType> out = out_data.get<gpu, 5, DType>(s);
       CHECK_EQ(data.CheckContiguous(), true);
       CHECK_EQ(out.CheckContiguous(), true);
-      CUDNN_CALL(cudnnPoolingForward(s->dnn_handle_,
+      size_t temp_workspaceSize = 0;
+          MIOPEN_CALL(miopenPoolingGetWorkSpaceSize(out_desc_, &temp_workspaceSize));
+          if (temp_workspaceSize > 0 && (temp_workspaceSize > workspaceSize  || workspace == nullptr)) {
+               workspaceSize = temp_workspaceSize;
+               hipFree(workspace);
+               hipMalloc(&workspace, workspaceSize);
+          }
+       MIOPEN_CALL(miopenPoolingForward(s->dnn_handle_,
                                      pooling_desc_,
                                      &alpha,
                                      in_desc_,
                                      data.dptr_,
                                      &beta,
                                      out_desc_,
-                                     out.dptr_));
+                                     out.dptr_,
+                                     true,
+                                     workspace,
+                                     workspaceSize));
     } else {
       LOG(FATAL) << "cuDNN only supports 2D or 3D pooling.";
     }
@@ -126,13 +158,20 @@ class CuDNNPoolingOp {
     typename DataType<DType>::ScaleType alpha = 1.0f;
     typename DataType<DType>::ScaleType beta = 0.0f;
     CHECK(this->Init(s, in_data, out_data)) << "cuDNN Pooling invoked with unsupported parameters.";
+    size_t temp_workspaceSize = 0;
+      MIOPEN_CALL(miopenPoolingGetWorkSpaceSize(out_desc_, &temp_workspaceSize));
+      if (temp_workspaceSize > 0 && (temp_workspaceSize > workspaceSize || workspace == nullptr)) {
+            workspaceSize = temp_workspaceSize;
+            hipFree(workspace);
+            hipMalloc(&workspace, workspaceSize);
+          }
     if (param_.kernel.ndim() == 2) {
       // 2d pool
       Tensor<gpu, 4, DType> m_out_grad = out_grad.get<gpu, 4, DType>(s);
       Tensor<gpu, 4, DType> m_in_data = in_data.get<gpu, 4, DType>(s);
       Tensor<gpu, 4, DType> m_out_data = out_data.get<gpu, 4, DType>(s);
       Tensor<gpu, 4, DType> m_in_grad = in_grad.get<gpu, 4, DType>(s);
-      CUDNN_CALL(cudnnPoolingBackward(s->dnn_handle_,
+      MIOPEN_CALL(miopenPoolingBackward(s->dnn_handle_,
                                       pooling_desc_,
                                       &alpha,
                                       out_desc_,
@@ -143,14 +182,16 @@ class CuDNNPoolingOp {
                                       m_in_data.dptr_,
                                       &beta,
                                       in_desc_,
-                                      m_in_grad.dptr_));
+                                      m_in_grad.dptr_,
+                                      workspace));
+
     } else if (param_.kernel.ndim() == 3) {
       // 3d pool
       Tensor<gpu, 5, DType> m_out_grad = out_grad.get<gpu, 5, DType>(s);
       Tensor<gpu, 5, DType> m_in_data = in_data.get<gpu, 5, DType>(s);
       Tensor<gpu, 5, DType> m_out_data = out_data.get<gpu, 5, DType>(s);
       Tensor<gpu, 5, DType> m_in_grad = in_grad.get<gpu, 5, DType>(s);
-      CUDNN_CALL(cudnnPoolingBackward(s->dnn_handle_,
+      MIOPEN_CALL(miopenPoolingBackward(s->dnn_handle_,
                                       pooling_desc_,
                                       &alpha,
                                       out_desc_,
@@ -161,7 +202,8 @@ class CuDNNPoolingOp {
                                       m_in_data.dptr_,
                                       &beta,
                                       in_desc_,
-                                      m_in_grad.dptr_));
+                                      m_in_grad.dptr_,
+                                      workspace));
     } else {
       LOG(FATAL) << "cuDNN only supports 2D or 3D pooling.";
     }
@@ -203,19 +245,6 @@ class CuDNNPoolingOp {
       // 2d pooling
       if (!(layout == mshadow::kNCHW || layout == mshadow::kNHWC))
         return false;
-#if CUDNN_VERSION == 7104
-      // CuDNN v7.1.4 backprop kernel doesn't support kernel sizes 9 and above.
-      // Perform shape calculations in a standard (NCHW) layout space
-      mshadow::Shape<4> input_shape = input.shape_.get<4>();
-      mshadow::Shape<4> dshape_nchw = (layout == mshadow::kNHWC) ?
-                                      ConvertLayout(input_shape, mshadow::kNHWC, mshadow::kNCHW) :
-                                      input_shape;
-      int kernel_height = param.global_pool ? dshape_nchw[2] : param.kernel[0];
-      int kernel_width = param.global_pool ? dshape_nchw[3] : param.kernel[1];
-      if (kernel_height > 8 || kernel_width > 8)
-        return false;
-#endif
-#if CUDNN_VERSION >= 7105 && CUDNN_VERSION < 7500
       // Avoid strided NHWC max pooling for some configs
       if (layout == mshadow::kNHWC &&
           param.pool_type == pool_enum::kMaxPooling && !param.global_pool) {
@@ -226,13 +255,8 @@ class CuDNNPoolingOp {
             param.stride[1] == 2 && param.kernel[1] % 2 == 0 && param.kernel[1] != 2)
           return false;
       }
-#endif
     } else if (param.kernel.ndim() == 3) {
       // 3d pooling
-#if CUDNN_MAJOR < 5
-      LogUnsupportedDim(&unsupported_dim_warning_issued, param.kernel.ndim());
-      return false;
-#endif
       if (!(layout == mshadow::kNCDHW || layout == mshadow::kNDHWC))
         return false;
     } else {
@@ -250,58 +274,39 @@ class CuDNNPoolingOp {
       const TBlob &out_data) {
     using namespace mshadow;
     bool is_supported = true;
-    #if CUDNN_MAJOR >= 5
-    nan_prop_ = CUDNN_NOT_PROPAGATE_NAN;
-    #endif
     int layout = param_.GetLayout(in_data.ndim());
     if (param_.kernel.ndim() == 2) {
       // 2d pooling
       CHECK(layout == mshadow::kNCHW || layout == mshadow::kNHWC) << "Need 2D layout NCHW or NHWC.";
-      cudnnTensorFormat_t cudnn_layout = (layout == mshadow::kNCHW) ? CUDNN_TENSOR_NCHW
-                                                                    : CUDNN_TENSOR_NHWC;
       Tensor<gpu, 4, DType> data = in_data.get<gpu, 4, DType>(s);
       Tensor<gpu, 4, DType> out = out_data.get<gpu, 4, DType>(s);
-      // Perform shape calculations in a standard (NCHW) layout space
       mshadow::Shape<4> dshape_nchw = (layout == mshadow::kNHWC) ?
                                       ConvertLayout(data.shape_, mshadow::kNHWC, mshadow::kNCHW) :
                                       data.shape_;
       mshadow::Shape<4> oshape_nchw = (layout == mshadow::kNHWC) ?
                                       ConvertLayout(out.shape_, mshadow::kNHWC, mshadow::kNCHW) :
                                       out.shape_;
-      CUDNN_CALL(cudnnSetTensor4dDescriptor(in_desc_,
-                                            cudnn_layout,
+      MIOPEN_CALL(miopenSet4dTensorDescriptor(in_desc_,
                                             dtype_,
-                                            dshape_nchw[0],
-                                            dshape_nchw[1],
-                                            dshape_nchw[2],
-                                            dshape_nchw[3]));
-      CUDNN_CALL(cudnnSetTensor4dDescriptor(out_desc_,
-                                            cudnn_layout,
+                                            data.shape_[0],
+                                            data.shape_[1],
+                                            data.shape_[2],
+                                            data.shape_[3]));
+      MIOPEN_CALL(miopenSet4dTensorDescriptor(out_desc_,
                                             dtype_,
-                                            oshape_nchw[0],
-                                            oshape_nchw[1],
-                                            oshape_nchw[2],
-                                            oshape_nchw[3]));
+                                            out.shape_[0],
+                                            out.shape_[1],
+                                            out.shape_[2],
+                                            out.shape_[3]));
       int kernel_height = param_.global_pool ? dshape_nchw[2] : param_.kernel[0];
       int kernel_width = param_.global_pool ? dshape_nchw[3] : param_.kernel[1];
       // CuDNN v7.1.4 backprop kernel doesn't support kernel sizes 9 and above.
       // For reference see Fixed Issues section in
       // https://docs.nvidia.com/deeplearning/sdk/cudnn-release-notes/rel_721.html#rel_721
-      #if CUDNN_VERSION == 7104
       is_supported = kernel_height <= 8 && kernel_width <= 8;
-      #endif
-      #if CUDNN_MAJOR >= 5
-      CUDNN_CALL(cudnnSetPooling2dDescriptor(pooling_desc_,
-                                             mode_,
-                                             nan_prop_,
-                                             kernel_height,
-                                             kernel_width,
-                                             param_.global_pool ? 0 : param_.pad[0],
-                                             param_.global_pool ? 0 : param_.pad[1],
-                                             param_.global_pool ? 1 : param_.stride[0],
-                                             param_.global_pool ? 1 : param_.stride[1]));
-      #else
-      CUDNN_CALL(cudnnSetPooling2dDescriptor(pooling_desc_,
+      // TODO Need to check the condition for miopen as propagation is not supported in Miopen but supported for cudnn version greater than 5.
+
+      MIOPEN_CALL(miopenSet2dPoolingDescriptor(pooling_desc_,
                                              mode_,
                                              kernel_height,
                                              kernel_width,
@@ -309,7 +314,6 @@ class CuDNNPoolingOp {
                                              param_.global_pool ? 0 : param_.pad[1],
                                              param_.global_pool ? 1 : param_.stride[0],
                                              param_.global_pool ? 1 : param_.stride[1]));
-      #endif
     } else {
       CHECK(layout == mshadow::kNCDHW ||
             layout == mshadow::kNDHWC) << "Need 3D layout NCDHW or NDHWC.";
@@ -366,28 +370,25 @@ class CuDNNPoolingOp {
                                      param_.global_pool ? 1 : static_cast<int>(param_.stride[1]),
                                      param_.global_pool ? 1 : static_cast<int>(param_.stride[2])};
 
-      CUDNN_CALL(cudnnSetTensorNdDescriptor(in_desc_,
-                                            dtype_,
-                                            static_cast<int>(dshape_ncdhw_int.size()),
+        MIOPEN_CALL(miopenSetTensorDescriptor(in_desc_,
+                                              dtype_,
+                           	            static_cast<int>(dshape_ncdhw_int.size()),
                                             &dshape_ncdhw_int[0],
                                             &dstride_ncdhw_int[0]));
-      CUDNN_CALL(cudnnSetTensorNdDescriptor(out_desc_,
+
+      MIOPEN_CALL(miopenSetTensorDescriptor(out_desc_,
                                             dtype_,
                                             static_cast<int>(oshape_ncdhw_int.size()),
                                             &oshape_ncdhw_int[0],
                                             &ostride_ncdhw_int[0]));
-      #if CUDNN_MAJOR >= 5
-      CUDNN_CALL(cudnnSetPoolingNdDescriptor(pooling_desc_,
-                                             mode_,
-                                             nan_prop_,
-                                             static_cast<int>(kernel_vec.size()),
-                                             &(kernel_vec[0]),
-                                             &(pad_vec[0]),
-                                             &(stride_vec[0])));
-      #else
-      LOG(FATAL) << "3D pooling is only supported by CUDNN v5 and above.";
-      #endif
+
     }
+     workspaceSize = 0;
+   MIOPEN_CALL(miopenPoolingGetWorkSpaceSize(out_desc_, &workspaceSize));
+  if(workspaceSize > 0)
+     if(workspace !=nullptr)
+        hipFree(workspace);
+   hipMalloc(&workspace, workspaceSize);
     return is_supported;
   }
 
@@ -400,16 +401,16 @@ class CuDNNPoolingOp {
     }
   }
 
-  cudnnDataType_t dtype_;
-  cudnnHandle_t handle_;
-  cudnnPoolingMode_t mode_;
-  cudnnTensorDescriptor_t in_desc_;
-  cudnnTensorDescriptor_t out_desc_;
-  cudnnPoolingDescriptor_t pooling_desc_;
-  #if CUDNN_MAJOR >= 5
-  cudnnNanPropagation_t nan_prop_;
-  #endif
+  miopenDataType_t dtype_;
+  miopenHandle_t handle_;
+  miopenPoolingMode_t mode_;
+  miopenTensorDescriptor_t in_desc_;
+  miopenTensorDescriptor_t out_desc_;
+  miopenPoolingDescriptor_t pooling_desc_;
   PoolingParam param_;
+
+  size_t workspaceSize;
+  void* workspace;
 };  // class CuDNNPoolingOp
 }  // namespace op
 }  // namespace mxnet

@@ -29,16 +29,61 @@
 namespace mxnet {
 namespace op {
 
-#if MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 6 && CUDA_VERSION >= 8000
+#if (MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 6 && CUDA_VERSION >= 8000) || MXNET_USE_MIOPEN == 1
 template<typename DType>
 class QuantizedCuDNNPoolingOp {
  public:
   QuantizedCuDNNPoolingOp() {
-    CUDNN_CALL(miopenCreatePoolingDescriptor(&pool_desc_));
-    CUDNN_CALL(miopenCreateTensorDescriptor(&in_desc_));
-    CUDNN_CALL(miopenCreateTensorDescriptor(&out_desc_));
+#if MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 6
+    CUDNN_CALL(cudnnCreatePoolingDescriptor(&pool_desc_));
+    CUDNN_CALL(cudnnCreateTensorDescriptor(&in_desc_));
+    CUDNN_CALL(cudnnCreateTensorDescriptor(&out_desc_));
+#endif
+#if MXNET_USE_MIOPEN == 1
+    MIOPEN_CALL(miopenCreatePoolingDescriptor(&pool_desc_));
+    MIOPEN_CALL(miopenCreateTensorDescriptor(&in_desc_));
+    MIOPEN_CALL(miopenCreateTensorDescriptor(&out_desc_));
+#endif
   }
 
+#if MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 6
+  void Init(const PoolingParam& param, const mxnet::TShape& dshape, const mxnet::TShape& oshape) {
+    const int N = 0, H = 2, W = 3, C = 1;
+    const cudnnDataType_t dtype = mshadow::DataType<DType>::kCudnnFlag;
+    CHECK(param.kernel.ndim() == 2) << "Only support 2D pooling";
+    if (param.pool_type == pool_enum::kMaxPooling) {
+      mode_ = CUDNN_POOLING_MAX;
+    } else if (param.pool_type == pool_enum::kAvgPooling) {
+      mode_ = CUDNN_POOLING_AVERAGE_COUNT_INCLUDE_PADDING;
+    } else {
+      LOG(FATAL) << "QuantizedCuDNNPoolingOp only supports pool_type=max/avg";
+    }
+    CUDNN_CALL(cudnnSetTensor4dDescriptor(in_desc_,
+                                          CUDNN_TENSOR_NCHW,
+                                          dtype,
+                                          dshape[N],
+                                          dshape[C],
+                                          dshape[H],
+                                          dshape[W]));
+    CUDNN_CALL(cudnnSetTensor4dDescriptor(out_desc_,
+                                          CUDNN_TENSOR_NCHW,
+                                          dtype,
+                                          oshape[N],
+                                          oshape[C],
+                                          oshape[H],
+                                          oshape[W]));
+    CUDNN_CALL(cudnnSetPooling2dDescriptor(pool_desc_,
+                                           mode_,
+                                           CUDNN_NOT_PROPAGATE_NAN,
+                                           param.global_pool ? dshape[2] : param.kernel[0],
+                                           param.global_pool ? dshape[3] : param.kernel[1],
+                                           param.pad[0],
+                                           param.pad[1],
+                                           param.global_pool ? 1 : param.stride[0],
+                                           param.global_pool ? 1 :param.stride[1]));
+  }
+#endif
+#if MXNET_USE_MIOPEN == 1
   void Init(const PoolingParam& param, const mxnet::TShape& dshape, const mxnet::TShape& oshape) {
     const int N = 0, H = 2, W = 3, C = 1;
     const miopenDataType_t dtype = mshadow::DataType<DType>::kCudnnFlag;
@@ -51,31 +96,20 @@ class QuantizedCuDNNPoolingOp {
     } else {
       LOG(FATAL) << "QuantizedCuDNNPoolingOp only supports pool_type=max/avg";
     }
-    CUDNN_CALL(miopenSet4dTensorDescriptor(in_desc_,
-                                          //CUDNN_TENSOR_NCHW,
+    MIOPEN_CALL(miopenSet4dTensorDescriptor(in_desc_,
                                           dtype,
                                           dshape[N],
                                           dshape[C],
                                           dshape[H],
                                           dshape[W]));
-    CUDNN_CALL(miopenSet4dTensorDescriptor(out_desc_,
-                                          //CUDNN_TENSOR_NCHW,
+    MIOPEN_CALL(miopenSet4dTensorDescriptor(out_desc_,
                                           dtype,
                                           oshape[N],
                                           oshape[C],
                                           oshape[H],
                                           oshape[W]));
-    /*CUDNN_CALL(cudnnSetPooling2dDescriptor(pool_desc_,
-                                           mode_,
-                                           CUDNN_NOT_PROPAGATE_NAN,
-                                           param.global_pool ? dshape[2] : param.kernel[0],
-                                           param.global_pool ? dshape[3] : param.kernel[1],
-                                           param.pad[0],
-                                           param.pad[1],
-                                           param.global_pool ? 1 : param.stride[0],
-                                           param.global_pool ? 1 :param.stride[1]));*/
 
-       CUDNN_CALL(miopenSet2dPoolingDescriptor(pool_desc_,
+    MIOPEN_CALL(miopenSet2dPoolingDescriptor(pool_desc_,
                                                mode_,
                                                param.global_pool ? dshape[2] : param.kernel[0],
                                                param.global_pool ? dshape[3] : param.kernel[1],
@@ -85,17 +119,24 @@ class QuantizedCuDNNPoolingOp {
                                                param.global_pool ? 1 : param.stride[1]));
 
   workspaceSize = 0;
-   CUDNN_CALL(miopenPoolingGetWorkSpaceSize(out_desc_, &workspaceSize));
+   MIOPEN_CALL(miopenPoolingGetWorkSpaceSize(out_desc_, &workspaceSize));
   if(workspaceSize > 0)
    hipMalloc(&workspace, workspaceSize);
 
   }
-
+#endif
   ~QuantizedCuDNNPoolingOp() {
-    CUDNN_CALL(miopenDestroyTensorDescriptor(in_desc_));
-    CUDNN_CALL(miopenDestroyTensorDescriptor(out_desc_));
-    CUDNN_CALL(miopenDestroyPoolingDescriptor(pool_desc_));
+#if MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 6
+    CUDNN_CALL(cudnnDestroyTensorDescriptor(in_desc_));
+    CUDNN_CALL(cudnnDestroyTensorDescriptor(out_desc_));
+    CUDNN_CALL(cudnnDestroyPoolingDescriptor(pool_desc_));
+#endif
+#if MXNET_USE_MIOPEN == 1
+    MIOPEN_CALL(miopenDestroyTensorDescriptor(in_desc_));
+    MIOPEN_CALL(miopenDestroyTensorDescriptor(out_desc_));
+    MIOPEN_CALL(miopenDestroyPoolingDescriptor(pool_desc_));
     hipFree(workspace);
+#endif
   }
 
   void Forward(mshadow::Stream<gpu>* s,
@@ -109,24 +150,25 @@ class QuantizedCuDNNPoolingOp {
     CHECK_EQ(s->dnn_handle_ownership_, mshadow::Stream<gpu>::OwnHandle);
     float alpha = 1.0f;
     float beta  = 0.0f;
-
-    size_t temp_workspaceSize = 0;
-      CUDNN_CALL(miopenPoolingGetWorkSpaceSize(out_desc_, &temp_workspaceSize));
-      if (temp_workspaceSize > 0 && temp_workspaceSize > workspaceSize ) {
-            workspaceSize = temp_workspaceSize;
-            hipFree(workspace);
-            hipMalloc(&workspace, workspaceSize);
-    }
-    /*CUDNN_CALL(cudnnPoolingForward(s->dnn_handle_,
+#if MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 6
+    CUDNN_CALL(cudnnPoolingForward(s->dnn_handle_,
                                    pool_desc_,
                                    &alpha,
                                    in_desc_,
                                    inputs[0].dptr_,
                                    &beta,
                                    out_desc_,
-                                   outputs[0].dptr_));*/
-
-    CUDNN_CALL(miopenPoolingForward(s->dnn_handle_,
+                                   outputs[0].dptr_));
+#endif
+#if MXNET_USE_MIOPEN == 1
+    size_t temp_workspaceSize = 0;
+      MIOPEN_CALL(miopenPoolingGetWorkSpaceSize(out_desc_, &temp_workspaceSize));
+      if (temp_workspaceSize > 0 && temp_workspaceSize > workspaceSize ) {
+            workspaceSize = temp_workspaceSize;
+            hipFree(workspace);
+            hipMalloc(&workspace, workspaceSize);
+    }
+    	MIOPEN_CALL(miopenPoolingForward(s->dnn_handle_,
                                      pool_desc_,
                                      &alpha,
                                      in_desc_,
@@ -137,6 +179,7 @@ class QuantizedCuDNNPoolingOp {
                                      true,
                                      workspace,
                                      workspaceSize));
+#endif
 
     Tensor<gpu, 1, float> omin_range = outputs[1].FlatTo1D<gpu, float>(s);
     Tensor<gpu, 1, float> omax_range = outputs[2].FlatTo1D<gpu, float>(s);
@@ -147,6 +190,13 @@ class QuantizedCuDNNPoolingOp {
   }
 
  private:
+#if MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 6
+  cudnnPoolingMode_t mode_;
+  cudnnTensorDescriptor_t in_desc_;
+  cudnnTensorDescriptor_t out_desc_;
+  cudnnPoolingDescriptor_t pool_desc_;
+#endif
+#if MXNET_USE_MIOPEN == 1
   miopenPoolingMode_t mode_;
   miopenTensorDescriptor_t in_desc_;
   miopenTensorDescriptor_t out_desc_;
@@ -154,6 +204,7 @@ class QuantizedCuDNNPoolingOp {
 
   size_t workspaceSize;
   void* workspace;
+#endif 
 };  // class QuantizedCuDNNPoolingOp
 #endif  // MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 6 && CUDA_VERSION >= 8000
 
@@ -165,7 +216,7 @@ void QuantizedPoolingForwardGPU(const nnvm::NodeAttrs& attrs,
   const PoolingParam& param = nnvm::get<PoolingParam>(attrs.parsed);
   CHECK_EQ(param.kernel.ndim(), 2U)
     << "QuantizedPoolingForward<gpu> only supports 2D convolution for now";
-#if MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 6 && CUDA_VERSION >= 8000
+#if (MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 6 && CUDA_VERSION >= 8000) || MXNET_USE_MIOPEN == 1
 #if DMLC_CXX11_THREAD_LOCAL
   static thread_local QuantizedCuDNNPoolingOp<int8_t> op;
 #else

@@ -50,12 +50,7 @@
 #include <mkl_vsl.h>
 #endif  // MXNET_USE_MKL_DROPOUT
 
-#if defined(__HIP_PLATFORM_NVCC__)
 #define MXNET_USE_CUDNN_DROPOUT MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 7
-#endif
-#if defined(__HIP_PLATFORM_HCC__)
-#define MXNET_USE_CUDNN_DROPOUT MXNET_USE_MIOPEN == 0
-#endif
 
 namespace dropout {
 enum DropoutOpInputs {kData};
@@ -216,19 +211,7 @@ class DropoutOp {
     this->mode_ = static_cast<dropout::DropoutOpMode>(param.mode);
     this->axes_ = param.axes;
     this->dropout_passthrough_ = true;
-#if MXNET_USE_CUDNN_DROPOUT && MXNET_USE_MIOPEN
-    this->cudnn_off_ = param.cudnn_off && param.cudnn_off.value();
-    this->ctx_ = ctx;
-    if (ctx.dev_type == kGPU && this->pkeep_ > 0 && !this->cudnn_off_) {
-      dtype_ = mshadow::DataType<DType>::kCudnnFlag;
-      MIOPEN_CALL(miopenCreateTensorDescriptor(&x_desc_));
-      MIOPEN_CALL(miopenCreateTensorDescriptor(&y_desc_));
-      MIOPEN_CALL(miopenCreateTensorDescriptor(&dx_desc_));
-      MIOPEN_CALL(miopenCreateTensorDescriptor(&dy_desc_));
-      //CUDNN_CALL(cudnnCreateDropoutDescriptor(&dropout_desc_)); NOT Supported
-    }
-#endif  // MXNET_USE_CUDNN_DROPOUT
-#if MXNET_USE_CUDNN_DROPOUT && MXNET_USE_CUDNN
+#if MXNET_USE_CUDNN_DROPOUT
     this->cudnn_off_ = param.cudnn_off && param.cudnn_off.value();
     this->ctx_ = ctx;
     if (ctx.dev_type == kGPU && this->pkeep_ > 0 && !this->cudnn_off_) {
@@ -239,20 +222,11 @@ class DropoutOp {
       CUDNN_CALL(cudnnCreateTensorDescriptor(&dy_desc_));
       CUDNN_CALL(cudnnCreateDropoutDescriptor(&dropout_desc_));
     }
-#endif
+#endif  // MXNET_USE_CUDNN_DROPOUT
   }
 
   ~DropoutOp() {
-#if MXNET_USE_CUDNN_DROPOUT && MXNET_USE_MIOPEN 
-    if (this->ctx_.dev_type == kGPU && this->pkeep_ > 0 && !this->cudnn_off_) {
-      MIOPEN_CALL(miopenCreateTensorDescriptor(x_desc_));
-      MIOPEN_CALL(miopenCreateTensorDescriptor(y_desc_));
-      MIOPEN_CALL(miopenCreateTensorDescriptor(dx_desc_));
-      MIOPEN_CALL(miopenCreateTensorDescriptor(dy_desc_));
-      //CUDNN_CALL(cudnnDestroyDropoutDescriptor(dropout_desc_));
-    }
-#endif  // MXNET_USE_CUDNN_DROPOUT
-#if MXNET_USE_CUDNN_DROPOUT && MXNET_USE_CUDNN
+#if MXNET_USE_CUDNN_DROPOUT
     if (this->ctx_.dev_type == kGPU && this->pkeep_ > 0 && !this->cudnn_off_) {
       CUDNN_CALL(cudnnDestroyTensorDescriptor(x_desc_));
       CUDNN_CALL(cudnnDestroyTensorDescriptor(y_desc_));
@@ -273,7 +247,7 @@ class DropoutOp {
                            const TBlob &mask,
                            const TBlob &out) {
       Stream<xpu> *s = ctx.get_stream<xpu>();
-#if MXNET_USE_CUDNN_DROPOUT && MXNET_USE_CUDNN
+
       // set dropout state.
       ctx.requested[0].get_cudnn_dropout_desc(&dropout_desc_, s, 1.0f - this->pkeep_, seed_);
 
@@ -287,7 +261,6 @@ class DropoutOp {
       stride[1] = out.Size();
       stride[2] = out.Size();
       stride[3] = 1;
-
       CUDNN_CALL(cudnnSetTensorNdDescriptor(x_desc_,
                                             dtype_,
                                             4,
@@ -313,7 +286,6 @@ class DropoutOp {
                                      out.dptr<DType>(),
                                      mask.dptr<DType>(),
                                      dropout_reserve_byte_));
-#endif
   }
 
   inline void CuDNNBackward(const OpContext &ctx,
@@ -332,7 +304,6 @@ class DropoutOp {
       stride[1] = in_grad.Size();
       stride[2] = in_grad.Size();
       stride[3] = 1;
-#if MXNET_USE_CUDNN_DROPOUT && MXNET_USE_CUDNN
       CUDNN_CALL(cudnnSetTensorNdDescriptor(dy_desc_,
                                             dtype_,
                                             4,
@@ -353,7 +324,6 @@ class DropoutOp {
                                       in_grad.dptr<DType>(),
                                       mask.dptr<DType>(),
                                       dropout_reserve_byte_));
-#endif
   }
 #endif  // MXNET_USE_CUDNN_DROPOUT && defined(__HIPCC__)
 
@@ -516,17 +486,11 @@ class DropoutOp {
 #if MXNET_USE_CUDNN_DROPOUT
   bool cudnn_off_;
   Context ctx_;
-#if MXNET_USE_CUDNN_DROPOUT && MXNET_USE_CUDNN
   cudnnDataType_t dtype_;
   cudnnDropoutDescriptor_t dropout_desc_;
-  cudnnTensorDescriptor_t x_desc_, y_desc_, dx_desc_, dy_desc_;
-#endif
-#if MXNET_USE_CUDNN_DROPOUT && MXNET_USE_MIOPEN
-  miopenDataType_t dtype_;
-  miopenTensorDescriptor_t x_desc_, y_desc_, dx_desc_, dy_desc_;
-#endif
   uint64_t seed_ = 17 + rand() % 4096;  // NOLINT(runtime/threadsafe_fn)
   size_t dropout_reserve_byte_;
+  cudnnTensorDescriptor_t x_desc_, y_desc_, dx_desc_, dy_desc_;
 #endif  // MXNET_USE_CUDNN_DROPOUT
 };  // class DropoutOp
 

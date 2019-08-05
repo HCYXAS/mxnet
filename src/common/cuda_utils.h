@@ -47,6 +47,9 @@ extern __cuda_fake_struct threadIdx;
 extern __cuda_fake_struct blockIdx;
 #endif
 
+#define QUOTE(x) #x
+#define QUOTEVALUE(x) QUOTE(x)
+
 #if MXNET_USE_GPU
 #include <hip-wrappers.h> // dummy include file placed in /opt/rocm/include
 #include <hip/hip_runtime.h>
@@ -59,7 +62,6 @@ extern __cuda_fake_struct blockIdx;
  */
 #ifdef __HIPCC__
 inline __device__ bool __is_supported_cuda_architecture() {
-//#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ < 300
 #if (__HIP_DEVICE_COMPILE__ && (__CUDA_ARCH__ < 300) && defined(__HIP_PLATFORM_NVCC__))
 #error "Fermi and earlier GPU architectures are not supported (architecture versions less than 3.0)"
   return false;
@@ -440,9 +442,91 @@ inline cublasMath_t SetCublasMathMode(hipblasHandle_t blas_handle, cublasMath_t 
 
 #if MXNET_USE_CUDNN
 
-#include <miopen/miopen.h>
+#include <cudnn.h>
+
+// Creating CUDNN_VERSION_AS_STRING as follows avoids a static_assert error message that shows
+// the formula for CUDNN_VERSION, i.e. "1000 * 7 + 100 * 6 + 0" rather than number "7600".
+static_assert(CUDNN_PATCHLEVEL < 100 && CUDNN_MINOR < 10,
+              "CUDNN_VERSION_AS_STRING macro assumptions violated.");
+#if CUDNN_PATCHLEVEL >= 10
+#define CUDNN_VERSION_AS_STRING QUOTEVALUE(CUDNN_MAJOR) \
+                                QUOTEVALUE(CUDNN_MINOR) \
+                                QUOTEVALUE(CUDNN_PATCHLEVEL)
+#else
+#define CUDNN_VERSION_AS_STRING QUOTEVALUE(CUDNN_MAJOR) \
+                                QUOTEVALUE(CUDNN_MINOR) \
+                                "0" QUOTEVALUE(CUDNN_PATCHLEVEL)
+#endif
+
+#define STATIC_ASSERT_CUDNN_VERSION_GE(min_version) \
+  static_assert(CUDNN_VERSION >= min_version, "Compiled-against cuDNN version " \
+      CUDNN_VERSION_AS_STRING " is too old, please upgrade system to version " \
+      QUOTEVALUE(min_version) " or later.")
 
 #define CUDNN_CALL(func)                                                      \
+  {                                                                           \
+    cudnnStatus_t e = (func);                                                 \
+    CHECK_EQ(e, CUDNN_STATUS_SUCCESS) << "cuDNN: " << cudnnGetErrorString(e); \
+  }
+
+/*!
+ * \brief Return max number of perf structs cudnnFindConvolutionForwardAlgorithm()
+ *        may want to populate.
+ * \param cudnn_handle cudnn handle needed to perform the inquiry.
+ * \return max number of perf structs cudnnFindConvolutionForwardAlgorithm() may
+ *         want to populate.
+ */
+inline int MaxForwardAlgos(cudnnHandle_t cudnn_handle) {
+#if CUDNN_MAJOR >= 7
+  int max_algos = 0;
+  CUDNN_CALL(cudnnGetConvolutionForwardAlgorithmMaxCount(cudnn_handle, &max_algos));
+  return max_algos;
+#else
+  return 10;
+#endif
+}
+
+/*!
+ * \brief Return max number of perf structs cudnnFindConvolutionBackwardFilterAlgorithm()
+ *        may want to populate.
+ * \param cudnn_handle cudnn handle needed to perform the inquiry.
+ * \return max number of perf structs cudnnFindConvolutionBackwardFilterAlgorithm() may
+ *         want to populate.
+ */
+inline int MaxBackwardFilterAlgos(cudnnHandle_t cudnn_handle) {
+#if CUDNN_MAJOR >= 7
+  int max_algos = 0;
+  CUDNN_CALL(cudnnGetConvolutionBackwardFilterAlgorithmMaxCount(cudnn_handle, &max_algos));
+  return max_algos;
+#else
+  return 10;
+#endif
+}
+
+/*!
+ * \brief Return max number of perf structs cudnnFindConvolutionBackwardDataAlgorithm()
+ *        may want to populate.
+ * \param cudnn_handle cudnn handle needed to perform the inquiry.
+ * \return max number of perf structs cudnnFindConvolutionBackwardDataAlgorithm() may
+ *         want to populate.
+ */
+inline int MaxBackwardDataAlgos(cudnnHandle_t cudnn_handle) {
+#if CUDNN_MAJOR >= 7
+  int max_algos = 0;
+  CUDNN_CALL(cudnnGetConvolutionBackwardDataAlgorithmMaxCount(cudnn_handle, &max_algos));
+  return max_algos;
+#else
+  return 10;
+#endif
+}
+
+#endif  // MXNET_USE_CUDNN
+
+#if MXNET_USE_MIOPEN
+
+#include <miopen/miopen.h>
+
+#define MIOPEN_CALL(func)                                                      \
   {                                                                           \
     miopenStatus_t e = (func);                                                 \
     CHECK_EQ(e, miopenStatusSuccess) << "cuDNN: " << (e); \
@@ -456,13 +540,7 @@ inline cublasMath_t SetCublasMathMode(hipblasHandle_t blas_handle, cublasMath_t 
  *         want to populate.
  */
 inline int MaxForwardAlgos(miopenHandle_t cudnn_handle) {
-/*#if CUDNN_MAJOR >= 7 && defined( __HIP_PLATFORM_NVCC__)  //TODO cudnnGetConvolutionForwardAlgorithmMaxCount() not supported in MIOpen
-  int max_algos = 0;
-  CUDNN_CALL(cudnnGetConvolutionForwardAlgorithmMaxCount(cudnn_handle, &max_algos));
-  return max_algos;
-#else*/
   return 10;
-//#endif
 }
 
 /*!
@@ -473,14 +551,7 @@ inline int MaxForwardAlgos(miopenHandle_t cudnn_handle) {
  *         want to populate.
  */
 inline int MaxBackwardFilterAlgos(miopenHandle_t cudnn_handle) {
-/*#if CUDNN_MAJOR >= 7 && defined( __HIP_PLATFORM_NVCC__)
-  int max_algos = 0;
-  CUDNN_CALL(cudnnGetConvolutionBackwardFilterAlgorithmMaxCount(cudnn_handle, &max_algos));
-  return max_algos;
-#else*/
- //TODO cudnnGetConvolutionBackwardFilterAlgorithmMaxCount() no supported API in MIOpen
-  return 10;
-//#endif
+return 10;
 }
 
 /*!
@@ -491,18 +562,9 @@ inline int MaxBackwardFilterAlgos(miopenHandle_t cudnn_handle) {
  *         want to populate.
  */
 inline int MaxBackwardDataAlgos(miopenHandle_t cudnn_handle) {
-/*#if CUDNN_MAJOR >= 7 && defined( __HIP_PLATFORM_NVCC__)
-  int max_algos = 0;
-  CUDNN_CALL(cudnnGetConvolutionBackwardDataAlgorithmMaxCount(cudnn_handle, &max_algos));
-  return max_algos;
-#else*/
- //TODO cudnnGetConvolutionBackwardDataAlgorithmMaxCount() no supported API in MIOpen
   return 10;
-//#endif
 }
-
-#endif  // MXNET_USE_CUDNN
-
+#endif  // MXNET_USE_MIOPEN
 // Overload atomicAdd to work for floats on all architectures
 #if (__HIP_DEVICE_COMPILE__ && (__CUDA_ARCH__ < 600) && defined(__HIP_PLATFORM_NVCC__))
 static inline __device__  void atomicAdd(double *address, double val) {
@@ -525,8 +587,6 @@ static inline __device__  void atomicAdd(double *address, double val) {
 // Overload atomicAdd for half precision
 // Taken from:
 // https://github.com/torch/cutorch/blob/master/lib/THC/THCAtomics.cuh
-//#if defined(__CUDA_ARCH__)
-//#if (__HIP_DEVICE_COMPILE__)
 #if (__HIP_DEVICE_COMPILE__) || defined(__HCC__)
 static inline __device__ void atomicAdd(mshadow::half::half_t *address,
                                         mshadow::half::half_t val) {

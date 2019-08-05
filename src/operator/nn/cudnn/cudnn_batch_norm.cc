@@ -30,7 +30,7 @@
 
 namespace mxnet {
 namespace op {
-#if MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 4
+#if(MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 4) || MXNET_USE_MIOPEN == 1
 
 static bool BatchNormShape(const nnvm::NodeAttrs& attrs, mxnet::ShapeVector *in_shape,
     mxnet::ShapeVector *out_shape) {

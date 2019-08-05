@@ -152,7 +152,7 @@ Example::
     const DropoutParam& param = nnvm::get<DropoutParam>(attrs.parsed);
     if (param.p == 0) return request;
     if (dev_mask == kGPU) {
-#if MXNET_USE_CUDNN_DROPOUT
+#if MNXET_USE_CUDNN == 1//MXNET_USE_CUDNN_DROPOUT
       // if cudnn is used, parallel random is not needed.
       if (1.0f - param.p > 0
           && !(param.cudnn_off && param.cudnn_off.value())

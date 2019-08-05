@@ -55,6 +55,12 @@
 #define MXNET_USE_CUDNN MSHADOW_USE_CUDNN
 #endif
 
+#ifndef MXNET_USE_MIOPEN
+#define MXNET_USE_MIOPEN MSHADOW_USE_MIOPEN
+#endif
+
+
+
 #ifndef MXNET_USE_NCCL
 #define MXNET_USE_NCCL 0
 #endif

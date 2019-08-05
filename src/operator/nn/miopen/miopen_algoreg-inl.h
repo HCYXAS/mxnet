@@ -37,7 +37,7 @@
 #include "../deconvolution-inl.h"
 namespace mxnet {
 namespace op {
-#if MXNET_USE_CUDNN == 1
+#if MXNET_USE_MIOPEN == 1
 
 /*!
  * \brief A cuDNN algorithm: an algo number and whether it should be run in TENSOR CORE mode.
@@ -54,11 +54,7 @@ class CuDNNAlgo {
   }
   CuDNNAlgoType AlgoNumber() const { return algo_number_; }
   bool IsTensorCoreAlgo() const { return is_tensor_core_algo_; }
-  #if CUDNN_MAJOR >= 7
-  cudnnMathType_t MathType() {
-    return IsTensorCoreAlgo() ? CUDNN_TENSOR_OP_MATH : CUDNN_DEFAULT_MATH;
-  }
-  #endif
+
  private:
   CuDNNAlgoType algo_number_;
   bool is_tensor_core_algo_;
@@ -67,21 +63,21 @@ class CuDNNAlgo {
 template<typename ParamType>
 class CuDNNAlgoReg {
  public:
-  using AlgoSetter_t = std::function<void(CuDNNAlgo<cudnnConvolutionFwdAlgo_t> *,
-                            CuDNNAlgo<cudnnConvolutionBwdDataAlgo_t> *,
-                            CuDNNAlgo<cudnnConvolutionBwdFilterAlgo_t> *)>;
+  using AlgoSetter_t = std::function<void(CuDNNAlgo<miopenConvFwdAlgorithm_t> *, 
+                                          CuDNNAlgo<miopenConvBwdDataAlgorithm_t> *,
+                                          CuDNNAlgo<miopenConvBwdWeightsAlgorithm_t> *)>;
 
   void FindOrElseRegister(const ParamType &param,
             const mxnet::ShapeVector &in_shape,
             const mxnet::ShapeVector &out_shape,
-            cudnnDataType_t cudnn_data_type,
-            cudnnDataType_t cudnn_forward_compute_type,
-            cudnnDataType_t cudnn_backward_compute_type,
+            miopenDataType_t cudnn_data_type,
+            miopenDataType_t cudnn_forward_compute_type,
+            miopenDataType_t cudnn_backward_compute_type,
             int sm_arch,
             bool add_to_weight,
-            CuDNNAlgo<cudnnConvolutionFwdAlgo_t> *fwd,
-            CuDNNAlgo<cudnnConvolutionBwdDataAlgo_t> *bwd,
-            CuDNNAlgo<cudnnConvolutionBwdFilterAlgo_t> *flt,
+            CuDNNAlgo<miopenConvFwdAlgorithm_t> *fwd,
+            CuDNNAlgo<miopenConvBwdDataAlgorithm_t> *bwd,
+            CuDNNAlgo<miopenConvBwdWeightsAlgorithm_t> *flt,
             const AlgoSetter_t &algo_setter) {
     CHECK(in_shape.size() == 2 || in_shape.size() == 3);
     ParamKey key{param, in_shape[0], in_shape[1], out_shape[0], cudnn_data_type,
@@ -120,17 +116,17 @@ class CuDNNAlgoReg {
 
  private:
   struct CudnnAlgorithms {
-    CuDNNAlgo<cudnnConvolutionFwdAlgo_t> fwd;
-    CuDNNAlgo<cudnnConvolutionBwdDataAlgo_t> bwd;
-    CuDNNAlgo<cudnnConvolutionBwdFilterAlgo_t> flt;
+    CuDNNAlgo<miopenConvFwdAlgorithm_t> fwd;
+    CuDNNAlgo<miopenConvBwdDataAlgorithm_t> bwd;
+    CuDNNAlgo<miopenConvBwdWeightsAlgorithm_t> flt;
   };
 
   struct ParamKey {
     ParamType param;
     mxnet::TShape data_shape, weight_shape, out_shape;
-    cudnnDataType_t cudnn_data_type;
-    cudnnDataType_t cudnn_forward_compute_type;
-    cudnnDataType_t cudnn_backward_compute_type;
+    miopenDataType_t cudnn_data_type;
+    miopenDataType_t cudnn_forward_compute_type;
+    miopenDataType_t cudnn_backward_compute_type;
     int sm_arch;
     bool add_to_weight;
 

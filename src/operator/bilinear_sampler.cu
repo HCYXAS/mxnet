@@ -31,6 +31,9 @@
 #if MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 5
 #include "./cudnn_bilinear_sampler-inl.h"
 #endif  // MXNET_USE_CUDNN && CUDNN_MAJOR
+#if MXNET_USE_MIOPEN == 1
+#include "./miopen_bilinear_sampler-inl.h"
+#endif  // MXNET_USE_MIOPEN
 
 namespace mshadow {
 namespace cuda {
@@ -226,7 +229,7 @@ namespace op {
 template<>
 Operator* CreateOp<gpu>(BilinearSamplerParam param, int dtype) {
   Operator *op = NULL;
-#if MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 5
+#if (MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 5) || MXNET_USE_MIOPEN == 1
   MSHADOW_REAL_TYPE_SWITCH(dtype, DType, {
     if (param.cudnn_off.has_value() && param.cudnn_off.value()) {
       op = new BilinearSamplerOp<gpu, DType>(param);

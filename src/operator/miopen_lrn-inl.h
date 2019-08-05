@@ -42,8 +42,10 @@ class CuDNNLocalResponseNormOp : public Operator {
 
   ~CuDNNLocalResponseNormOp() {
     if (init_cudnn_) {
-      CUDNN_CALL(cudnnDestroyLRNDescriptor(lrn_desc_));
-      CUDNN_CALL(cudnnDestroyTensorDescriptor(shape_desc_));
+      MIOPEN_CALL(miopenDestroyLRNDescriptor(lrn_desc_));
+      MIOPEN_CALL(miopenDestroyTensorDescriptor(shape_desc_));
+      if(workspace !=nullptr)
+         hipFree(workspace);
     }
   }
 
@@ -65,15 +67,30 @@ class CuDNNLocalResponseNormOp : public Operator {
       this->Init(s, in_data, out_data);
     }
     CHECK_EQ(s->dnn_handle_ownership_, mshadow::Stream<gpu>::OwnHandle);
-    CUDNN_CALL(cudnnLRNCrossChannelForward(s->dnn_handle_,
+
+    size_t temp_workspaceSize = 0;
+   miopenLRNGetWorkSpaceSize(shape_desc_, &temp_workspaceSize);
+   if (temp_workspaceSize > workspaceSize) {
+
+    workspaceSize = temp_workspaceSize;
+
+    hipFree(workspace);
+
+    hipMalloc(&workspace, workspaceSize);
+
+}
+
+
+    MIOPEN_CALL(miopenLRNForward(s->dnn_handle_,
                                            lrn_desc_,
-                                           CUDNN_LRN_CROSS_CHANNEL_DIM1,
                                            &alpha,
                                            shape_desc_,
                                            data.dptr_,
                                            &beta,
                                            shape_desc_,
-                                           out.dptr_));
+                                           out.dptr_,
+                                           true,
+                                           workspace));
   }
 
   virtual void Backward(const OpContext &ctx,
@@ -98,9 +115,9 @@ class CuDNNLocalResponseNormOp : public Operator {
     Tensor<gpu, 4, DType> output_data = out_data[lrn_enum::kOut].get<gpu, 4, DType>(s);
     Tensor<gpu, 4, DType> input_grad = in_grad[lrn_enum::kData].get<gpu, 4, DType>(s);
     CHECK_EQ(s->dnn_handle_ownership_, mshadow::Stream<gpu>::OwnHandle);
-    CUDNN_CALL(cudnnLRNCrossChannelBackward(s->dnn_handle_,
+
+   MIOPEN_CALL(miopenLRNBackward(s->dnn_handle_,
                                             lrn_desc_,
-                                            CUDNN_LRN_CROSS_CHANNEL_DIM1,
                                             &alpha,
                                             shape_desc_,
                                             output_data.dptr_,
@@ -110,7 +127,9 @@ class CuDNNLocalResponseNormOp : public Operator {
                                             data.dptr_,
                                             &beta,
                                             shape_desc_,
-                                            input_grad.dptr_));
+                                            input_grad.dptr_,
+                                            workspace));
+
   }
 
  private:
@@ -129,27 +148,36 @@ class CuDNNLocalResponseNormOp : public Operator {
       double beta = param_.beta;
       double lrn_k = param_.knorm;
       CHECK_EQ(data.shape_, out.shape_);
-      CUDNN_CALL(cudnnCreateLRNDescriptor(&lrn_desc_));
-      CUDNN_CALL(cudnnSetLRNDescriptor(lrn_desc_,
+      MIOPEN_CALL(miopenCreateLRNDescriptor(&lrn_desc_));
+      miopenLRNMode_t mode;
+      mode = miopenLRNWithinChannel;
+      MIOPEN_CALL(miopenSetLRNDescriptor(lrn_desc_,
+					mode,
                                        lrn_n,
                                        alpha,
                                        beta,
                                        lrn_k));
-      CUDNN_CALL(cudnnCreateTensorDescriptor(&shape_desc_));
-      CUDNN_CALL(cudnnSetTensor4dDescriptor(shape_desc_,
-                                            CUDNN_TENSOR_NCHW,
+      MIOPEN_CALL(miopenCreateTensorDescriptor(&shape_desc_));
+      MIOPEN_CALL(miopenSet4dTensorDescriptor(shape_desc_,
                                             dtype_,
                                             data.shape_[0],
                                             data.shape_[1],
                                             data.shape_[2],
                                             data.shape_[3]));
+    workspaceSize = 0;
+    miopenLRNGetWorkSpaceSize(shape_desc_,&workspaceSize);
+    if (workspace != nullptr)
+         hipFree(workspace);
+    hipMalloc(&workspace, workspaceSize);
     }
   }
   bool init_cudnn_;
   LRNParam param_;
-  cudnnDataType_t dtype_;
-  cudnnLRNDescriptor_t lrn_desc_;
-  cudnnTensorDescriptor_t shape_desc_;
+  miopenDataType_t dtype_;
+  miopenLRNDescriptor_t lrn_desc_;
+  miopenTensorDescriptor_t shape_desc_;
+  size_t workspaceSize;
+  void* workspace;
 };  // class CuDNNLocalResponseNormOp
 }  // namespace op
 }  // namespace mxnet

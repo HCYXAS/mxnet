@@ -27,6 +27,9 @@
 
 #include "./spatial_transformer-inl.h"
 #include <algorithm>
+#if MXNET_USE_MIOPEN == 1
+#include "./miopen_spatial_transformer-inl.h"
+#endif  // MXNET_USE_MIOPEN
 #if MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 5
 #include "./cudnn_spatial_transformer-inl.h"
 #endif  // MXNET_USE_CUDNN && CUDNN_MAJOR

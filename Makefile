@@ -261,10 +261,18 @@ ifeq ($(USE_LAPACK), 1)
 	CFLAGS += -DMXNET_USE_LAPACK
 endif
 
-ifeq ($(USE_CUDNN), 1)
-	CFLAGS += -DMSHADOW_USE_CUDNN=1
-	LDFLAGS += -L/opt/rocm/miopen/lib -lMIOpen #-lcudnn
+
+ifeq ($(USE_MIOPEN), 1)
+        CFLAGS += -DMSHADOW_USE_MIOPEN=1
+        LDFLAGS += -L/opt/rocm/miopen/lib -lMIOpen #-lcudnn
 endif
+
+ifeq ($(USE_CUDNN), 1)
+        CFLAGS += -DMSHADOW_USE_CUDNN=1
+	#        LDFLAGS += -L/opt/rocm/miopen/lib -lMIOpen 
+        LDFLAGS += -lcudnn
+endif
+
 
 ifeq ($(use_blas), open)
 	CFLAGS += -DMXNET_USE_BLAS_OPEN=1
@@ -364,8 +372,8 @@ endif
 # If not using tcmalloc or jemalloc, print a warning (user should consider installing)
 ifneq ($(USE_GPERFTOOLS), 1)
 ifneq ($(USE_JEMALLOC), 1)
-$(warning WARNING: Significant performance increases can be achieved by installing and \
-enabling gperftools or jemalloc development packages)
+#$(warning WARNING: Significant performance increases can be achieved by installing and \
+#enabling gperftools or jemalloc development packages)
 endif
 endif
 
@@ -413,7 +421,7 @@ endif
 $(info INFO: nvcc was not found on your path)
 $(info INFO: Using $(NVCC) as nvcc path)
 		else
-$(warning WARNING: could not find nvcc compiler, the specified path was: $(NVCC))
+#$(warning WARNING: could not find nvcc compiler, the specified path was: $(NVCC))
 		endif
 	endif
 endif

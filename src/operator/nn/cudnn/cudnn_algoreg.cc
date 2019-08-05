@@ -23,16 +23,21 @@
  * \brief
  * \author Junyuan Xie
 */
-#include "./cudnn_algoreg-inl.h"
 #include <mxnet/base.h>
 #include <mxnet/ndarray.h>
+#if MXNET_USE_CUDNN == 1
+#include "./cudnn_algoreg-inl.h"
+#endif
+#if MXNET_USE_MIOPEN == 1
+#include "../miopen/miopen_algoreg-inl.h"
+#endif
 
 #include <sstream>
 #include <unordered_map>
 
 namespace mxnet {
 namespace op {
-#if MXNET_USE_CUDNN == 1
+#if MXNET_USE_CUDNN == 1 || MXNET_USE_MIOPEN == 1
 template<>
 CuDNNAlgoReg<ConvolutionParam> *CuDNNAlgoReg<ConvolutionParam>::Get() {
   static CuDNNAlgoReg<ConvolutionParam> inst;
