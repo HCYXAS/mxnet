@@ -80,7 +80,7 @@ RunContext StreamManager<kNumGpus, kStreams>::GetRunContext(
         if (counter == -1) {
           mxnet::common::cuda::DeviceStore device_store(ctx.dev_id);
           for (auto&& primary_stream : gpu_streams_.at(ctx.dev_id)) {
-            primary_stream = mshadow::NewStream<gpu>(true, MXNET_USE_CUDNN != 0, ctx.dev_id);
+            primary_stream = mshadow::NewStream<gpu>(true, (MXNET_USE_CUDNN || MXNET_USE_MIOPEN)!= 0, ctx.dev_id);
           }
           int idx = 0;
           for (auto&& aux_stream : gpu_aux_streams_.at(ctx.dev_id)) {
