@@ -399,9 +399,15 @@ inline bool Context::operator<(const Context &b) const {
 inline Context Context::Create(DeviceType dev_type, int32_t dev_id) {
   Context ctx;
   ctx.dev_type = dev_type;
-  if (dev_id < 0) {
-    ctx.dev_id = 0;
-    if (dev_type & kGPU) {
+  ctx.dev_id = dev_id < 0 ? 0 : dev_id;
+  if (dev_type & kGPU) {
+#if MXNET_USE_GPU
+    CudaLibChecks();
+#endif
+#if MXNET_USE_CUDNN
+    CuDNNLibChecks();
+#endif
+    if (dev_id < 0) {
 #if MXNET_USE_GPU
       CHECK_EQ(hipGetDevice(&ctx.dev_id), hipSuccess);
 #else
@@ -439,6 +445,9 @@ inline bool Context::GPUDriverPresent() {
 
 inline int32_t Context::GetGPUCount() {
 #if MXNET_USE_GPU
+  if (!GPUDriverPresent()) {
+    return 0;
+  }
   int32_t count;
   hipError_t e = hipGetDeviceCount(&count);
   if (e == hipErrorNoDevice) {

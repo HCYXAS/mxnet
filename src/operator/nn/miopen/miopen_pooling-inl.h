@@ -52,20 +52,12 @@ class CuDNNPoolingOp {
     param_ = p;
     switch (param_.pool_type) {
       case pool_enum::kMaxPooling:
-      #if CUDNN_MAJOR >= 7
-       /* mode_ = dmlc::GetEnv("MXNET_ENFORCE_DETERMINISM", false) ?
-          CUDNN_POOLING_MAX_DETERMINISTIC : CUDNN_POOLING_MAX;
-      #else */ // TODO CUDNN_POOLING_MAX_DETERMINISTIC is not supported in MIOpen
-       // mode_ = CUDNN_POOLING_MAX;
         mode_ = miopenPoolingMax;
-      #endif
         break;
       case pool_enum::kAvgPooling:
         if (param_.count_include_pad.has_value() && !param_.count_include_pad.value()) {
 		mode_ = miopenPoolingAverage;
-         /* mode_ = CUDNN_POOLING_AVERAGE_COUNT_EXCLUDE_PADDING;*/
         } else { 
-          //mode_ = CUDNN_POOLING_AVERAGE_COUNT_INCLUDE_PADDING;
            mode_= miopenPoolingAverageInclusive;
          }
         break;

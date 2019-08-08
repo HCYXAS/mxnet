@@ -178,7 +178,6 @@ class CuDNNDeconvolutionOp {
                                                 &beta,
                                                 out_desc_,
                                                 out_ptr + out_offset_ * g));
-
       }
     }
   }
@@ -208,16 +207,13 @@ class CuDNNDeconvolutionOp {
       CHECK_NE(req[deconv::kBias], kWriteInplace);
     }
     CHECK_NE(req[deconv::kData], kWriteInplace);
-
     Tensor<gpu, 1, DType> workspace = AllocateTempWorkspace(ctx, backward_workspace_byte_);
     size_t workspace_size = TensorSizeBytes(workspace);
     for (uint32_t g = 0; g < param_.num_group; ++g) {
       typename DataType<DType>::ScaleType alpha = 1.0f;
       typename DataType<DType>::ScaleType bias_beta = 0.0f;
       typename DataType<DType>::ScaleType data_beta = 0.0f;
-        //req[deconv::kData] == kAddTo ? 1.0f : 0.0f;
       typename DataType<DType>::ScaleType weight_beta = 0.0f;
-        //req[deconv::kWeight] == kAddTo ? 1.0f : 0.0f;
       if (!param_.no_bias && (req[deconv::kBias] != kNullOp)) {
         Tensor<gpu, 1, DType> gbias = in_grad[deconv::kBias].get<gpu, 1, DType>(s);
        MIOPEN_CALL(miopenConvolutionBackwardBias(s->dnn_handle_,
@@ -342,7 +338,7 @@ class CuDNNDeconvolutionOp {
 
     // Dilation support across all architectures only available after v6.0.20.
     return filterDilationFactor == 1 ||
-           filterDilationFactor > 1 &&
+           filterDilationFactor > 1  &&
            (backward_compute_type != kFloat16) &&
            (forward_compute_type != kFloat16);
   }
@@ -502,8 +498,7 @@ class CuDNNDeconvolutionOp {
                                         dtype_,
                                         static_cast<int>(dshape.ndim()),
                                         CastTShapeToIntPtr(dshape, &dshape_buffer),
-                                        CastTShapeToIntPtr(dstride, &dstride_buffer))); // TODO : Need to recheck
-
+                                        CastTShapeToIntPtr(dstride, &dstride_buffer)));
 
     std::vector<int> oshape_buffer(oshape.ndim());
     std::vector<int> ostride_buffer(ostride.ndim());
@@ -514,8 +509,7 @@ class CuDNNDeconvolutionOp {
                                         dtype_,
                                         static_cast<int>(oshape.ndim()),
                                         CastTShapeToIntPtr(oshape, &oshape_buffer),
-                                        CastTShapeToIntPtr(ostride, &ostride_buffer))); // TODO : Need to recheck
-
+                                        CastTShapeToIntPtr(ostride, &ostride_buffer))); 
 
     if (!param_.no_bias) {
       mxnet::TShape bias = in_shape[deconv::kBias];
@@ -534,8 +528,7 @@ class CuDNNDeconvolutionOp {
                                         dtype_,
                                         static_cast<int>(bias_shape.size()),
                                         &bias_shape[0],
-                                        &bias_stride[0])); // TODO : Need to recheck
-    
+                                        &bias_stride[0]));    
    }
  }
 
@@ -553,7 +546,7 @@ class CuDNNDeconvolutionOp {
        /* this->CuDNNAlgoSetter(rctx, in_shape, out_shape,
                               cudnn_forward_compute_type,
                               cudnn_backward_compute_type,
-                              fwd, bwd, flt); */
+                              fwd, bwd, flt);*/
       } else {
         // One potential problem is that cudnnFind() uses hipMalloc() to directly allocate
         // I/O and workspace areas, and these allocations may result in an out-of-memory

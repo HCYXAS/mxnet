@@ -152,7 +152,7 @@ Example::
     const DropoutParam& param = nnvm::get<DropoutParam>(attrs.parsed);
     if (param.p == 0) return request;
     if (dev_mask == kGPU) {
-#if MNXET_USE_CUDNN == 1//MXNET_USE_CUDNN_DROPOUT
+#if MXNET_USE_CUDNN_DROPOUT //MXNET_USE_CUDNN == 1
       // if cudnn is used, parallel random is not needed.
       if (1.0f - param.p > 0
           && !(param.cudnn_off && param.cudnn_off.value())
@@ -163,6 +163,9 @@ Example::
 #endif
     }
     request.emplace_back(ResourceRequest::kParallelRandom);
+#if MXNET_USE_MKL_DROPOUT
+    request.emplace_back(ResourceRequest::kTempSpace);
+#endif
     return request;
   })
 .add_argument("data", "NDArray-or-Symbol", "Input array to which dropout will be applied.")

@@ -46,9 +46,6 @@ class CuDNNActivationOp {
 
   void Init(const ActivationParam &param) {
     param_ = param;
-    double alpha = 1.0f;
-    double beta  = 0.0f;
-    relu_ceil_   = 1.0f;
     switch (param_.act_type) {
       case activation::kReLU:
         mode_ = CUDNN_ACTIVATION_RELU;

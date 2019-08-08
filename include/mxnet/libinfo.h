@@ -59,8 +59,6 @@
 #define MXNET_USE_MIOPEN MSHADOW_USE_MIOPEN
 #endif
 
-
-
 #ifndef MXNET_USE_NCCL
 #define MXNET_USE_NCCL 0
 #endif
@@ -133,6 +131,10 @@
 #define MXNET_USE_INT64_TENSOR_SIZE MSHADOW_INT64_TENSOR_SIZE
 #endif
 
+#ifndef MXNET_USE_TVM_OP
+#define MXNET_USE_TVM_OP 0
+#endif
+
 namespace mxnet {
 namespace features {
 // Check compile flags such as CMakeLists.txt
@@ -190,6 +192,9 @@ enum : unsigned {
   // Signal handler to print stack traces on exceptions
   SIGNAL_HANDLER,
   DEBUG,
+
+  // TVM operator
+  TVM_OP,
 
   // size indicator
   MAX_FEATURES

@@ -212,12 +212,26 @@ class CuDNNConvolutionOp {
     DType *data_ptr = GetNdPtr(in_data[conv::kData], param_.kernel.ndim() + 2, s);
     DType *gdata_ptr = GetNdPtr(in_grad[conv::kData], param_.kernel.ndim() + 2, s);
 
-    Tensor<gpu, 1, DType> workspace ;
-    size_t workspace_size =0;
-    if(backward_workspace_byte_ > 0)
-    {
-	    workspace = AllocateTempWorkspace(ctx, backward_workspace_byte_);
-	    workspace_size = TensorSizeBytes(workspace);
+    size_t backward_workspace_byte =
+        parallelize_backward_kernels_ ? back_workspace_byte_dgrad_ + back_workspace_byte_wgrad_
+                                      : std::max(back_workspace_byte_dgrad_,
+                                                 back_workspace_byte_wgrad_);
+    Tensor<gpu, 1, DType> workspace = AllocateTempWorkspace(ctx, backward_workspace_byte);
+    size_t workspace_size = TensorSizeBytes(workspace);
+    DType *workspace_dptr_wgrad = workspace.dptr_;
+    DType *workspace_dptr_dgrad = workspace.dptr_;
+    if (parallelize_backward_kernels_) {
+      CHECK_LE(back_workspace_byte_dgrad_ + back_workspace_byte_wgrad_, workspace_size);
+      // Large allocations at some point will be given their own page.  Pass this alignment on to
+      // the larger of the two separate dgrad/wgrad workspaces.  This probably doesn't matter, but
+      // corresponds more closely to the workspace alignments used during cudnnFind.
+      if (back_workspace_byte_dgrad_ > back_workspace_byte_wgrad_)
+        workspace_dptr_wgrad = workspace.dptr_ + back_workspace_byte_dgrad_ / sizeof(DType);
+      else
+        workspace_dptr_dgrad = workspace.dptr_ + back_workspace_byte_wgrad_ / sizeof(DType);
+    } else {
+      CHECK_LE(back_workspace_byte_dgrad_, workspace_size);
+      CHECK_LE(back_workspace_byte_wgrad_, workspace_size);
     }
 
     for (uint32_t g = 0; g < param_.num_group; ++g) {
@@ -598,14 +612,20 @@ class CuDNNConvolutionOp {
                filter_desc_,
                back_conv_desc_,
                in_desc_,
-               &back_size));
+               &back_workspace_byte_dgrad_));
     MIOPEN_CALL(miopenConvolutionBackwardWeightsGetWorkSpaceSize(s->dnn_handle_,
                out_desc_,
                in_desc_,
                back_conv_desc_w_,
                filter_desc_,
-               &back_size_w));
-    backward_workspace_byte_ = std::max(back_size, back_size_w);
+               &back_workspace_byte_wgrad_));
+ // hipMalloc returns addresses that are aligned for large accesses (e.g. to 512 bytes).
+    // Since we only make one allocation and divide it into two parts when we parallelize
+    // the dgrad and wgrad kernels, we round the sizes up to this alignment size so the
+    // dptrs respect this alignment, even if the separate areas are stacked.
+    const size_t dptr_alignment = 512;
+    back_workspace_byte_dgrad_ = RoundToMultiple(back_workspace_byte_dgrad_, dptr_alignment);
+    back_workspace_byte_wgrad_ = RoundToMultiple(back_workspace_byte_wgrad_, dptr_alignment);
     MIOPEN_CALL(miopenConvolutionForwardGetWorkSpaceSize(s->dnn_handle_,
                filter_desc_,
                in_desc_,
@@ -709,8 +729,10 @@ class CuDNNConvolutionOp {
 
   // Temp workspace size in bytes needed for Forward() operation.
   size_t forward_workspace_byte_;
-  // Temp workspace size in bytes needed for Backward() operation.
-  size_t backward_workspace_byte_;
+  // Temp workspace size in bytes needed for Backward() dgrad (data gradient) operation.
+  size_t back_workspace_byte_dgrad_;
+  // Temp workspace size in bytes needed for Backward() wgrad (weight gradient) operation.
+  size_t back_workspace_byte_wgrad_;
   size_t data_offset_;
   size_t out_offset_;
   size_t weight_offset_;

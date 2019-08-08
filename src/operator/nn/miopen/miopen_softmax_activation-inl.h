@@ -112,8 +112,6 @@ class CuDNNSoftmaxActivationOp {
     Tensor<gpu, 4> grad;
     Tensor<gpu, 4> output_data;
     Tensor<gpu, 4> input_grad;
-    //TODO MIOpen does not support Softmax modes. MIOpen implements the SOFTMAX_MODE_CHANNEL flavor.
-    //cudnnSoftmaxMode_t softmax_mode;
     miopenSoftmaxMode_t softmax_mode;
     if (param_.mode == softmax_activation::kInstance) {
       CHECK_EQ(in_grad.ndim(), 2)

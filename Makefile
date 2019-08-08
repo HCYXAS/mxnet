@@ -103,7 +103,7 @@ else
 endif
 
 ifeq ($(USE_GPU), 1)
-        HIPINCLUDE += -I. -I/opt/rocm/include -I/opt/rocm/hipblas/include -I/opt/rocm/hiprand/include -I/opt/rocm/hipcub/include/
+	HIPINCLUDE += -I. -I/opt/rocm/include -I/opt/rocm/hipblas/include -I/opt/rocm/hiprand/include -I/opt/rocm/rocfft/include -I/opt/rocm/hipcub/include/
 else
         HIPINCLUDE += -I.
 endif

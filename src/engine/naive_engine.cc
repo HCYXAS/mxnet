@@ -128,7 +128,7 @@ class NaiveEngine final : public Engine {
             attrs.reset(new profiler::ProfileOperator::Attributes());
           }
           opr->opr_profile.reset(new profiler::ProfileOperator(opr->opr_name, attrs.release()));
-          opr->opr_profile->start(exec_ctx.dev_type, exec_ctx.dev_id);
+          opr->opr_profile->startForDevice(exec_ctx.dev_type, exec_ctx.dev_id);
         }
         opr->fn(ctx, on_complete);
         if (opr->profiling) {
@@ -176,8 +176,8 @@ class NaiveEngine final : public Engine {
       if (profiler->AggregateEnabled()) {
         attrs.reset(new profiler::ProfileOperator::Attributes());
       }
-      opr->opr_profile.reset(new profiler::ProfileOperator(display_name, attrs.release()));
-      opr->opr_profile->start(exec_ctx.dev_type, exec_ctx.dev_id);
+      opr->opr_profile.reset(new profiler::ProfileOperator(opr->opr_name, attrs.release()));
+      opr->opr_profile->startForDevice(exec_ctx.dev_type, exec_ctx.dev_id);
     }
     if (exec_ctx.dev_mask() == gpu::kDevMask) {
 #if MXNET_USE_GPU
@@ -188,7 +188,7 @@ class NaiveEngine final : public Engine {
         aux_streams_.resize(dev_id + 1, nullptr);
       }
       if (streams_[dev_id] == nullptr) {
-        streams_[dev_id] = mshadow::NewStream<gpu>(true, (MXNET_USE_CUDNN || MXNET_USE_MIOPEN) != 0, dev_id);
+        streams_[dev_id] = mshadow::NewStream<gpu>(true, MXNET_USE_CUDNN != 0, dev_id);
         aux_streams_[dev_id] = new GPUAuxStream(streams_[dev_id]);
       }
       exec_fun(RunContext{exec_ctx, streams_[dev_id], aux_streams_[dev_id], false}, callback);
