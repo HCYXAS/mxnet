@@ -18,7 +18,6 @@
 package AI::MXNet::IO;
 use strict;
 use warnings;
-use AI::MXNet::NS;
 use AI::MXNet::Base;
 use AI::MXNet::Function::Parameters;
 use Scalar::Util qw/blessed/;

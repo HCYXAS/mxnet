@@ -18,7 +18,6 @@
 package AI::MXNet::KVStore;
 use strict;
 use warnings;
-use AI::MXNet::NS;
 use AI::MXNet::Base;
 use AI::MXNet::NDArray;
 use AI::MXNet::Optimizer;

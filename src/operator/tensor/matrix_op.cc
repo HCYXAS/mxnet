@@ -111,13 +111,12 @@ static void ReshapeComputeExCPU(const nnvm::NodeAttrs& attrs,
                                 const std::vector<NDArray>& inputs,
                                 const std::vector<OpReqType>& req,
                                 const std::vector<NDArray>& outputs) {
-  const ReshapeParam& param = nnvm::get<ReshapeParam>(attrs.parsed);
   CHECK_EQ(inputs.size(), 1U);
   CHECK_EQ(outputs.size(), 1U);
   // If inputs are supposed to be in MKLDNN format and
   // MKLDNNsupport the data type or the shape. Then convert
   // it to the output format and shape
-  if (SupportMKLDNNReshape(param, inputs[0])) {
+  if (SupportMKLDNNArray(inputs[0].dtype(), inputs[0].shape())) {
     MKLDNNReshapeForward(attrs, ctx, inputs[0], req[0], outputs[0]);
     return;
   }
@@ -234,9 +233,12 @@ static void FlattenEx(const nnvm::NodeAttrs& attrs,
   CHECK_EQ(inputs.size(), 1U);
   CHECK_EQ(outputs.size(), 1U);
 #if MXNET_USE_MKLDNN == 1
-  auto data_ndim = inputs[0].shape().ndim();
-  if (data_ndim <= 4 && inputs[0].dtype() == mshadow::kFloat32) {
-    MKLDNNFlattenForward(attrs, ctx, inputs[0], req[0], outputs[0]);
+  if (inputs[0].IsMKLDNNData()) {
+    MKLDNNCopy(attrs, ctx, inputs[0], req[0], outputs[0]);
+    // If the output is a special MKLDNN layout and the number of dimensions
+    // is larger than 2, we should use the default layout.
+    if (outputs[0].IsMKLDNNData() && inputs[0].shape().ndim() > 2)
+      const_cast<NDArray &>(outputs[0]).Reorder2Default();
     return;
   } else {
     // This happens if inputs are supposed to be in MKLDNN format
@@ -270,7 +272,7 @@ NNVM_REGISTER_OP(Flatten)
 For an input array with shape ``(d1, d2, ..., dk)``, `flatten` operation reshapes
 the input array into an output array of shape ``(d1, d2*...*dk)``.
 
-Note that the behavior of this function is different from numpy.ndarray.flatten,
+Note that the bahavior of this function is different from numpy.ndarray.flatten,
 which behaves similar to mxnet.ndarray.reshape((-1,)).
 
 Example::

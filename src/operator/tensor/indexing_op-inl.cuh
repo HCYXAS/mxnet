@@ -26,8 +26,6 @@
 */
 #ifndef MXNET_OPERATOR_TENSOR_INDEXING_OP_CUH_
 #define MXNET_OPERATOR_TENSOR_INDEXING_OP_CUH_
-//#include <cub/device/device_run_length_encode.cuh>
-//#include <cub/device/device_scan.cuh>
 #include "../mxnet_op.h"
 #include "../mshadow_op.h"
 #include "./util/tensor_util-inl.cuh"
@@ -54,7 +52,6 @@ __global__ void AddTakeGradLargeBatchKernel(DType* dst,
                                            const DType *src,
                                            int ymax, int xmax) {
   // Size of the shared memory is [blockDim.x*SZ*blockDim.y]*sizeof(DType)
-  //extern __shared__ char sh_grad_weight_char[];//  HIP_DYNAMIC_SHARED
   HIP_DYNAMIC_SHARED( char, sh_grad_weight_char)
   DType* sh_grad_weight = (DType*)sh_grad_weight_char;
 

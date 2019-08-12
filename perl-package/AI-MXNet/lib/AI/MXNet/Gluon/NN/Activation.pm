@@ -240,5 +240,3 @@ method hybrid_forward(GluonClass $F, GluonInput $x)
 }
 
 __PACKAGE__->register('AI::MXNet::Gluon::NN');
-
-1;

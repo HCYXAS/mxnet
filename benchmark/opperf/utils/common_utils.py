@@ -44,7 +44,7 @@ def merge_map_list(map_list):
     return dict(ChainMap(*map_list))
 
 
-def save_to_file(inp_dict, out_filepath, out_format='json', runtime_features=None):
+def save_to_file(inp_dict, out_filepath, out_format='json'):
     """Saves the given input dictionary to the given output file.
 
     By default, saves the input dictionary as JSON file. Other supported formats include:
@@ -58,8 +58,6 @@ def save_to_file(inp_dict, out_filepath, out_format='json', runtime_features=Non
         Output file path
     out_format: str, default 'json'
         Format of the output file. Supported options - 'json', 'md'. Default - json.
-    runtime_features: map
-        Dictionary of runtime_features.
 
     """
     if out_format == 'json':
@@ -69,7 +67,7 @@ def save_to_file(inp_dict, out_filepath, out_format='json', runtime_features=Non
     elif out_format == 'md':
         # Save as md
         with open(out_filepath, "w") as result_file:
-            result_file.write(_prepare_markdown(inp_dict, runtime_features))
+            result_file.write(_prepare_markdown(inp_dict))
     else:
         raise ValueError("Invalid output file format provided - '{}'. Supported - json, md".format(format))
 
@@ -109,19 +107,11 @@ def _prepare_op_benchmark_result(op, op_bench_result):
                                                max_mem_usage, inputs)
 
 
-def _prepare_markdown(results, runtime_features=None):
-    results_markdown = []
-    if runtime_features and 'runtime_features' in runtime_features:
-        results_markdown.append("# Runtime Features")
-        idx = 0
-        for key, value in runtime_features['runtime_features'].items():
-            results_markdown.append('{}. {} : {}'.format(idx, key, value))
-
-    results_markdown.append("# Benchmark Results")
-    results_markdown.append(
+def _prepare_markdown(results):
+    results_markdown = [
         "| Operator | Avg Forward Time (ms) | Avg. Backward Time (ms) | Max Mem Usage (Storage) (Bytes)"
-        " | Inputs |")
-    results_markdown.append("| :---: | :---: | :---: | :---:| :--- |")
+        " | Inputs |",
+        "| :---: | :---: | :---: | :---:| :--- |"]
 
     for op, op_bench_results in sorted(results.items(), key=itemgetter(0)):
         for op_bench_result in op_bench_results:

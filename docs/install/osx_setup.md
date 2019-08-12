@@ -119,6 +119,7 @@ echo "USE_OPENCV=1" >> ./config.mk
 echo "USE_OPENMP=1" >> ./config.mk
 echo "USE_MKLDNN=1" >> ./config.mk
 echo "USE_BLAS=apple" >> ./config.mk
+echo "USE_PROFILER=1" >> ./config.mk
 LIBRARY_PATH=$(brew --prefix llvm)/lib/ make -j $(sysctl -n hw.ncpu)
 ```
 

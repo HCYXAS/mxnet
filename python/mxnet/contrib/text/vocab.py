@@ -210,8 +210,9 @@ class Vocabulary(object):
 
         tokens = []
         for idx in indices:
-            if not isinstance(idx, int) or idx > max_idx:
+            if not isinstance(idx, int) or idx > max_idx: # pylint: disable=no-else-raise
                 raise ValueError('Token index %d in the provided `indices` is invalid.' % idx)
-            tokens.append(self.idx_to_token[idx])
+            else:
+                tokens.append(self.idx_to_token[idx])
 
         return tokens[0] if to_reduce else tokens

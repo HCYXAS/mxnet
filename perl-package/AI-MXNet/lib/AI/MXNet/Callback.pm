@@ -19,7 +19,6 @@ package AI::MXNet::Callback;
 use strict;
 use warnings;
 use List::Util qw/max/;
-use AI::MXNet::NS;
 use AI::MXNet::Function::Parameters;
 use Mouse;
 use overload "&{}" => sub { my $self = shift; sub { $self->call(@_) } };

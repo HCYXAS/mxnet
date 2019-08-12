@@ -45,7 +45,6 @@ around BUILDARGS => sub {
 # Base class for Initializers
 package AI::MXNet::Initializer;
 use Mouse;
-use AI::MXNet::NS;
 use AI::MXNet::Base qw(:DEFAULT pzeros pceil);
 use AI::MXNet::NDArray;
 use JSON::PP;

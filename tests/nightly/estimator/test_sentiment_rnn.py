@@ -20,22 +20,16 @@ Example modified from below link:
 https://github.com/d2l-ai/d2l-en/blob/master/chapter_natural-language-processing/sentiment-analysis-rnn.md
 https://github.com/d2l-ai/d2l-en/blob/master/chapter_natural-language-processing/sentiment-analysis-cnn.md"""
 
-import collections
+import argparse
 import os
-import random
-import sys
 import tarfile
-
+import random
+import collections
 import mxnet as mx
 from mxnet import nd, gluon
 from mxnet.contrib import text
 from mxnet.gluon import nn, rnn
 from mxnet.gluon.contrib.estimator import estimator
-
-# use with_seed decorator in python/unittest/common.py
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'python', 'unittest'))
-from common import with_seed
-import unittest
 
 
 class TextCNN(nn.Block):
@@ -181,10 +175,14 @@ def preprocess_imdb(data, vocab):
     return features, labels
 
 
-def run(net, train_dataloader, test_dataloader, num_epochs, ctx, lr):
+def run(net, train_dataloader, test_dataloader, **kwargs):
     '''
     Train a test sentiment model
     '''
+    num_epochs = kwargs['epochs']
+    ctx = kwargs['ctx']
+    batch_size = kwargs['batch_size']
+    lr = kwargs['lr']
 
     # Define trainer
     trainer = mx.gluon.Trainer(net.collect_params(), 'adam', {'learning_rate': lr})
@@ -201,17 +199,14 @@ def run(net, train_dataloader, test_dataloader, num_epochs, ctx, lr):
     return acc
 
 
-@with_seed()
-def test_estimator_cpu():
+def test_estimator_cpu(**kwargs):
     '''
     Test estimator by doing one pass over each model with synthetic data
     '''
     models = ['TextCNN', 'BiRNN']
-    ctx = mx.cpu()
-    batch_size = 64
-    embed_size = 100
-    lr = 1
-    num_epochs = 1
+    ctx = kwargs['ctx']
+    batch_size = kwargs['batch_size']
+    embed_size = kwargs['embed_size']
 
     train_data = mx.nd.random.randint(low=0, high=100, shape=(2 * batch_size, 500))
     train_label = mx.nd.random.randint(low=0, high=2, shape=(2 * batch_size,))
@@ -234,22 +229,18 @@ def test_estimator_cpu():
             net = BiRNN(vocab_list, embed_size, num_hiddens, num_layers)
         net.initialize(mx.init.Xavier(), ctx=ctx)
 
-        run(net, train_dataloader, val_dataloader, num_epochs=num_epochs, ctx=ctx, lr=lr)
+        run(net, train_dataloader, val_dataloader, **kwargs)
 
 
-# using fixed seed to reduce flakiness in accuracy assertion
-@with_seed(7)
-@unittest.skipIf(mx.context.num_gpus() < 1, "skip if no GPU")
-def test_estimator_gpu():
+def test_estimator_gpu(**kwargs):
     '''
     Test estimator by training Bidirectional RNN for 5 epochs on the IMDB dataset
     and verify accuracy
     '''
-    ctx = mx.gpu(0)
-    batch_size = 64
-    num_epochs = 5
-    embed_size = 100
-    lr = 0.01
+    ctx = kwargs['ctx']
+    batch_size = kwargs['batch_size']
+    num_epochs = kwargs['epochs']
+    embed_size = kwargs['embed_size']
 
     # data
     download_imdb()
@@ -272,11 +263,27 @@ def test_estimator_gpu():
     net.embedding.weight.set_data(glove_embedding.idx_to_vec)
     net.embedding.collect_params().setattr('grad_req', 'null')
 
-    acc = run(net, train_dataloader, test_dataloader, num_epochs=num_epochs, ctx=ctx, lr=lr)
+    acc = run(net, train_dataloader, test_dataloader, **kwargs)
 
     assert acc.get()[1] > 0.70
 
 
-if __name__ == '__main__':
-    import nose
-    nose.runmodule()
+parser = argparse.ArgumentParser(description='test gluon estimator')
+parser.add_argument('--type', type=str, default='cpu')
+opt = parser.parse_args()
+kwargs = {
+    'batch_size': 64,
+    'lr': 0.01,
+    'embed_size': 100
+}
+
+if opt.type == 'cpu':
+    kwargs['ctx'] = mx.cpu()
+    kwargs['epochs'] = 1
+    test_estimator_cpu(**kwargs)
+elif opt.type == 'gpu':
+    kwargs['ctx'] = mx.gpu()
+    kwargs['epochs'] = 5
+    test_estimator_gpu(**kwargs)
+else:
+    raise RuntimeError("Unknown test type")

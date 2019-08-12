@@ -345,10 +345,8 @@ using SubgraphPropertyPtr = std::shared_ptr<SubgraphProperty>;
 class SubgraphPropertyEntry {
  public:
   explicit SubgraphPropertyEntry(std::shared_ptr<SubgraphProperty> entry) : entry_(entry) {}
-
-  template<typename T>
-  SubgraphPropertyEntry set_attr(const std::string& name, const T value) const {
-    entry_->SetAttr<T>(name, value);
+  SubgraphPropertyEntry set_attr(const std::string& name, const int value) const {
+    entry_->SetAttr<int>(name, value);
     return *this;
   }
 
@@ -356,102 +354,31 @@ class SubgraphPropertyEntry {
   std::shared_ptr<SubgraphProperty> entry_;
 };
 
-class SubgraphBackend {
+class SubgraphPropertyRegistry {
  public:
-  explicit SubgraphBackend(std::string name) : name_(name) {}
-  /*!
-   * \brief Set an attr with name in the attr map.
-   */
-  template<typename T>
-  SubgraphBackend& SetAttr(const std::string& name, const T& value) {
-    attrs_[name] = std::make_shared<dmlc::any>(value);
-    return *this;
-  }
-  /*!
-   * \brief Get the attr with the name.
-   */
-  template<typename T>
-  const T& GetAttr(const std::string& name) const {
-    auto it = attrs_.find(name);
-    CHECK(it != attrs_.end()) << "Cannot find attribute " << name << " in SubgraphProperty";
-    return nnvm::get<T>(*it->second);
-  }
-  /*!
-   * \brief Check if the attr exists.
-   */
-  bool HasAttr(const std::string& name) const {
-    auto it = attrs_.find(name);
-    return it != attrs_.end();
-  }
-
-  SubgraphPropertyPtr& RegisterSubgraphProperty(const SubgraphPropertyPtr prop) {
-    prop_ptr_.push_back(prop);
-    return prop_ptr_.back();
-  }
-
-  const std::string& GetName() const { return name_; }
-
-  const std::vector<SubgraphPropertyPtr>& GetSubgraphProperties() const { return prop_ptr_; }
-
- private:
-  const std::string name_;
-  std::unordered_map<std::string, std::shared_ptr<nnvm::any>> attrs_;
-  std::vector<SubgraphPropertyPtr> prop_ptr_;
-};
-
-using SubgraphBackendPtr = std::shared_ptr<SubgraphBackend>;
-
-class SubgraphBackendEntry {
- public:
-  explicit SubgraphBackendEntry(SubgraphBackendPtr entry) : entry_(entry) {}
-
-  template<typename T>
-  SubgraphBackendEntry set_attr(const std::string& name, const T value) const {
-    entry_->SetAttr<T>(name, value);
-    return *this;
-  }
-
- private:
-  SubgraphBackendPtr entry_;
-};
-
-class SubgraphBackendRegistry {
   typedef SubgraphPropertyPtr (*SubgraphPropertyCreateFn)(void);
-
- public:
-  static SubgraphBackendRegistry* Get() {
-    static SubgraphBackendRegistry inst;
+  static SubgraphPropertyRegistry* Get() {
+    static SubgraphPropertyRegistry inst;
     return &inst;
   }
 
-  SubgraphBackendPtr& GetSubgraphBackend(const std::string& name) {
-    auto it = backend_map_.find(name);
-    CHECK(it != backend_map_.end()) << "SubgraphProperty " << name
-                                    << " is not found in SubgraphBackendRegistry";
+  std::vector<SubgraphPropertyPtr> CreateSubgraphProperty(const std::string& name) {
+    auto it = prop_ptr_map_.find(name);
+    CHECK(it != prop_ptr_map_.end()) << "SubgraphProperty " << name
+                                    << " is not found in SubgraphPropertyRegistry";
     return it->second;
   }
 
-  SubgraphBackendEntry __REGISTER_BACKEND__(const std::string& name) {
-    auto it = backend_map_.find(name);
-    CHECK(it == backend_map_.end()) << "Subgraph backend " << name << " is already registered";
-    backend_map_[name] = std::make_shared<SubgraphBackend>(name);
-    return SubgraphBackendEntry(backend_map_[name]);
+  SubgraphPropertyEntry __REGISTER__(const std::string& name, SubgraphPropertyCreateFn fn) {
+    prop_ptr_map_[name].emplace_back(fn());
+    return SubgraphPropertyEntry(prop_ptr_map_[name].back());
   }
 
-  SubgraphPropertyEntry __REGISTER_PROPERTY__(const std::string& name,
-                                              SubgraphPropertyCreateFn fn) {
-    auto it = backend_map_.find(name);
-    CHECK(it != backend_map_.end())
-        << "Subgraph backend " << name << " is not found in SubgraphBackendRegistry";
-    auto prop = it->second->RegisterSubgraphProperty(fn());
-    return SubgraphPropertyEntry(prop);
-  }
-
-  SubgraphBackendRegistry() = default;
-  SubgraphBackendRegistry(const SubgraphBackendRegistry&) = delete;
-  SubgraphBackendRegistry(SubgraphBackendRegistry&&) = delete;
-  SubgraphBackendRegistry& operator=(const SubgraphBackendRegistry&) = delete;
-  std::unordered_map<std::string, SubgraphBackendPtr> backend_map_;
+  SubgraphPropertyRegistry() = default;
+  SubgraphPropertyRegistry(const SubgraphPropertyRegistry&) = delete;
+  SubgraphPropertyRegistry(SubgraphPropertyRegistry&&) = delete;
+  SubgraphPropertyRegistry& operator=(const SubgraphPropertyRegistry&) = delete;
+  std::unordered_map<std::string, std::vector<SubgraphPropertyPtr>> prop_ptr_map_;
 };
 
 // This op name set is for setting the names of operators that should be grouped into
@@ -468,13 +395,7 @@ typedef dmlc::ThreadLocalStore<std::unordered_map<std::string, std::unordered_se
 
 #define MXNET_REGISTER_SUBGRAPH_PROPERTY(Name, SubgraphPropertyType) \
   DECLARE_PROPERTY(Name, SubgraphPropertyType, __LINE__) =           \
-      SubgraphBackendRegistry::Get()->__REGISTER_PROPERTY__(#Name, &SubgraphPropertyType::Create)
-
-#define DECLARE_BACKEND(Name) \
-  static const DMLC_ATTRIBUTE_UNUSED auto __make_##Name##__
-
-#define MXNET_REGISTER_SUBGRAPH_BACKEND(Name) \
-  DECLARE_BACKEND(Name) = SubgraphBackendRegistry::Get()->__REGISTER_BACKEND__(#Name)
+      SubgraphPropertyRegistry::Get()->__REGISTER__(#Name, &SubgraphPropertyType::Create)
 
 }  // namespace op
 }  // namespace mxnet

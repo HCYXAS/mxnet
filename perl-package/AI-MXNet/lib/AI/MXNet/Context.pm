@@ -19,7 +19,6 @@ package AI::MXNet::Context;
 use strict;
 use warnings;
 use Mouse;
-use AI::MXNet::NS;
 use AI::MXNet::Base;
 use AI::MXNet::Types;
 use AI::MXNet::Function::Parameters;
@@ -217,12 +216,12 @@ method gpu_memory_info($device_id=0)
 
 method current_ctx()
 {
-    return $AI::MXNet::Context;
+    return $AI::MXNet::current_ctx;
 }
 
 method set_current(AI::MXNet::Context $current)
 {
-    $AI::MXNet::Context = $current;
+    $AI::MXNet::current_ctx = $current;
 }
 
 *current_context = \&current_ctx;
@@ -235,6 +234,5 @@ method deepcopy()
     );
 }
 
-__PACKAGE__->AI::MXNet::NS::register('AI::MXNet');
+$AI::MXNet::current_ctx = __PACKAGE__->new(device_type => 'cpu', device_id => 0);
 
-1;

@@ -329,8 +329,6 @@ NNVM_REGISTER_OP(_TensorRT)
     .set_attr<FCreateOpState>("FCreateOpState", TRTCreateState)
     .set_attr<FInferStorageType>("FInferStorageType", TRTInferStorageType);
 
-MXNET_REGISTER_SUBGRAPH_BACKEND(TensorRT);
-
 MXNET_REGISTER_SUBGRAPH_PROPERTY(TensorRT, TensorrtProperty);
 }  // namespace op
 }  // namespace mxnet

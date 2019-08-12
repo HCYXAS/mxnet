@@ -18,7 +18,6 @@
 use strict;
 use warnings;
 package AI::MXNet::Gluon::Loss;
-use AI::MXNet::NS;
 use AI::MXNet::Gluon::Block;
 use AI::MXNet::Function::Parameters;
 

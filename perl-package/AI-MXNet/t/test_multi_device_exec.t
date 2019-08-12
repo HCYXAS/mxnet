@@ -62,11 +62,11 @@ sub test_ctx_group
         my ($arr, $name) = @$_;
         if(exists $set_stage1{ $name })
         {
-            cmp_ok($arr->context, '==', $group2ctx->{stage1});
+            ok($arr->context == $group2ctx->{stage1});
         }
         else
         {
-            cmp_ok($arr->context, '==', $group2ctx->{stage2});
+            ok($arr->context == $group2ctx->{stage2});
         }
     }
 }

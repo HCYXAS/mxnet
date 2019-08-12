@@ -25,7 +25,6 @@
  * CSV format.
  */
 #include <chrono>
-#include <string>
 #include "utils.h"
 #include "mxnet-cpp/MxNetCpp.h"
 

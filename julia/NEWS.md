@@ -15,10 +15,7 @@
 <!--- specific language governing permissions and limitations -->
 <!--- under the License. -->
 
-# v1.6.0
-
-
-# v1.5.0
+# v1.5.0 (#TBD)
 
 * Following material from `mx` module got exported (#TBD):
     * `NDArray`

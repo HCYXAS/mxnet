@@ -18,9 +18,8 @@
 package AI::MXNet::Contrib;
 use strict;
 use warnings;
-use AI::MXNet::NS;
-use AI::MXNet::Contrib::Symbol qw(sym symbol);
-use AI::MXNet::Contrib::NDArray qw(nd ndarray);
+use AI::MXNet::Contrib::Symbol;
+use AI::MXNet::Contrib::NDArray;
 
 =head1 NAME
 
@@ -47,5 +46,10 @@ use AI::MXNet::Contrib::NDArray qw(nd ndarray);
         );
     }
 =cut
+
+sub sym    { 'AI::MXNet::Contrib::Symbol'  }
+sub symbol { 'AI::MXNet::Contrib::Symbol'  }
+sub nd     { 'AI::MXNet::Contrib::NDArray' }
+sub ndarray { 'AI::MXNet::Contrib::NDArray' }
 
 1;

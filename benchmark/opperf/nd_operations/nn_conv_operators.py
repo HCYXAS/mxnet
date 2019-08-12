@@ -16,9 +16,9 @@
 # under the License.
 
 import mxnet as mx
+from mxnet import nd
 from benchmark.opperf.utils.benchmark_utils import run_performance_test
 from benchmark.opperf.utils.common_utils import merge_map_list
-from benchmark.opperf.rules.default_params import MX_OP_MODULE
 
 """Performance benchmark tests for MXNet NDArray Convolution and Pooling Operators.
 
@@ -51,7 +51,7 @@ MXNet NDArray NN Convolution Operators
 """
 
 
-def run_pooling_operators_benchmarks(ctx=mx.cpu(), dtype='float32', warmup=25, runs=100):
+def run_pooling_operators_benchmarks(ctx=mx.cpu(), dtype='float32', warmup=10, runs=50):
     pool_types = ['avg', 'max', 'sum']
     global_pool_types = [0, 1]
 
@@ -61,7 +61,7 @@ def run_pooling_operators_benchmarks(ctx=mx.cpu(), dtype='float32', warmup=25, r
     for pool_type in pool_types:
         for global_pool in global_pool_types:
             for pool1d_data in [(32, 3, 256), (32, 3, 64)]:
-                pool1d_benchmark_res += run_performance_test([getattr(MX_OP_MODULE, "Pooling")],
+                pool1d_benchmark_res += run_performance_test([nd.Pooling],
                                                              run_backward=True,
                                                              dtype=dtype,
                                                              ctx=ctx,
@@ -70,12 +70,13 @@ def run_pooling_operators_benchmarks(ctx=mx.cpu(), dtype='float32', warmup=25, r
                                                                       "pool_type": pool_type,
                                                                       "global_pool": global_pool,
                                                                       "stride": 1,
-                                                                      "pad": 1}
+                                                                      "pad": 1,
+                                                                      "layout": 'NCW'}
                                                                      ],
                                                              warmup=warmup,
                                                              runs=runs)
             for pool2d_data in [(32, 3, 256, 256), (32, 3, 64, 64)]:
-                pool2d_benchmark_res += run_performance_test([getattr(MX_OP_MODULE, "Pooling")],
+                pool2d_benchmark_res += run_performance_test([nd.Pooling],
                                                              run_backward=True,
                                                              dtype=dtype,
                                                              ctx=ctx,
@@ -84,7 +85,8 @@ def run_pooling_operators_benchmarks(ctx=mx.cpu(), dtype='float32', warmup=25, r
                                                                       "pool_type": pool_type,
                                                                       "global_pool": global_pool,
                                                                       "stride": (1, 1),
-                                                                      "pad": (0, 0)}
+                                                                      "pad": (0, 0),
+                                                                      "layout": 'NCHW'}
                                                                      ],
                                                              warmup=warmup,
                                                              runs=runs)
@@ -93,16 +95,16 @@ def run_pooling_operators_benchmarks(ctx=mx.cpu(), dtype='float32', warmup=25, r
     return mx_pooling_op_results
 
 
-def run_convolution_operators_benchmarks(ctx=mx.cpu(), dtype='float32', warmup=25, runs=100):
+def run_convolution_operators_benchmarks(ctx=mx.cpu(), dtype='float32', warmup=10, runs=50):
     # Conv1D Benchmarks
     conv1d_benchmark_res = []
     for conv_data in [(32, 3, 256), (32, 3, 64)]:
-        conv1d_benchmark_res += run_performance_test([getattr(MX_OP_MODULE, "Convolution")],
+        conv1d_benchmark_res += run_performance_test([nd.Convolution],
                                                      run_backward=True,
                                                      dtype=dtype,
                                                      ctx=ctx,
                                                      inputs=[{"data": conv_data,
-                                                              "weight": (64, 3, 3),
+                                                              "weight": (64, 3, 3,),
                                                               "bias": (64,),
                                                               "kernel": (3,),
                                                               "stride": (1,),
@@ -116,7 +118,7 @@ def run_convolution_operators_benchmarks(ctx=mx.cpu(), dtype='float32', warmup=2
     # Conv2D Benchmarks
     conv2d_benchmark_res = []
     for conv_data in [(32, 3, 256, 256), (32, 3, 64, 64)]:
-        conv2d_benchmark_res += run_performance_test([getattr(MX_OP_MODULE, "Convolution")],
+        conv2d_benchmark_res += run_performance_test([nd.Convolution],
                                                      run_backward=True,
                                                      dtype=dtype,
                                                      ctx=ctx,
@@ -135,50 +137,3 @@ def run_convolution_operators_benchmarks(ctx=mx.cpu(), dtype='float32', warmup=2
     # Prepare combined results
     mx_conv_op_results = merge_map_list(conv1d_benchmark_res + conv2d_benchmark_res)
     return mx_conv_op_results
-
-
-def run_transpose_convolution_operators_benchmarks(ctx=mx.cpu(), dtype='float32', warmup=10, runs=50):
-    # Conv1DTranspose Benchmarks
-    conv1d_transpose_benchmark_res = []
-    for conv_data in [(32, 3, 256), (32, 3, 64)]:
-        conv1d_transpose_benchmark_res += run_performance_test([getattr(MX_OP_MODULE, "Deconvolution")],
-                                                               run_backward=True,
-                                                               dtype=dtype,
-                                                               ctx=ctx,
-                                                               inputs=[{"data": conv_data,
-                                                                        "weight": (3, 64, 3),
-                                                                        "bias": (64,),
-                                                                        "kernel": (3,),
-                                                                        "stride": (1,),
-                                                                        "dilate": (1,),
-                                                                        "pad": (0,),
-                                                                        "adj": (0,),
-                                                                        "num_filter": 64,
-                                                                        "no_bias": False,
-                                                                        "layout": 'NCW'}
-                                                                       ],
-                                                               warmup=warmup,
-                                                               runs=runs)
-    # Conv2DTranspose Benchmarks
-    conv2d_transpose_benchmark_res = []
-    for conv_data in [(32, 3, 256, 256), (32, 3, 64, 64)]:
-        conv2d_transpose_benchmark_res += run_performance_test([getattr(MX_OP_MODULE, "Deconvolution")],
-                                                               run_backward=True,
-                                                               dtype=dtype,
-                                                               ctx=ctx,
-                                                               inputs=[{"data": conv_data,
-                                                                        "weight": (3, 64, 3, 3),
-                                                                        "bias": (64,),
-                                                                        "kernel": (3, 3),
-                                                                        "stride": (1, 1),
-                                                                        "dilate": (1, 1),
-                                                                        "pad": (0, 0),
-                                                                        "num_filter": 64,
-                                                                        "no_bias": False,
-                                                                        "layout": 'NCHW'}
-                                                                       ],
-                                                               warmup=warmup,
-                                                               runs=runs)
-    # Prepare combined results
-    mx_transpose_conv_op_results = merge_map_list(conv1d_transpose_benchmark_res + conv2d_transpose_benchmark_res)
-    return mx_transpose_conv_op_results

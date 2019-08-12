@@ -5,7 +5,6 @@
 #ifndef HIPWRAPPERS_H
 #define HIPWRAPPERS_H
 
-#if defined(__HIPCC__)
 #include <hipblas.h>
 #include <hiprand.h>
 #include "hip/hip_runtime.h"
@@ -110,5 +109,4 @@ hipblasStatus_t hipblasDsyrk(hipblasHandle_t handle,
                              const double *beta,
                              double *C, 
 			     int ldc);
-#endif
 #endif //HIPWRAPPERS_H

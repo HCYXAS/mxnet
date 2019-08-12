@@ -149,7 +149,6 @@ The `ndarray` package provides several classes:
     NDArray.expand_dims
     NDArray.split
     NDArray.diag
-    NDArray.squeeze
 ```
 
 ### Array expand elements

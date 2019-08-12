@@ -59,7 +59,6 @@ extern __cuda_fake_struct blockIdx;
  */
 #ifdef __HIPCC__
 inline __device__ bool __is_supported_cuda_architecture() {
-//#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ < 300
 #if (__HIP_DEVICE_COMPILE__ && (__CUDA_ARCH__ < 300) && defined(__HIP_PLATFORM_NVCC__))
 #error "Fermi and earlier GPU architectures are not supported (architecture versions less than 3.0)"
   return false;

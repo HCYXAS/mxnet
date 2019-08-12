@@ -15,8 +15,4 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# coding: utf-8
-from .opdef import defop
-from .utils import AllTypes, RealTypes
-
-from . import basic
+julia -e 'cd(Pkg.dir("MXNet")); Pkg.add("Coverage"); using Coverage; Codecov.submit(process_folder())'

@@ -24,7 +24,6 @@ package AI::MXNet::Symbol;
 
 use strict;
 use warnings;
-use AI::MXNet::NS;
 use AI::MXNet::Base;
 use AI::MXNet::Symbol::Base;
 use AI::MXNet::Symbol::Random;

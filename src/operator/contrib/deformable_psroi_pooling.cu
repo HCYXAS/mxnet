@@ -181,7 +181,7 @@ namespace cuda {
     const index_t channels_each_class = no_trans ? output_dim : output_dim / num_classes;
 
     hipStream_t stream = Stream<gpu>::GetStream(out.stream_);
-    hipLaunchKernelGGL(HIP_KERNEL_NAME(DeformablePSROIPoolForwardKernel<DType>), dim3(mxnet::op::mxnet_op::cuda_get_num_blocks(count)),
+    hipLaunchKernelGGL(HIP_KERNEL_NAME(DeformablePSROIPoolForwardKernel<DType>), dim3(count),
       dim3(kBaseThreadNum), 0, stream,
       count, bottom_data, spatial_scale, channels, height, width, pooled_height, pooled_width,
       bottom_rois, bottom_trans, no_trans, trans_std, sample_per_part, output_dim,

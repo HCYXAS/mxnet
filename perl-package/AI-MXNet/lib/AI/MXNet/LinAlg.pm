@@ -18,7 +18,6 @@
 package AI::MXNet::LinAlg;
 use strict;
 use warnings;
-use AI::MXNet::NS;
 use AI::MXNet::LinAlg::Symbol;
 use AI::MXNet::LinAlg::NDArray;
 

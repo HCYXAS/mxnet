@@ -32,7 +32,6 @@ has [qw/_param_names _fixed_param_names
 ] => (is => 'rw', init_arg => undef);
 
 package AI::MXNet::Module;
-use AI::MXNet::NS;
 use AI::MXNet::Base;
 use AI::MXNet::Function::Parameters;
 use List::Util qw(max);

@@ -17,8 +17,5 @@
 
 use strict;
 use warnings;
-use Test::More tests => 3;
+use Test::More tests => 1;
 BEGIN { use_ok('AI::MXNet') };
-
-isa_ok(AI::MXNet->Context(), 'AI::MXNet::Context');
-isa_ok(AI::MXNet::Context->new(), 'AI::MXNet::Context');

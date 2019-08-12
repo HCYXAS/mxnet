@@ -19,7 +19,6 @@ package AI::MXNet::Symbol::AttrScope;
 use strict;
 use warnings;
 use Mouse;
-use AI::MXNet::NS;
 use AI::MXNet::Function::Parameters;
 around BUILDARGS => sub {
     my $orig  = shift;
@@ -59,12 +58,7 @@ has 'attr' => (
 
 method current()
 {
-    $AI::MXNet::AttrScope;
-}
-
-method set_current(AI::MXNet::Symbol::AttrScope $new)
-{
-    $AI::MXNet::AttrScope = $new;
+    $AI::MXNet::curr_attr_scope;
 }
 
 =head2 get
@@ -89,6 +83,4 @@ method get(Maybe[HashRef[Str]] $attr=)
     return bless (\%ret, 'AI::MXNet::Util::Printable');
 }
 
-__PACKAGE__->AI::MXNet::NS::register('AI::MXNet');
-
-1;
+$AI::MXNet::curr_attr_scope = __PACKAGE__->new;

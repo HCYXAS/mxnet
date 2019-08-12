@@ -48,7 +48,6 @@
 #include "./c_api_common.h"
 #include "../operator/custom/custom-inl.h"
 #include "../operator/tensor/matrix_op-inl.h"
-#include "../operator/tvmop/op_module.h"
 #include "../common/utils.h"
 
 using namespace mxnet;
@@ -159,14 +158,6 @@ int MXGetVersion(int *out) {
   *out = static_cast<int>(MXNET_VERSION);
   API_END();
 }
-
-#if MXNET_USE_TVM_OP
-int MXLoadTVMOp(const char *libpath) {
-  API_BEGIN();
-  tvm::runtime::TVMOpModule::Get()->Load(libpath);
-  API_END();
-}
-#endif  // MXNET_USE_TVM_OP
 
 int MXNDArrayCreateNone(NDArrayHandle *out) {
   API_BEGIN();

@@ -140,15 +140,7 @@ class CuDNNPoolingOp {
                hipFree(workspace);
                hipMalloc(&workspace, workspaceSize);
           }
-      /*CUDNN_CALL(cudnnPoolingForward(s->dnn_handle_,
-                                     pooling_desc_,
-                                     &alpha,
-                                     in_desc_,
-                                     data.dptr_,
-                                     &beta,
-                                     out_desc_,
-                                     out.dptr_));*/
-
+     
        CUDNN_CALL(miopenPoolingForward(s->dnn_handle_,
                                      pooling_desc_,
                                      &alpha,
@@ -189,18 +181,6 @@ class CuDNNPoolingOp {
       Tensor<gpu, 4, DType> m_in_data = in_data.get<gpu, 4, DType>(s);
       Tensor<gpu, 4, DType> m_out_data = out_data.get<gpu, 4, DType>(s);
       Tensor<gpu, 4, DType> m_in_grad = in_grad.get<gpu, 4, DType>(s);
-     /*CUDNN_CALL(cudnnPoolingBackward(s->dnn_handle_,
-                                      pooling_desc_,
-                                      &alpha,
-                                      out_desc_,
-                                      m_out_data.dptr_,
-                                      out_desc_,
-                                      m_out_grad.dptr_,
-                                      in_desc_,
-                                      m_in_data.dptr_,
-                                      &beta,
-                                      in_desc_,
-                                      m_in_grad.dptr_));*/
       CUDNN_CALL(miopenPoolingBackward(s->dnn_handle_,
                                       pooling_desc_,
                                       &alpha,
@@ -221,19 +201,6 @@ class CuDNNPoolingOp {
       Tensor<gpu, 5, DType> m_in_data = in_data.get<gpu, 5, DType>(s);
       Tensor<gpu, 5, DType> m_out_data = out_data.get<gpu, 5, DType>(s);
       Tensor<gpu, 5, DType> m_in_grad = in_grad.get<gpu, 5, DType>(s);
-     /*CUDNN_CALL(cudnnPoolingBackward(s->dnn_handle_,
-                                      pooling_desc_,
-                                      &alpha,
-                                      out_desc_,
-                                      m_out_data.dptr_,
-                                      out_desc_,
-                                      m_out_grad.dptr_,
-                                      in_desc_,
-                                      m_in_data.dptr_,
-                                      &beta,
-                                      in_desc_,
-                                      m_in_grad.dptr_));*/
-
       CUDNN_CALL(miopenPoolingBackward(s->dnn_handle_,
                                       pooling_desc_,
                                       &alpha,

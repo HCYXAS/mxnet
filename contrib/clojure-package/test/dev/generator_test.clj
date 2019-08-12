@@ -17,14 +17,7 @@
 
 (ns dev.generator-test
   (:require [clojure.test :refer :all]
-            [dev.generator :as gen]
-            [clojure.string :as string]))
-
-(defn file-function-name [f]
-  (->> (string/split (slurp f) #"\n")
-       (take 33)
-       last
-       (string/trim)))
+            [dev.generator :as gen]))
 
 (deftest test-clojure-case
   (is (= "foo-bar" (gen/clojure-case "FooBar")))
@@ -341,20 +334,20 @@
           fns (gen/all-symbol-api-functions gen/op-names)
           _ (gen/write-to-file [(first fns) (second fns)]
                                (gen/symbol-api-gen-ns false)
-                               fname)]
-      (is (= "activation"
-             (file-function-name "test/good-test-symbol-api.clj")
-             (file-function-name fname)))))
+                               fname)
+          good-contents (slurp "test/good-test-symbol-api.clj")
+          contents (slurp fname)]
+      (is (= good-contents contents))))
 
   (testing "symbol-random-api"
     (let [fname "test/test-symbol-random-api.clj"
           fns (gen/all-symbol-random-api-functions gen/op-names)
           _ (gen/write-to-file [(first fns) (second fns)]
                                (gen/symbol-api-gen-ns true)
-                               fname)]
-      (is (= "exponential"
-             (file-function-name "test/good-test-symbol-random-api.clj")
-             (file-function-name fname)))))
+                               fname)
+          good-contents (slurp "test/good-test-symbol-random-api.clj")
+          contents (slurp fname)]
+      (is (= good-contents contents))))
 
 
  (testing "symbol"
@@ -371,20 +364,20 @@
           fns (gen/all-ndarray-api-functions gen/op-names)
           _ (gen/write-to-file [(first fns) (second fns)]
                                (gen/ndarray-api-gen-ns false)
-                               fname)]
-      (is (= "activation"
-             (file-function-name "test/good-test-ndarray-api.clj")
-             (file-function-name fname)))))
+                               fname)
+          good-contents (slurp "test/good-test-ndarray-api.clj")
+          contents (slurp fname)]
+      (is (= good-contents contents))))
 
   (testing "ndarray-random-api"
     (let [fname "test/test-ndarray-random-api.clj"
           fns (gen/all-ndarray-random-api-functions gen/op-names)
           _ (gen/write-to-file [(first fns) (second fns)]
                                (gen/ndarray-api-gen-ns true)
-                               fname)]
-      (is (= "exponential"
-             (file-function-name "test/good-test-ndarray-random-api.clj")
-             (file-function-name fname)))))
+                               fname)
+          good-contents (slurp "test/good-test-ndarray-random-api.clj")
+          contents (slurp fname)]
+      (is (= good-contents contents))))
 
   (testing "ndarray"
     (let [fname "test/test-ndarray.clj"

@@ -14,16 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import sys
-
-# We will use all operators inside NDArray Module
-# If you want to run benchmark for all operators in different namespace,
-# for example mxnet.numpy.op, update here. All operators for benchmarks
-# will be picked up from this module
-MX_OP_MODULE = sys.modules["mxnet.ndarray.op"]
-
 
 """Default Input Tensor shapes to use for benchmarking"""
+
+""""""
 
 # For Unary operators like abs, arccos, arcsin etc..
 DEFAULT_DATA = [(1024, 1024), (10000, 1), (10000, 100)]
@@ -56,20 +50,7 @@ DEFAULT_P_ND = [[0.4, 0.77]]
 
 # For reduction operators
 # NOTE: Data used is DEFAULT_DATA
-DEFAULT_AXIS_SHAPE = [(), 0, (0, 1)]
-
-# For sorting and searching operators
-# NOTE: Data used is DEFAULT_DATA
-DEFAULT_AXIS = [0]
-
-# For rearrange operators
-# NOTE: Data needs to be a 4D tensor for  operators like space_to_depth and depth_to_space
-# Hence below we append 4d to mark the difference.
-# For depth_to_space, dimension 3 needs to be a multiple of 'block' and 1 should be a multiple of `block^2`
-DEFAULT_DATA_4d = [(1, 4, 2, 4), (10,25,10,100)]
-DEFAULT_DIM_1 = [0, 1, 2, 3]
-DEFAULT_DIM_2 = [1, 2, 3, 0]
-DEFAULT_BLOCK_SIZE = [2, 5]
+DEFAULT_AXIS = [(), 0, (0, 1)]
 
 # Default Inputs. MXNet Op Param Name to Default Input mapping
 DEFAULTS_INPUTS = {"data": DEFAULT_DATA,
@@ -89,12 +70,7 @@ DEFAULTS_INPUTS = {"data": DEFAULT_DATA,
                    "p": DEFAULT_P,
                    "k_nd": DEFAULT_K_ND,
                    "p_nd": DEFAULT_P_ND,
-                   "axis_shape": DEFAULT_AXIS_SHAPE,
-                   "axis": DEFAULT_AXIS,
-                   "data_4d": DEFAULT_DATA_4d,
-                   "dim1": DEFAULT_DIM_1,
-                   "dim2": DEFAULT_DIM_2,
-                   "block_size": DEFAULT_BLOCK_SIZE}
+                   "axis": DEFAULT_AXIS}
 
 # These are names of MXNet operator parameters that is of type NDArray.
 # We maintain this list to automatically recognize these parameters are to be

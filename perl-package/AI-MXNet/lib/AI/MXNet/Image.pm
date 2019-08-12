@@ -19,7 +19,6 @@ package AI::MXNet::Image;
 use strict;
 use warnings;
 use Scalar::Util qw(blessed);
-use AI::MXNet::NS;
 use AI::MXNet::Base;
 use AI::MXNet::Function::Parameters;
 use AI::MXNet::Image::NDArray;
