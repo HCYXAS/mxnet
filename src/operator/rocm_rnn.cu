@@ -23,19 +23,29 @@
  * \brief
  * \author Sebastian Bodenstein
 */
-#if defined(__HIP_PLATFORM_NVCC__)
-#include "./rnn-inl.h"
-#endif
+
+#include "./rocm_rnn-inl.h"
 #include <algorithm>
+#if defined(__HIP_PLATFORM_HCC__) && MXNET_USE_MIOPEN == 1 
+#include "./miopen_rnn-inl.h"
+#endif  // MXNET_USE_MIOPEN 
+
 namespace mxnet {
 namespace op {
-#if defined(__HIP_PLATFORM_NVCC__)
-
-NNVM_REGISTER_OP(RNN)
-.set_attr<FStatefulCompute>("FStatefulCompute<gpu>", RNNStatefulCompute<gpu>);
-
-NNVM_REGISTER_OP(_backward_RNN)
-.set_attr<FStatefulCompute>("FStatefulCompute<gpu>", RNNStatefulGradCompute<gpu>);
+#if defined(__HIP_PLATFORM_HCC__)
+template<>
+Operator* CreateOp<gpu>(RNNParam param, int dtype) {
+  Operator *op = NULL;
+#if MXNET_USE_MIOPEN == 1 
+  MSHADOW_REAL_TYPE_SWITCH(dtype, DType, {
+    op = new CuDNNRNNOp<DType>(param);
+  })
+#else
+  LOG(FATAL) << "RNN on GPU is only available for cuDNN at the moment.";
+#endif  // MXNET_USE_MIOPEN 
+  return op;
+}
 #endif
 }  // namespace op
 }  // namespace mxnet
+

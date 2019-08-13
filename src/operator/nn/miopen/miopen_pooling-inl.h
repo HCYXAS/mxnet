@@ -295,7 +295,7 @@ class CuDNNPoolingOp {
       // CuDNN v7.1.4 backprop kernel doesn't support kernel sizes 9 and above.
       // For reference see Fixed Issues section in
       // https://docs.nvidia.com/deeplearning/sdk/cudnn-release-notes/rel_721.html#rel_721
-      is_supported = kernel_height <= 8 && kernel_width <= 8;
+      //is_supported = kernel_height <= 8 && kernel_width <= 8;
       // TODO Need to check the condition for miopen as propagation is not supported in Miopen but supported for cudnn version greater than 5.
 
       MIOPEN_CALL(miopenSet2dPoolingDescriptor(pooling_desc_,

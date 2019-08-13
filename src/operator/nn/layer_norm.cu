@@ -186,7 +186,8 @@ __global__ void LayerNormFusedForwardKernelContig(const int nbatch,
   AType sigma2 = 0;
 
   if (bid < nbatch) {
-    extern __shared__ char buf[];  // Shared memory
+    //extern __shared__ char buf[];  // Shared memory 
+    HIP_DYNAMIC_SHARED(char, buf)
     const DType* col_vals = in_data + bid * nchannel;
     BlockWelfordOnlineSum(col_vals, nchannel, mean, sigma2, count);
 
@@ -389,7 +390,8 @@ __global__ void LayerNormFusedBackwardKernel_PartGammaBeta(const int nbatch,
                                                            const DType* __restrict__ std_data,
                                                            AType* __restrict__ part_gamma_grad,
                                                            AType* __restrict__ part_beta_grad) {
-  extern __shared__ char buf[];
+  //extern __shared__ char buf[];
+  HIP_DYNAMIC_SHARED(char, buf)
   AType* d_buf = reinterpret_cast<AType*>(buf);
   const int npart = gridDim.y;
   const int block_row_num = (nbatch + npart - 1) / npart;
@@ -449,7 +451,8 @@ __global__ void LayerNormFusedBackwardKernel_GammaBeta(const int nbatch,
   const int c = blockIdx.x * blockDim.x + threadIdx.x;
   const int tid = threadIdx.y * blockDim.x + threadIdx.x;
   if (c < nchannel) {
-    extern __shared__ char buf[];
+    //extern __shared__ char buf[];
+    HIP_DYNAMIC_SHARED(char, buf)
     AType* buf_gamma_grad = reinterpret_cast<AType*>(buf);
     AType* buf_beta_grad = reinterpret_cast<AType*>(buf) + blockDim.x * blockDim.y;
     buf_gamma_grad[tid] = 0;
@@ -507,7 +510,8 @@ __global__ void LayerNormFusedBackwardKernel_Data(const int nbatch,
   const int nthread = blockDim.x * blockDim.y;
   if (bid < nbatch) {
     // Shared memory with size blockDim.y * blockDim.x * sizeof(DType)
-    extern __shared__ char buf[];
+    //extern __shared__ char buf[]; 
+    HIP_DYNAMIC_SHARED(char, buf)
     int tid = threadIdx.x + threadIdx.y * blockDim.x;
     // 1. Calculate: mean(out_grad * gamma / std, axis=-1)
     //               mean(out_grad * gamma / std * (x - mean) / std, axis=-1)

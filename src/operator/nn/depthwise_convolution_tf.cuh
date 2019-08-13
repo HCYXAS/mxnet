@@ -200,7 +200,8 @@ __global__ __launch_bounds__(1024, 2) void DepthwiseConv2dKernelSmall(
   #ifdef __HIP_PLATFORM_NVCC__
 	extern __shared__ __align__(sizeof(DType)) unsigned char shared_memory[];
   #elif defined(__HIP_PLATFORM_HCC__)
-	extern __shared__  __attribute__((aligned(sizeof(DType)))) unsigned char shared_memory[];
+	//extern __shared__  __attribute__((aligned(sizeof(DType)))) unsigned char shared_memory[];
+	 HIP_DYNAMIC_SHARED(__attribute__((aligned(sizeof(DType)))) unsigned char, shared_memory)
   #endif
   DType* const shared_data = reinterpret_cast<DType*>(shared_memory);
 
@@ -503,7 +504,8 @@ __launch_bounds__(1024, 2) void DepthwiseConv2dBackwardFilterKernelSmall(
   #ifdef __HIP_PLATFORM_NVCC__
 	extern __shared__ __align__(sizeof(DType)) unsigned char shared_memory[];
   #elif defined(__HIP_PLATFORM_HCC__)
-        extern __shared__  __attribute__((aligned(sizeof(DType)))) unsigned char shared_memory[];
+        //extern __shared__  __attribute__((aligned(sizeof(DType)))) unsigned char shared_memory[];
+	 HIP_DYNAMIC_SHARED( __attribute__((aligned(sizeof(DType)))) unsigned char, shared_memory)
   #endif
   DType* const shared_data = reinterpret_cast<DType*>(shared_memory);
 

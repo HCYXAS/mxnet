@@ -188,7 +188,7 @@ class NaiveEngine final : public Engine {
         aux_streams_.resize(dev_id + 1, nullptr);
       }
       if (streams_[dev_id] == nullptr) {
-        streams_[dev_id] = mshadow::NewStream<gpu>(true, MXNET_USE_CUDNN != 0, dev_id);
+        streams_[dev_id] = mshadow::NewStream<gpu>(true,(MXNET_USE_CUDNN || MXNET_USE_MIOPEN)!= 0, dev_id);
         aux_streams_[dev_id] = new GPUAuxStream(streams_[dev_id]);
       }
       exec_fun(RunContext{exec_ctx, streams_[dev_id], aux_streams_[dev_id], false}, callback);
