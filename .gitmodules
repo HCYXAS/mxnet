@@ -26,7 +26,3 @@
 	path = 3rdparty/mkldnn
 	url = https://github.com/intel/mkl-dnn.git
 	branch = master
-[submodule "3rdparty/mshadow"]
-	path = 3rdparty/mshadow
-	url = https://github.com/ROCmSoftwarePlatform/mshadow
-	branch = master
