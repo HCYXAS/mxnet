@@ -939,5 +939,111 @@ NNVM_REGISTER_OP(_backward_linalg_inverse)
 .set_attr<nnvm::TIsBackward>("TIsBackward", true)
 .set_attr<FCompute>("FCompute<cpu>", LaOpBackward<cpu, 2, 2, 2, 1, inverse_backward>);
 
+NNVM_REGISTER_OP(_linalg_det)
+.add_alias("linalg_det")
+.describe(R"code(Compute the determinant of a matrix.
+Input is a tensor *A* of dimension *n >= 2*.
+
+If *n=2*, *A* is a square matrix. We compute:
+
+  *out* = *det(A)*
+
+If *n>2*, *det* is performed separately on the trailing two dimensions
+for all inputs (batch mode).
+
+.. note:: The operator supports float32 and float64 data types only.
+.. note:: There is no gradient backwarded when A is non-invertible (which is
+          equivalent to det(A) = 0) because zero is rarely hit upon in float
+          point computation and the Jacobi's formula on determinant gradient
+          is not computationally efficient when A is non-invertible.
+
+Examples::
+
+   Single matrix determinant
+   A = [[1., 4.], [2., 3.]]
+   det(A) = [-5.]
+
+   Batch matrix determinant
+   A = [[[1., 4.], [2., 3.]],
+        [[2., 3.], [1., 4.]]]
+   det(A) = [-5., 5.]
+)code" ADD_FILELINE)
+.set_num_inputs(1)
+.set_num_outputs(3)
+.set_attr<nnvm::FListInputNames>("FListInputNames", [](const NodeAttrs& attrs)
+  { return std::vector<std::string>{"A"}; })
+.set_attr<nnvm::FNumVisibleOutputs>("FNumVisibleOutputs", [](const NodeAttrs& attrs) {
+  return 1; })
+.set_attr<mxnet::FInferShape>("FInferShape", DetShape<1>)
+.set_attr<nnvm::FInferType>("FInferType", DetType<1>)
+.set_attr<FResourceRequest>("FResourceRequest", [](const NodeAttrs& attrs)
+  { return std::vector<ResourceRequest>{ResourceRequest::kTempSpace}; })
+.set_attr<FCompute>("FCompute<cpu>", LaOpDetForward<cpu, 1, det>)
+.set_attr<nnvm::FGradient>("FGradient", ReduceDetGrad<1>{"_backward_linalg_det"})
+.add_argument("A", "NDArray-or-Symbol", "Tensor of square matrix");
+
+NNVM_REGISTER_OP(_backward_linalg_det)
+.set_num_inputs(4)
+.set_num_outputs(1)
+.set_attr<FResourceRequest>("FResourceRequest", [](const NodeAttrs& attrs)
+  { return std::vector<ResourceRequest>{ResourceRequest::kTempSpace}; })
+.set_attr<nnvm::TIsBackward>("TIsBackward", true)
+.set_attr<FCompute>("FCompute<cpu>", LaOpDetBackward<cpu, 1, det_backward>);
+
+NNVM_REGISTER_OP(_linalg_slogdet)
+.add_alias("linalg_slogdet")
+.describe(R"code(Compute the sign and log of the determinant of a matrix.
+Input is a tensor *A* of dimension *n >= 2*.
+
+If *n=2*, *A* is a square matrix. We compute:
+
+  *sign* = *sign(det(A))*
+  *logabsdet* = *log(abs(det(A)))*
+
+If *n>2*, *slogdet* is performed separately on the trailing two dimensions
+for all inputs (batch mode).
+
+.. note:: The operator supports float32 and float64 data types only.
+.. note:: The gradient is not properly defined on sign, so the gradient of
+          it is not backwarded.
+.. note:: No gradient is backwarded when A is non-invertible. Please see
+          the docs of operator det for detail.
+
+Examples::
+
+   Single matrix signed log determinant
+   A = [[2., 3.], [1., 4.]]
+   sign, logabsdet = slogdet(A)
+   sign = [1.]
+   logabsdet = [1.609438]
+
+   Batch matrix signed log determinant
+   A = [[[2., 3.], [1., 4.]],
+        [[1., 2.], [2., 4.]],
+        [[1., 2.], [4., 3.]]]
+   sign, logabsdet = slogdet(A)
+   sign = [1., 0., -1.]
+   logabsdet = [1.609438, -inf, 1.609438]
+)code" ADD_FILELINE)
+.set_num_inputs(1)
+.set_num_outputs(4)
+.set_attr<nnvm::FListInputNames>("FListInputNames", [](const NodeAttrs& attrs)
+  { return std::vector<std::string>{"A"}; })
+.set_attr<nnvm::FNumVisibleOutputs>("FNumVisibleOutputs", [](const NodeAttrs& attrs) {
+  return 2; })
+.set_attr<mxnet::FInferShape>("FInferShape", DetShape<2>)
+.set_attr<nnvm::FInferType>("FInferType", DetType<2>)
+.set_attr<FCompute>("FCompute<cpu>", LaOpDetForward<cpu, 2, slogdet>)
+.set_attr<nnvm::FGradient>("FGradient", ReduceDetGrad<2>{"_backward_linalg_slogdet"})
+.add_argument("A", "NDArray-or-Symbol", "Tensor of square matrix");
+
+NNVM_REGISTER_OP(_backward_linalg_slogdet)
+.set_num_inputs(5)
+.set_num_outputs(1)
+.set_attr<FResourceRequest>("FResourceRequest", [](const NodeAttrs& attrs)
+  { return std::vector<ResourceRequest>{ResourceRequest::kTempSpace}; })
+.set_attr<nnvm::TIsBackward>("TIsBackward", true)
+.set_attr<FCompute>("FCompute<cpu>", LaOpDetBackward<cpu, 2, slogdet_backward>);
+
 }  // namespace op
 }  // namespace mxnet

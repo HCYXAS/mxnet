@@ -160,20 +160,6 @@ class QuantizedCuDNNConvOp {
                                        temp_dptr,
                                        workspace_byte_));
 
-     /* CUDNN_CALL(cudnnConvolutionForward(s->dnn_handle_,
-                                         &alpha_,
-                                         data_desc_,
-                                         data_.dptr_,
-                                         filter_desc_,
-                                         filter_.dptr_,
-                                         conv_desc_,
-                                         algo_,
-                                         temp_dptr,
-                                         workspace_byte_,
-                                         &beta_,
-                                         out_desc_,
-                                         out_.dptr_));*/
-
       Tensor<gpu, 1, DstType> out_tensor = out_.FlatTo1D<gpu, DstType>(s);
       Tensor<gpu, 1, int32_t> out_tcast_tensor = out_tcast.FlatTo1D<gpu, int32_t>(s);
       Assign(out_tcast_tensor, kWriteTo, mshadow::expr::tcast<int32_t>(out_tensor));
@@ -247,14 +233,7 @@ class QuantizedCuDNNConvOp {
 
   void GetTempSize(const OpContext& ctx) {
     mshadow::Stream<gpu> *s = ctx.get_stream<gpu>();
-    /*CUDNN_CALL(cudnnGetConvolutionForwardWorkspaceSize(s->dnn_handle_,
-                                                       data_desc_,
-                                                       filter_desc_,
-                                                       conv_desc_,
-                                                       out_desc_,
-                                                       algo_,
-                                                       &workspace_byte_));*/
-    CUDNN_CALL(miopenConvolutionForwardGetWorkSpaceSize(s->dnn_handle_,
+   CUDNN_CALL(miopenConvolutionForwardGetWorkSpaceSize(s->dnn_handle_,
                filter_desc_,
                data_desc_,
                conv_desc_,

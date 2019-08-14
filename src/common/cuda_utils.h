@@ -47,11 +47,19 @@ extern __cuda_fake_struct threadIdx;
 extern __cuda_fake_struct blockIdx;
 #endif
 
+#define QUOTE(x) #x
+#define QUOTEVALUE(x) QUOTE(x)
+
 #if MXNET_USE_GPU
 #include <hip-wrappers.h> // dummy include file placed in /opt/rocm/include
 #include <hip/hip_runtime.h>
 #include <hipblas.h>
 #include <hiprand.h>
+
+#define STATIC_ASSERT_CUDA_VERSION_GE(min_version) \
+  static_assert(CUDA_VERSION >= min_version, "Compiled-against CUDA version " \
+      QUOTEVALUE(CUDA_VERSION) " is too old, please upgrade system to version " \
+      QUOTEVALUE(min_version) " or later.")
 
 /*!
  * \brief When compiling a __device__ function, check that the architecture is >= Kepler (3.0)
@@ -59,7 +67,6 @@ extern __cuda_fake_struct blockIdx;
  */
 #ifdef __HIPCC__
 inline __device__ bool __is_supported_cuda_architecture() {
-//#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ < 300
 #if (__HIP_DEVICE_COMPILE__ && (__CUDA_ARCH__ < 300) && defined(__HIP_PLATFORM_NVCC__))
 #error "Fermi and earlier GPU architectures are not supported (architecture versions less than 3.0)"
   return false;
@@ -442,6 +449,25 @@ inline cublasMath_t SetCublasMathMode(hipblasHandle_t blas_handle, cublasMath_t 
 
 #include <miopen/miopen.h>
 
+// Creating CUDNN_VERSION_AS_STRING as follows avoids a static_assert error message that shows
+// the formula for CUDNN_VERSION, i.e. "1000 * 7 + 100 * 6 + 0" rather than number "7600".
+static_assert(CUDNN_PATCHLEVEL < 100 && CUDNN_MINOR < 10,
+              "CUDNN_VERSION_AS_STRING macro assumptions violated.");
+#if CUDNN_PATCHLEVEL >= 10
+#define CUDNN_VERSION_AS_STRING QUOTEVALUE(CUDNN_MAJOR) \
+                                QUOTEVALUE(CUDNN_MINOR) \
+                                QUOTEVALUE(CUDNN_PATCHLEVEL)
+#else
+#define CUDNN_VERSION_AS_STRING QUOTEVALUE(CUDNN_MAJOR) \
+                                QUOTEVALUE(CUDNN_MINOR) \
+                                "0" QUOTEVALUE(CUDNN_PATCHLEVEL)
+#endif
+
+#define STATIC_ASSERT_CUDNN_VERSION_GE(min_version) \
+  static_assert(CUDNN_VERSION >= min_version, "Compiled-against cuDNN version " \
+      CUDNN_VERSION_AS_STRING " is too old, please upgrade system to version " \
+      QUOTEVALUE(min_version) " or later.")
+
 #define CUDNN_CALL(func)                                                      \
   {                                                                           \
     miopenStatus_t e = (func);                                                 \
@@ -525,7 +551,6 @@ static inline __device__  void atomicAdd(double *address, double val) {
 // Overload atomicAdd for half precision
 // Taken from:
 // https://github.com/torch/cutorch/blob/master/lib/THC/THCAtomics.cuh
-//#if defined(__CUDA_ARCH__)
 #if (__HIP_DEVICE_COMPILE__) || defined(__HCC__)
 static inline __device__ void atomicAdd(mshadow::half::half_t *address,
                                         mshadow::half::half_t val) {

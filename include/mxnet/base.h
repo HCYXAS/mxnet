@@ -450,7 +450,7 @@ inline int32_t Context::GetGPUCount() {
   }
   int32_t count;
   hipError_t e = hipGetDeviceCount(&count);
-  if (e == hipErrorNoDevice) {
+  if (e == hipErrorNoDevice|| e == hipErrorInsufficientDriver) {
     return 0;
   }
   CHECK_EQ(e, hipSuccess) << " CUDA: " << hipGetErrorString(e);

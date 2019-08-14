@@ -116,7 +116,7 @@ else
         HIPINCLUDE += -I.
 endif
 CFLAGS += $(HIPINCLUDE) -I$(TPARTYDIR)/mshadow/ -I$(TPARTYDIR)/dmlc-core/include -fPIC -I$(NNVM_PATH)/include -I$(DLPACK_PATH)/include -I$(TPARTYDIR)/tvm/include -Iinclude $(MSHADOW_CFLAGS)
-LDFLAGS = -pthread $(MSHADOW_LDFLAGS) $(DMLC_LDFLAGS)
+LDFLAGS = -pthread -ldl $(MSHADOW_LDFLAGS) $(DMLC_LDFLAGS)
 
 ifeq ($(HIP_PLATFORM), nvcc)
 	CCBINCLUDES = -ccbin $(CXX)
