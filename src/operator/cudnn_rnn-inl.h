@@ -746,7 +746,7 @@ class CuDNNRNNOp : public Operator {
       
       #if USE_CUDNN_LSTM_PROJ
       if (param_.projection_size.has_value()) {
-        MIOPEN_CALL(cudnnSetRNNProjectionLayers(s->dnn_handle_,
+        CUDNN_CALL(cudnnSetRNNProjectionLayers(s->dnn_handle_,
                                                rnn_desc_,
                                                param_.projection_size.value(),
                                                0));
