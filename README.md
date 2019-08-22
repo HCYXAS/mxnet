@@ -57,7 +57,7 @@ deep learning systems, and interesting insights of DL systems for hackers.
        
        sudo apt install -y rocm-opencl rocm-opencl-dev
 
-* Install MIOpen For acceleation
+* Install MIOpen For acceleration
 
       sudo apt install -y miopengemm miopen-hip
       
@@ -107,27 +107,24 @@ MXNet uses BLAS and LAPACK libraries for accelerated numerical computations on C
 ```bash
       export HIP_PLATFORM=hcc
 ```
+
    To compile on NVCC PLATFORM(HIP/CUDA):
 ```bash
       export HIP_PLATFORM=nvcc
 ```
-
-* Step 6: To enable MIOpen for higher acceleration :
- 
-      USE_CUDNN=1
-
-* Step 7: 
+* Step 6 :
 
     If building on CPU:
 ```bash
-        make -jn(n=number of cores) USE_GPU=0 (For Ubuntu 16.04)
-        make -jn(n=number of cores)  CXX=g++-6 USE_GPU=0 (For Ubuntu 18.04)
-```
-
+        make -j$nproc 
+ ```
    If building on GPU:
 ```bash
-       make -jn(n=number of cores) USE_GPU=1 (For Ubuntu 16.04)
-       make -jn(n=number of cores)  CXX=g++-6 USE_GPU=1 (For Ubuntu 18.04)
+       make -j$nproc USE_GPU=1 
+```
+  For MIOpen acceleration : 
+  ```bash
+       make -j$nproc USE_GPU=1 USE_CUDNN=1 
 ```
 On succesfull compilation a library called libmxnet.so is created in mxnet/lib path.
 
@@ -162,36 +159,11 @@ Ask Questions
 * Please use [mxnet/issues](https://github.com/ROCmSoftwarePlatform/mxnet/issues) for reporting bugs.
 
 
-Contents
---------
-* [Documentation](https://mxnet.incubator.apache.org/) and  [Tutorials](https://mxnet.incubator.apache.org/tutorials/)
-* [Design Notes](https://mxnet.incubator.apache.org/architecture/index.html)
-* [Code Examples](https://github.com/apache/incubator-mxnet/tree/master/example)
-* [Installation](https://mxnet.incubator.apache.org/install/index.html)
-* [Pretrained Models](http://mxnet.incubator.apache.org/api/python/gluon/model_zoo.html)
-
-Features
---------
-* Design notes providing useful insights that can re-used by other DL projects
-* Flexible configuration for arbitrary computation graph
-* Mix and match imperative and symbolic programming to maximize flexibility and efficiency
-* Lightweight, memory efficient and portable to smart devices
-* Scales up to multi GPUs and distributed setting with auto parallelism
-* Support for [Python](https://github.com/apache/incubator-mxnet/tree/master/python), [Scala](https://github.com/apache/incubator-mxnet/tree/master/scala-package), [C++](https://github.com/apache/incubator-mxnet/tree/master/cpp-package), [Java](https://github.com/apache/incubator-mxnet/tree/master/scala-package), [Clojure](https://github.com/apache/incubator-mxnet/tree/master/contrib/clojure-package), [R](https://github.com/apache/incubator-mxnet/tree/master/R-package), [Go](https://github.com/jdeng/gomxnet/), [Javascript](https://github.com/dmlc/mxnet.js/), [Perl](https://github.com/apache/incubator-mxnet/tree/master/perl-package), [Matlab](https://github.com/apache/incubator-mxnet/tree/master/matlab), and [Julia](https://github.com/apache/incubator-mxnet/tree/master/julia)
-* Cloud-friendly and directly compatible with S3, HDFS, and Azure
+examples
+---------
+* [Code Examples](https://github.com/ROCmSoftwarePlatform/mxnet/blob/master/example)
 
 License
 -------
 Licensed under an [Apache-2.0](https://github.com/apache/incubator-mxnet/blob/master/LICENSE) license.
 
-Reference Paper
----------------
-
-Tianqi Chen, Mu Li, Yutian Li, Min Lin, Naiyan Wang, Minjie Wang, Tianjun Xiao,
-Bing Xu, Chiyuan Zhang, and Zheng Zhang.
-[MXNet: A Flexible and Efficient Machine Learning Library for Heterogeneous Distributed Systems](https://github.com/dmlc/web-data/raw/master/mxnet/paper/mxnet-learningsys.pdf).
-In Neural Information Processing Systems, Workshop on Machine Learning Systems, 2015
-
-History
--------
-MXNet emerged from a collaboration by the authors of [cxxnet](https://github.com/dmlc/cxxnet), [minerva](https://github.com/dmlc/minerva), and [purine2](https://github.com/purine/purine2). The project reflects what we have learned from the past projects. MXNet combines aspects of each of these projects to achieve flexibility, speed, and memory efficiency.
