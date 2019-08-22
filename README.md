@@ -41,20 +41,8 @@ deep learning systems, and interesting insights of DL systems for hackers.
 ## Installation Guide
 
 ### Install Dependencies to build mxnet for HIP/ROCm
-   
-      wget -qO - http://repo.radeon.com/rocm/apt/debian/rocm.gpg.key | sudo apt-key add -
-      sudo sh -c 'echo deb [arch=amd64] http://repo.radeon.com/rocm/apt/debian/ xenial main >       /etc/apt/sources.list.d/rocm.list'
-      sudo apt update
-      sudo apt install -y rocm-dkms rocm-dev rocm-utils
-      sudo apt install -y rocm-device-libs rocm-libs rocblas hipblas rocrand rocfft
-      sudo apt install -y rocm-opencl rocm-opencl-dev
-      sudo apt install -y miopengemm miopen-hip
-      sudo apt install -y hsakmt-roct hsakmt-roct-dev hsa-rocr-dev hsa-ext-rocr-dev
-      sudo apt install -y rocthrust
-      sudo apt install -y rocprim
-      sudo apt install -y hipcub
 
-* [Install hcfft from source](https://github.com/ROCmSoftwarePlatform/hcFFT/wiki/Installation)
+[ROCm Installation](https://rocm-documentation.readthedocs.io/en/latest/Installation_Guide/Installation-Guide.html#installing-from-amd-rocm-repositories)
 
 
 ### Install Dependencies to build mxnet for HIP/CUDA
@@ -64,54 +52,60 @@ deep learning systems, and interesting insights of DL systems for hackers.
 * Make sure to add CUDA install path to LD_LIBRARY_PATH
 * Example - export LD_LIBRARY_PATH=/usr/local/cuda/lib64/:$LD_LIBRARY_PATH
 
-* Install the dependencies hipblas, rocrand, hcfft from source.
+* Install the dependencies [hipblas](https://github.com/ROCmSoftwarePlatform/hipBLAS/wiki/Build), [rocrand](https://github.com/ROCmSoftwarePlatform/rocRAND) from source.
 
 ## Build the MXNet library
 
 * Step 1: Install build tools.
 
-      $ sudo apt-get update
-      $ sudo apt-get install -y build-essential
+      sudo apt-get update
+      sudo apt-get install -y build-essential
 
-* Step 2: Install OpenBLAS. MXNet uses BLAS and LAPACK libraries for accelerated numerical computations on CPU machine. There are several flavors of BLAS/LAPACK libraries - OpenBLAS, ATLAS and MKL. In this step we install OpenBLAS. You can choose to install ATLAS or MKL.
-
-      $ sudo apt-get install -y libopenblas-dev liblapack-dev libomp-dev libatlas-dev libatlas-base-dev
+* Step 2: Install OpenBLAS. 
+MXNet uses BLAS and LAPACK libraries for accelerated numerical computations on CPU machine. There are several flavors of  BLAS/LAPACK libraries - OpenBLAS, ATLAS and MKL. In this step we install OpenBLAS. You can choose to install ATLAS or MKL.
+```bash
+      sudo apt-get install -y libopenblas-dev liblapack-dev libomp-dev libatlas-dev libatlas-base-dev
+```
 
 * Step 3: Install OpenCV.
-
   Install [OpenCV](<https://opencv.org/>) here. MXNet uses OpenCV for efficient image loading and augmentation operations.
-
-      $ sudo apt-get install -y libopencv-dev
+```bash
+      sudo apt-get install -y libopencv-dev
+```
 
 * Step 4: Download MXNet sources and build MXNet core shared library.
-
-      $ git clone --recursive https://github.com/ROCmSoftwarePlatform/mxnet.git
-      $ cd mxnet
-      $ export PATH=/opt/rocm/bin:$PATH
+```bash
+      git clone --recursive https://github.com/ROCmSoftwarePlatform/mxnet.git
+      cd mxnet
+      export PATH=/opt/rocm/bin:$PATH
+```
 
 * Step 5:
-
-To compile on HCC PLATFORM(HIP/ROCm):
-
-    $ export HIP_PLATFORM=hcc
-To compile on NVCC PLATFORM(HIP/CUDA):
-
-    $ export HIP_PLATFORM=nvcc
+    To compile on HCC PLATFORM(HIP/ROCm):
+```bash
+      export HIP_PLATFORM=hcc
+```
+   To compile on NVCC PLATFORM(HIP/CUDA):
+```bash
+      export HIP_PLATFORM=nvcc
+```
 
 * Step 6: To enable MIOpen for higher acceleration :
  
       USE_CUDNN=1
 
-* Step 7: If building on CPU:
+* Step 7: 
 
-      make -jn(n=number of cores) USE_GPU=0 (For Ubuntu 16.04)
-      make -jn(n=number of cores)  CXX=g++-6 USE_GPU=0 (For Ubuntu 18.04)
- 
- If building on GPU:
-
-    make -jn(n=number of cores) USE_GPU=1 (For Ubuntu 16.04)
-    make -jn(n=number of cores)  CXX=g++-6 USE_GPU=1 (For Ubuntu 18.04)
-
+    If building on CPU:
+```bash
+        make -jn(n=number of cores) USE_GPU=0 (For Ubuntu 16.04)
+        make -jn(n=number of cores)  CXX=g++-6 USE_GPU=0 (For Ubuntu 18.04)
+```
+   If building on GPU:
+```bash
+       make -jn(n=number of cores) USE_GPU=1 (For Ubuntu 16.04)
+       make -jn(n=number of cores)  CXX=g++-6 USE_GPU=1 (For Ubuntu 18.04)
+```
 On succesfull compilation a library called libmxnet.so is created in mxnet/lib path.
 
 **NOTE:**  USE_CUDA, USE_CUDNN flags can be changed in make/config.mk.
@@ -121,25 +115,25 @@ To compile on HIP/CUDA make sure to set USE_CUDA_PATH to right CUDA installation
 ### Install the MXNet Python binding
 
 * Step 1: Install prerequisites - python, setup-tools, python-pip and numpy.
-
-      $ sudo apt-get install -y python-dev python-setuptools python-numpy python-pip python-scipy
-      $ sudo apt-get install python-tk
-      $ sudo apt install -y fftw3 fftw3-dev pkg-config
+```bash
+      sudo apt-get install -y python-dev python-setuptools python-numpy python-pip python-scipy
+      sudo apt-get install python-tk
+      sudo apt install -y fftw3 fftw3-dev pkg-config
+```
 * Step 2: Install the MXNet Python binding.
-
-      $ cd python
-      $ sudo python setup.py install
-    
+```bash
+      cd python
+      sudo python setup.py install
+```    
 * Step 3: Execute sample example
-
-       $ cd example/
-       $ cd bayesian-methods/
-       
+```bash
+       cd example/
+       cd bayesian-methods/
+```
 To run on gpu change mx.cpu() to mx.gpu() in python script (Example- bdk_demo.py)
-
+```bash
        $ python bdk_demo.py
-
-
+```
 
 Ask Questions
 -------------
