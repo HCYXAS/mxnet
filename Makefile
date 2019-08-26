@@ -52,6 +52,14 @@ ifndef AMALGAMATION_PATH
 	AMALGAMATION_PATH = $(ROOTDIR)/amalgamation
 endif
 
+ifndef TVM_PATH
+	TVM_PATH = $(TPARTYDIR)/tvm
+endif
+
+ifndef LLVM_PATH
+	LLVM_PATH = $(TVM_PATH)/build/llvm
+endif
+
 ifneq ($(USE_OPENMP), 1)
 	export NO_OPENMP = 1
 endif
@@ -102,13 +110,15 @@ else
 	CFLAGS += -O3 -DNDEBUG=1
 endif
 
+
 ifeq ($(USE_GPU), 1)
-	HIPINCLUDE += -I. -I/opt/rocm/include -I/opt/rocm/hipblas/include -I/opt/rocm/hiprand/include -I/opt/rocm/rocfft/include -I/opt/rocm/hipcub/include/
+        HIPINCLUDE += -I. -I/opt/rocm/include -I/opt/rocm/hipblas/include -I/opt/rocm/hiprand/include -I/opt/rocm/hipcub/include/
 else
         HIPINCLUDE += -I.
 endif
+
 CFLAGS += $(HIPINCLUDE) -I$(TPARTYDIR)/mshadow/ -I$(TPARTYDIR)/dmlc-core/include -fPIC -I$(NNVM_PATH)/include -I$(DLPACK_PATH)/include -I$(TPARTYDIR)/tvm/include -Iinclude $(MSHADOW_CFLAGS)
-LDFLAGS = -pthread $(MSHADOW_LDFLAGS) $(DMLC_LDFLAGS)
+LDFLAGS = -pthread -ldl $(MSHADOW_LDFLAGS) $(DMLC_LDFLAGS)
 	
 CXXFLAGS    = -std=c++11
 HIPCCFLAGS  = $(CFLAGS)
@@ -156,7 +166,7 @@ ifdef CAFFE_PATH
 endif
 
 ifndef LINT_LANG
-	LINT_LANG="all"
+	LINT_LANG = "all"
 endif
 
 ifeq ($(USE_MKLDNN), 1)
@@ -204,6 +214,7 @@ endif
 
 ifeq ($(USE_OPENMP), 1)
 	CFLAGS += -fopenmp
+	CFLAGS += -DMXNET_USE_OPENMP=1
 endif
 
 ifeq ($(USE_NNPACK), 1)
@@ -273,14 +284,13 @@ ifeq ($(USE_CUDNN), 1)
         LDFLAGS += -lcudnn
 endif
 
-
-ifeq ($(use_blas), open)
+ifeq ($(USE_BLAS), openblas)
 	CFLAGS += -DMXNET_USE_BLAS_OPEN=1
-else ifeq ($(use_blas), atlas)
+else ifeq ($(USE_BLAS), atlas)
 	CFLAGS += -DMXNET_USE_BLAS_ATLAS=1
-else ifeq ($(use_blas), mkl)
+else ifeq ($(USE_BLAS), mkl)
 	CFLAGS += -DMXNET_USE_BLAS_MKL=1
-else ifeq ($(use_blas), apple)
+else ifeq ($(USE_BLAS), apple)
 	CFLAGS += -DMXNET_USE_BLAS_APPLE=1
 endif
 
@@ -372,8 +382,8 @@ endif
 # If not using tcmalloc or jemalloc, print a warning (user should consider installing)
 ifneq ($(USE_GPERFTOOLS), 1)
 ifneq ($(USE_JEMALLOC), 1)
-#$(warning WARNING: Significant performance increases can be achieved by installing and \
-#enabling gperftools or jemalloc development packages)
+$(warning WARNING: Significant performance increases can be achieved by installing and \
+enabling gperftools or jemalloc development packages)
 endif
 endif
 
@@ -398,6 +408,12 @@ endif
 
 # Guard against displaying nvcc info messages to users not using CUDA.
 ifeq ($(USE_GPU), 1)
+	# Get AR version, compare with expected ar version and find bigger and smaller version of the two
+	AR_VERSION := $(shell ar --version | egrep -o "([0-9]{1,}\.)+[0-9]{1,}")
+	EXPECTED_AR_VERSION := $(shell echo "2.27")
+	LARGE_VERSION := $(shell printf '%s\n' "$(AR_VERSION)" "$(EXPECTED_AR_VERSION)" | sort -V | tail -n 1)
+	SMALL_VERSION := $(shell printf '%s\n' "$(AR_VERSION)" "$(EXPECTED_AR_VERSION)" | sort -V | head -n 1)
+
 	# If NVCC is not at the location specified, use CUDA_PATH instead.
 	ifeq ("$(wildcard $(NVCC))","")
 		ifneq ($(USE_CUDA_PATH), NONE)
@@ -421,7 +437,7 @@ endif
 $(info INFO: nvcc was not found on your path)
 $(info INFO: Using $(NVCC) as nvcc path)
 		else
-#$(warning WARNING: could not find nvcc compiler, the specified path was: $(NVCC))
+$(warning WARNING: could not find nvcc compiler, the specified path was: $(NVCC))
 		endif
 	endif
 endif
@@ -594,7 +610,7 @@ build/plugin/%.o: plugin/%.cc
 
 %_gpu.o: %.cu
 	@mkdir -p $(@D)
-	$(NVCC) $(NVCCFLAGS) $(CUDA_ARCH) -Xcompiler "$(HIPCCFLAGS) -Isrc/operator" -M -MT $*_gpu.o $< >$*_gpu.d
+	$(NVCC) $(NVCCFLAGS) $(CUDA_ARCH) -Xcompiler "$(HIPCCFLAGS) -Isrc/operator" --generate-dependencies -MT $*_gpu.o $< >$*_gpu.d
 	$(NVCC) -c -o $@ $(NVCCFLAGS) $(CUDA_ARCH) -Xcompiler "$(HIPCFLAGS) -Isrc/operator" $<
 
 %.o: %.cc $(CORE_INC)
@@ -634,6 +650,35 @@ $(DMLC_CORE)/libdmlc.a: DMLCCORE
 DMLCCORE:
 	+ cd $(DMLC_CORE); $(MAKE) libdmlc.a USE_SSE=$(USE_SSE) config=$(ROOTDIR)/$(config); cd $(ROOTDIR)
 
+ifeq ($(USE_TVM_OP), 1)
+LIB_DEP += lib/libtvm_runtime.so lib/libtvmop.so
+CFLAGS += -I$(TVM_PATH)/include -DMXNET_USE_TVM_OP=1
+LDFLAGS += -L$(TVM_PATH)/build -ltvm_runtime
+
+TVM_USE_CUDA := OFF
+ifeq ($(USE_GPU), 1)
+	TVM_USE_CUDA := ON
+	ifneq ($(USE_CUDA_PATH), NONE)
+		TVM_USE_CUDA := $(USE_CUDA_PATH)
+	endif
+endif
+lib/libtvm_runtime.so:
+	echo "Compile TVM"
+	[ -e $(LLVM_PATH)/bin/llvm-config ] || sh $(ROOTDIR)/contrib/tvmop/prepare_tvm.sh; \
+	cd $(TVM_PATH)/build; \
+	cmake -DUSE_LLVM="$(LLVM_PATH)/bin/llvm-config" \
+		  -DUSE_SORT=OFF -DUSE_GPU=$(TVM_USE_CUDA) -DUSE_CUDNN=OFF ..; \
+	$(MAKE) VERBOSE=1; \
+	cp $(TVM_PATH)/build/libtvm_runtime.so $(ROOTDIR)/lib/libtvm_runtime.so; \
+	cd $(ROOTDIR)
+
+lib/libtvmop.so: lib/libtvm_runtime.so $(wildcard contrib/tvmop/*/*.py contrib/tvmop/*.py)
+	echo "Compile TVM operators"
+	PYTHONPATH=$(TVM_PATH)/python:$(TVM_PATH)/topi/python:$(ROOTDIR)/contrib:$PYTHONPATH \
+		LD_LIBRARY_PATH=lib \
+	    python3 $(ROOTDIR)/contrib/tvmop/compile.py -o $(ROOTDIR)/lib/libtvmop.so
+endif
+
 NNVM_INC = $(wildcard $(NNVM_PATH)/include/*/*.h)
 NNVM_SRC = $(wildcard $(NNVM_PATH)/src/*/*/*.cc $(NNVM_PATH)/src/*/*.cc $(NNVM_PATH)/src/*.cc)
 $(NNVM_PATH)/lib/libnnvm.a: $(NNVM_INC) $(NNVM_SRC)
@@ -661,7 +706,7 @@ lint: cpplint rcpplint jnilint pylint
 
 cpplint:
 	3rdparty/dmlc-core/scripts/lint.py mxnet cpp include src plugin cpp-package tests \
-	--exclude_path src/operator/contrib/ctc_include
+	--exclude_path src/operator/contrib/ctc_include include/mkldnn
 
 pylint:
 	python3 -m pylint --rcfile=$(ROOTDIR)/ci/other/pylintrc --ignore-patterns=".*\.so$$,.*\.dll$$,.*\.dylib$$" python/mxnet tools/caffe_converter/*.py
@@ -744,15 +789,15 @@ rclean:
 	$(RM) -r R-package/src/image_recordio.h R-package/NAMESPACE R-package/man R-package/R/mxnet_generated.R \
 		R-package/inst R-package/src/*.o R-package/src/*.so mxnet_*.tar.gz
 
-build/rat/apache-rat/target/apache-rat-0.13-SNAPSHOT.jar:
+build/rat/apache-rat/target/apache-rat-0.13.jar:
 	mkdir -p build
-	svn co http://svn.apache.org/repos/asf/creadur/rat/branches/0.12-release/ build/rat; \
+	svn co http://svn.apache.org/repos/asf/creadur/rat/tags/apache-rat-project-0.13/ build/rat; \
 	cd build/rat; \
 	mvn -Dmaven.test.skip=true install;
 
-ratcheck: build/rat/apache-rat/target/apache-rat-0.13-SNAPSHOT.jar
+ratcheck: build/rat/apache-rat/target/apache-rat-0.13.jar
 	exec 5>&1; \
-	RAT_JAR=build/rat/apache-rat/target/apache-rat-0.13-SNAPSHOT.jar; \
+	RAT_JAR=build/rat/apache-rat/target/apache-rat-0.13.jar; \
 	OUTPUT=$(java -jar $(RAT_JAR) -E tests/nightly/apache_rat_license_check/rat-excludes -d .|tee >(cat - >&5)); \
     ERROR_MESSAGE="Printing headers for text files without a valid license header"; \
     echo "-------Process The Output-------"; \
@@ -771,6 +816,7 @@ clean: rclean cyclean $(EXTRA_PACKAGES_CLEAN)
 	cd $(DMLC_CORE); $(MAKE) clean; cd -
 	cd $(PS_PATH); $(MAKE) clean; cd -
 	cd $(NNVM_PATH); $(MAKE) clean; cd -
+	cd $(TVM_PATH); $(MAKE) clean; cd -
 	cd $(AMALGAMATION_PATH); $(MAKE) clean; cd -
 	$(RM) -r  $(patsubst %, %/*.d, $(EXTRA_OPERATORS)) $(patsubst %, %/*/*.d, $(EXTRA_OPERATORS))
 	$(RM) -r  $(patsubst %, %/*.o, $(EXTRA_OPERATORS)) $(patsubst %, %/*/*.o, $(EXTRA_OPERATORS))

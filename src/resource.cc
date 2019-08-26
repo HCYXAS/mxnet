@@ -92,9 +92,9 @@ class ResourceManagerImpl : public ResourceManager {
     gpu_temp_space_copy_ = dmlc::GetEnv("MXNET_GPU_TEMP_COPY", 1);
     cpu_native_rand_copy_ = dmlc::GetEnv("MXNET_CPU_PARALLEL_RAND_COPY", 1);
     gpu_native_rand_copy_ = dmlc::GetEnv("MXNET_GPU_PARALLEL_RAND_COPY", 4);
-#if MXNET_USE_CUDNN == 1 
+#if MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 7
     gpu_cudnn_dropout_state_copy_ = dmlc::GetEnv("MXNET_GPU_CUDNN_DROPOUT_STATE_COPY", 4);
-#endif  // MXNET_USE_CUDNN == 1 
+#endif  // MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 7
     engine_ref_ = Engine::_GetSharedRef();
     storage_ref_ = Storage::_GetSharedRef();
     cpu_rand_.reset(new ResourceRandom<cpu>(

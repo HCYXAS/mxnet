@@ -571,5 +571,4 @@ void DropoutGradCompute(const OpStatePtr& state,
 }  // namespace op
 }  // namespace mxnet
 
-#undef MXNET_USE_MKL_DROPOUT
 #endif  // MXNET_OPERATOR_NN_DROPOUT_INL_H_

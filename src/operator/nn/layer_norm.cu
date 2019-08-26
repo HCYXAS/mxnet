@@ -510,7 +510,7 @@ __global__ void LayerNormFusedBackwardKernel_Data(const int nbatch,
   const int nthread = blockDim.x * blockDim.y;
   if (bid < nbatch) {
     // Shared memory with size blockDim.y * blockDim.x * sizeof(DType)
-    //extern __shared__ char buf[]; 
+    //extern __shared__ char buf[];
     HIP_DYNAMIC_SHARED(char, buf)
     int tid = threadIdx.x + threadIdx.y * blockDim.x;
     // 1. Calculate: mean(out_grad * gamma / std, axis=-1)

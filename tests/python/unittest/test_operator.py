@@ -4793,13 +4793,14 @@ def test_tile():
 
     def test_empty_tensor():
         shape = (2, 3, 0, 4)
-        a = np.array([], dtype=np.int32).reshape(shape)
-        b = mx.nd.array(a, ctx=default_context(), dtype=a.dtype)
-        reps = (2, 4, 6)
+        with mx.np_shape():
+            a = np.array([], dtype=np.int32).reshape(shape)
+            b = mx.nd.array(a, ctx=default_context(), dtype=a.dtype)
 
-        a_tiled = np.tile(a, reps)
-        b_tiled = mx.nd.tile(b, reps).asnumpy()
-        assert same(a_tiled, b_tiled)
+            reps = (2, 4, 6)
+            a_tiled = np.tile(a, reps)
+            b_tiled = mx.nd.tile(b, reps).asnumpy()
+            assert same(a_tiled, b_tiled)
 
     def test_empty_reps():
         a = np.array([[2, 3, 4], [5, 6, 7]], dtype=np.int32)
@@ -4889,13 +4890,15 @@ def test_one_hot():
 
     def test_empty_indices():
         shape = (2, 0, 9, 3)
-        indices = np.array([]).reshape(shape)
-        depth = 10
-        mx_one_hot_array = mx.nd.one_hot(
-            mx.nd.array(indices, ctx=default_context(), dtype=np.int32),
-            depth=depth, dtype=np.int32).asnumpy()
-        expected_array = np.array([], dtype=np.int32).reshape(shape + (depth, ))
-        assert same(expected_array, mx_one_hot_array)
+        with mx.np_shape():
+            indices = np.array([]).reshape(shape)
+            depth = 10
+            mx_one_hot_array = mx.nd.one_hot(
+                mx.nd.array(indices, ctx=default_context(), dtype=np.int32),
+                depth=depth, dtype=np.int32
+            ).asnumpy()
+            expected_array = np.array([], dtype=np.int32).reshape(shape + (depth,))
+            assert same(expected_array, mx_one_hot_array)
 
     def test_zero_depth():
         shape = (2, 4, 9, 3)
@@ -6842,14 +6845,35 @@ def test_laop_6():
         check_numeric_gradient(sym, location, numeric_eps=num_eps, rtol=rtol_bw,
                                atol=atol_bw, dtype=dtype)
 
-    a = np.sqrt(np.arange(4 * 4)).reshape(4, 4)
+    ## det(I + dot(v, v.T)) = 1 + dot(v.T, v) >= 1, so it's always invertible;
+    ## det is away from zero, so the value of logdet is stable
+    v = np.random.random(4)
+    a = np.eye(4) + np.outer(v, v)
     a = np.tile(a, (3, 1, 1))
+    permute_mat = np.eye(4)[[1, 0, 2, 3]]
+
+    # test matrix inverse
     r = np.eye(4)
     r = np.tile(r, (3, 1, 1))
     test_inverse = mx.sym.linalg.inverse(data)
     test_eye = mx.sym.linalg.gemm2(data, test_inverse)
     check_fw(test_eye, [a], [r])
     check_grad(test_inverse, [a])
+
+    # test matrix determinant
+    # det
+    r = np.linalg.det(a)
+    test_det = mx.sym.linalg.det(data)
+    check_fw(test_det, [a], [r])
+    check_grad(test_det, [a])
+    # test slogdet
+    r1 = np.array([1., 1., 1.])
+    r2 = np.log(np.abs(np.linalg.det(a)))
+    test_sign, test_logabsdet = mx.sym.linalg.slogdet(data)
+    check_fw(test_sign, [a], [r1])
+    check_fw(test_sign, [np.dot(a, permute_mat)], [-r1])
+    check_fw(test_logabsdet, [a], [r2])
+    check_grad(test_logabsdet, [a])
 
 @with_seed()
 def test_stack():
@@ -8838,7 +8862,7 @@ def test_index_array():
 
     @mx.use_np_shape
     def test_index_array_default_zero_dim():
-        data  = mx.symbol.Variable("data")
+        data = mx.symbol.Variable("data")
         index_array = mx.sym.contrib.index_array(data)
 
         input_array = np.ones(())

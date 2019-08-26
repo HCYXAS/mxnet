@@ -56,6 +56,11 @@ extern __cuda_fake_struct blockIdx;
 #include <hipblas.h>
 #include <hiprand.h>
 
+#define STATIC_ASSERT_CUDA_VERSION_GE(min_version) \
+  static_assert(CUDA_VERSION >= min_version, "Compiled-against CUDA version " \
+      QUOTEVALUE(CUDA_VERSION) " is too old, please upgrade system to version " \
+      QUOTEVALUE(min_version) " or later.")
+
 /*!
  * \brief When compiling a __device__ function, check that the architecture is >= Kepler (3.0)
  *        Note that __CUDA_ARCH__ is not defined outside of a __device__ function

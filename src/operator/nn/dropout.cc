@@ -28,8 +28,6 @@
 #include "../operator_common.h"
 #include "mxnet/op_attr_types.h"
 
-
-
 namespace mxnet {
 namespace op {
 
