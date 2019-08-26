@@ -26,7 +26,9 @@
 #ifndef MXNET_OPERATOR_RNN_INL_H_
 #define MXNET_OPERATOR_RNN_INL_H_
 
-#define MXNET_USE_CUDNN_RNN MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 5
+#if MXNET_USE_CUDNN == 1
+//STATIC_ASSERT_CUDNN_VERSION_GE(7000);
+#endif
 #define MXNET_USE_CUDNN_GE_7200 MXNET_USE_CUDNN == 1 && CUDNN_VERSION >= 7200
 
 #include <dmlc/logging.h>
@@ -419,7 +421,7 @@ class RNNOp {
     init_mem_ = false;
     reserve_mem_size_ = 0;
     #endif
-    #if MXNET_USE_CUDNN_RNN
+    #if MXNET_USE_CUDNN == 1
     init_cudnn_ = false;
     dtype_ = mshadow::DataType<DType>::kCudnnFlag;
     // TensorCore algos only allowed on fp16-I/O convolutions if permitted by the global policy.
@@ -526,7 +528,7 @@ class RNNOp {
       init_mem_ = false;
     }
     #endif
-    #if MXNET_USE_CUDNN_RNN
+    #if MXNET_USE_CUDNN == 1
     CUDNN_CALL(miopenDestroyTensorDescriptor(hx_desc_));
     CUDNN_CALL(miopenDestroyTensorDescriptor(cx_desc_));
     CUDNN_CALL(miopenDestroyTensorDescriptor(hy_desc_));
@@ -671,7 +673,7 @@ class RNNOp {
     CHECK_EQ(hx.CheckContiguous(), true);
     CHECK_EQ(y.CheckContiguous(), true);
 
-#if MXNET_USE_CUDNN_RNN && defined(__HIPCC__)
+#if MXNET_USE_CUDNN == 1 && defined(__HIPCC__)
     if (!init_cudnn_) {
       Init(ctx, s, in_data, out_data);
     }
@@ -736,9 +738,7 @@ class RNNOp {
                                            sequence_length_cpu_int,
                                            reinterpret_cast<void*>(&padding_fill_)));*/
     }
-#endif
 
-#if MXNET_USE_CUDNN_GE_7200
     bool clip_state = param_.lstm_state_clip_min.has_value();
     bool clip_nan = param_.lstm_state_clip_nan;
     /*CUDNN_CALL(cudnnRNNSetClip(s->dnn_handle_,
@@ -1061,7 +1061,7 @@ class RNNOp {
         dcy_ptr = (out_grad[rnn_enum::kStateCellOut].get<xpu, 3, DType>(s)).dptr_;
     }
 
-    #if MXNET_USE_CUDNN_RNN && defined(__HIPCC__)
+    #if MXNET_USE_CUDNN == 1 && defined(__HIPCC__)
     if (!init_cudnn_) {
       Init(ctx, s, in_data, out_data);
     }
@@ -1230,10 +1230,10 @@ class RNNOp {
     CHECK_EQ(in_data.size(), num_inputs);
     CHECK_EQ(out_data.size(), num_outputs);
 
-    #if MXNET_USE_CUDNN_RNN && defined(__HIPCC__)
-    /*#if CUDNN_MAJOR >= 5
-    format_ = CUDNN_TENSOR_NCHW;
-    #endif*/
+    #if MXNET_USE_CUDNN == 1 && defined(__HIPCC__)
+   
+    //format_ = CUDNN_TENSOR_NCHW;
+   
 
     if (!init_cudnn_) {
       init_cudnn_ = true;
@@ -1417,28 +1417,18 @@ class RNNOp {
       #else
         dtype_with_fallback_ = dtype_;
       #endif
-      /*CUDNN_CALL(miopenSetRNNDescriptor_v6(s->dnn_handle_,
-                                          rnn_desc_,
-                                          param_.state_size,
-                                          param_.num_layers,
-                                          dropout_desc_,
-                                          input_mode_,
-                                          direction_,
-                                          mode_,
-                                          rnn_algo,
-                                          dtype_with_fallback_));*/
-      #else
-     /* CUDNN_CALL(miopenSetRNNDescriptor(rnn_desc_,
+      
+      /*CUDNN_CALL(miopenSetRNNDescriptor(rnn_desc_,
                                        param_.state_size,
                                        param_.num_layers,
                                        dropout_desc_,
                                        input_mode_,
                                        direction_,
                                        mode_,
-                                       dtype_));*/
+                                       dtype_));*/ //TODO
       #endif
-      #if CUDNN_MAJOR >= 7
-        cudnnMathType_t math_type = CUDNN_DEFAULT_MATH;
+     
+       /* cudnnMathType_t math_type = CUDNN_DEFAULT_MATH;
         if (cudnn_tensor_core_ && rnn_algo == CUDNN_RNN_ALGO_STANDARD) {
           math_type = CUDNN_TENSOR_OP_MATH;
         }
@@ -1447,21 +1437,16 @@ class RNNOp {
                 (DataType<DType>::kFlag != kFloat16)) {
               math_type = CUDNN_TENSOR_OP_MATH_ALLOW_CONVERSION;
             }
-      #endif
+      #endif */
         //CUDNN_CALL(cudnnSetRNNMatrixMathType(rnn_desc_, math_type));
-      #endif
-      #if MXNET_USE_CUDNN_GE_7200
+          #if MXNET_USE_CUDNN_GE_7200
       if (param_.projection_size.has_value()) {
         /*CUDNN_CALL(cudnnSetRNNProjectionLayers(s->dnn_handle_,
                                                rnn_desc_,
                                                param_.projection_size.value(),
                                                0));*/
       }
-      #endif
-      // Get temp space sizes
-
-      #if MXNET_USE_CUDNN_GE_7200
-      if (param_.use_sequence_length) {
+           if (param_.use_sequence_length) {
         //CUDNN_CALL(cudnnSetRNNPaddingMode(rnn_desc_, CUDNN_RNN_PADDED_IO_ENABLED));
       }
       #endif
@@ -1539,7 +1524,7 @@ class RNNOp {
     }
   #endif
   }
-  #if MXNET_USE_CUDNN_RNN
+  #if MXNET_USE_CUDNN == 1
   miopenDataType_t dtype_;
   bool init_cudnn_;
   miopenRNNDescriptor_t rnn_desc_;
@@ -1565,10 +1550,8 @@ class RNNOp {
   // Allow TensorCore algo policy
   bool cudnn_tensor_core_;
 
-  /*#if CUDNN_MAJOR >= 5
-  cudnnTensorFormat_t format_;
-  #endif*/
-  #endif
+   //cudnnTensorFormat_t format_;
+   #endif
   bool init_space_, temp_init_space_;
   size_t reserve_cpu_space_size_, temp_cpu_space_size_;
   Storage::Handle reserve_cpu_space_, temp_cpu_space_;

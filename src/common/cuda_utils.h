@@ -29,6 +29,7 @@
 #include <dmlc/parameter.h>
 #include <dmlc/optional.h>
 #include <mshadow/base.h>
+#include <mxnet/libinfo.h>
 
 /*! \brief Macros/inlines to assist CLion to parse Cuda files (*.cu, *.cuh) */
 #ifdef __JETBRAINS_IDE__
@@ -482,13 +483,9 @@ static_assert(CUDNN_PATCHLEVEL < 100 && CUDNN_MINOR < 10,
  *         want to populate.
  */
 inline int MaxForwardAlgos(miopenHandle_t cudnn_handle) {
-/*#if CUDNN_MAJOR >= 7 && defined( __HIP_PLATFORM_NVCC__)  //TODO cudnnGetConvolutionForwardAlgorithmMaxCount() not supported in MIOpen
   int max_algos = 0;
-  CUDNN_CALL(cudnnGetConvolutionForwardAlgorithmMaxCount(cudnn_handle, &max_algos));
+  //CUDNN_CALL(cudnnGetConvolutionForwardAlgorithmMaxCount(cudnn_handle, &max_algos)); //TODO unsupported in MIOpen
   return max_algos;
-#else*/
-  return 10;
-//#endif
 }
 
 /*!
@@ -499,14 +496,9 @@ inline int MaxForwardAlgos(miopenHandle_t cudnn_handle) {
  *         want to populate.
  */
 inline int MaxBackwardFilterAlgos(miopenHandle_t cudnn_handle) {
-/*#if CUDNN_MAJOR >= 7 && defined( __HIP_PLATFORM_NVCC__)
   int max_algos = 0;
-  CUDNN_CALL(cudnnGetConvolutionBackwardFilterAlgorithmMaxCount(cudnn_handle, &max_algos));
-  return max_algos;
-#else*/
- //TODO cudnnGetConvolutionBackwardFilterAlgorithmMaxCount() no supported API in MIOpen
-  return 10;
-//#endif
+  //CUDNN_CALL(cudnnGetConvolutionBackwardFilterAlgorithmMaxCount(cudnn_handle, &max_algos)); // TODO unsupported API in MIOpen
+  return max_algos; 
 }
 
 /*!
@@ -517,14 +509,9 @@ inline int MaxBackwardFilterAlgos(miopenHandle_t cudnn_handle) {
  *         want to populate.
  */
 inline int MaxBackwardDataAlgos(miopenHandle_t cudnn_handle) {
-/*#if CUDNN_MAJOR >= 7 && defined( __HIP_PLATFORM_NVCC__)
   int max_algos = 0;
-  CUDNN_CALL(cudnnGetConvolutionBackwardDataAlgorithmMaxCount(cudnn_handle, &max_algos));
-  return max_algos;
-#else*/
- //TODO cudnnGetConvolutionBackwardDataAlgorithmMaxCount() no supported API in MIOpen
-  return 10;
-//#endif
+  //CUDNN_CALL(cudnnGetConvolutionBackwardDataAlgorithmMaxCount(cudnn_handle, &max_algos)); //TODO unsupported API in MIOpen
+  return max_algos; 
 }
 
 #endif  // MXNET_USE_CUDNN

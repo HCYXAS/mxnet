@@ -90,15 +90,7 @@ class CuDNNSoftmaxActivationOp {
                                           data.shape_[1],
                                           data.shape_[2],
                                           data.shape_[3]));
-    /*CUDNN_CALL(miopenSoftmaxForward(s->dnn_handle_,
-                                   //CUDNN_SOFTMAX_ACCURATE,
-                                   //softmax_mode,
-                                   &alpha,
-                                   shape_desc_,
-                                   data.dptr_,
-                                   &beta,
-                                   shape_desc_,
-                                   out.dptr_));*/
+
     CUDNN_CALL(miopenSoftmaxForward_V2(s->dnn_handle_,
                                    &alpha,
                                    shape_desc_,
@@ -122,9 +114,7 @@ class CuDNNSoftmaxActivationOp {
     Tensor<gpu, 4> grad;
     Tensor<gpu, 4> output_data;
     Tensor<gpu, 4> input_grad;
-    //TODO MIOpen does not support Softmax modes. MIOpen implements the SOFTMAX_MODE_CHANNEL flavor.
-    //cudnnSoftmaxMode_t softmax_mode;
-    miopenSoftmaxMode_t softmax_mode;
+      miopenSoftmaxMode_t softmax_mode;
     if (param_.mode == softmax_activation::kInstance) {
       CHECK_EQ(in_grad.ndim(), 2)
         << "Input need to have 2 dimensions when mode=instance.";
@@ -160,18 +150,7 @@ class CuDNNSoftmaxActivationOp {
                                           input_grad.shape_[1],
                                           input_grad.shape_[2],
                                           input_grad.shape_[3]));
-    /*CUDNN_CALL(miopenSoftmaxBackward(s->dnn_handle_,
-                                    //CUDNN_SOFTMAX_ACCURATE,
-                                    //softmax_mode,
-                                    &alpha,
-                                    shape_desc_,
-                                    output_data.dptr_,
-                                    shape_desc_,
-                                    grad.dptr_,
-                                    &beta,
-                                    shape_desc_,
-                                    input_grad.dptr_)); */
-    CUDNN_CALL(miopenSoftmaxBackward_V2(s->dnn_handle_,
+       CUDNN_CALL(miopenSoftmaxBackward_V2(s->dnn_handle_,
                                     &alpha,
                                     shape_desc_,
                                     output_data.dptr_,

@@ -22,9 +22,9 @@ else
 endif
 
 prebuild :
-	#@mkdir -p build
-#	$(shell ./get_data.sh)
-#	$(shell cp -r ../../lib ./)
+	@mkdir -p build
+	$(shell ./get_data.sh)
+	$(shell cp -r ../../lib ./)
 CPPEX_SRC = $(wildcard *.cpp)
 CPPEX_EXE = $(patsubst %.cpp, %, $(CPPEX_SRC))
 

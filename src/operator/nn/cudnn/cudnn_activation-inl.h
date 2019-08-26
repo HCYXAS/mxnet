@@ -29,14 +29,18 @@
 #include <algorithm>
 #include <vector>
 #include "../activation-inl.h"
+#include "../../../common/cuda_utils.h"
 
 namespace mxnet {
 namespace op {
 template<typename DType>
 class CuDNNActivationOp {
+  STATIC_ASSERT_CUDNN_VERSION_GE(5000);
+
  public:
   CuDNNActivationOp() {
     dtype_ = mshadow::DataType<DType>::kCudnnFlag;
+   //nan_prop_ = CUDNN_NOT_PROPAGATE_NAN; //TODO unsupported in MIOpen
     CUDNN_CALL(miopenCreateActivationDescriptor(&desc_));
     CUDNN_CALL(miopenCreateTensorDescriptor(&shape_desc_));
   }
@@ -181,6 +185,7 @@ class CuDNNActivationOp {
   miopenTensorDescriptor_t shape_desc_;
   ActivationParam param_;
   miopenActivationDescriptor_t desc_;
+ //cudnnNanPropagation_t nan_prop_; //TODO unsupported in MIOpen
   double relu_ceil_;
 };  // class CuDNNActivationOp
 }  // namespace op

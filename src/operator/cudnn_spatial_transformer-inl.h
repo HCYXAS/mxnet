@@ -31,7 +31,8 @@
 #include "./spatial_transformer-inl.h"
 namespace mxnet {
 namespace op {
-#if defined(__HIPCC__) && MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 5
+#if defined(__HIPCC__) && MXNET_USE_CUDNN == 1
+STATIC_ASSERT_CUDNN_VERSION_GE(5000);
 template<typename DType>
 class CuDNNSpatialTransformerOp : public Operator {
  public:
@@ -145,10 +146,8 @@ class CuDNNSpatialTransformerOp : public Operator {
                    const std::vector<TBlob> &in_data,
                    const std::vector<TBlob> &out_data) {
     using namespace mshadow;
-    #if CUDNN_MAJOR >= 5
-    //format_ = CUDNN_TENSOR_NCHW;
-    #endif
-    CHECK_EQ(in_data.size(), 2U);
+       //format_ = CUDNN_TENSOR_NCHW; //TODO unsupported in MIOpen
+      CHECK_EQ(in_data.size(), 2U);
     CHECK_EQ(out_data.size(), 3U);
     if (!init_cudnn_) {
       init_cudnn_ = true;
@@ -189,12 +188,10 @@ class CuDNNSpatialTransformerOp : public Operator {
   miopenTensorDescriptor_t in_desc_;
   miopenTensorDescriptor_t out_desc_;
  // cudnnSamplerType_t sampler_;  //TODO unsupported in MIOpen
-  #if CUDNN_MAJOR >= 5
   //cudnnTensorFormat_t format_; //TODO unsupported in MIOpen
-  #endif
-  SpatialTransformerParam param_;
+   SpatialTransformerParam param_;
 };
-#endif  // __HIPCC__ && CUDNN
+#endif  // __HIPCC__ && MXNET_USE_CUDNN
 }  // namespace op
 }  // namespace mxnet
 

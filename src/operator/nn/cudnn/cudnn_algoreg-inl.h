@@ -44,6 +44,7 @@ namespace op {
  */
 template <typename CuDNNAlgoType>
 class CuDNNAlgo {
+
  public:
   CuDNNAlgo() :
       algo_number_(static_cast<CuDNNAlgoType>(0)),
@@ -54,11 +55,9 @@ class CuDNNAlgo {
   }
   CuDNNAlgoType AlgoNumber() const { return algo_number_; }
   bool IsTensorCoreAlgo() const { return is_tensor_core_algo_; }
-/*  #if CUDNN_MAJOR >= 7
-  cudnnMathType_t MathType() {
+/* cudnnMathType_t MathType() {
     return IsTensorCoreAlgo() ? CUDNN_TENSOR_OP_MATH : CUDNN_DEFAULT_MATH;
-  }
-  #endif*/ //TODO Commented as cudnnMathType_t is unsupported in MIOpen
+  } */  //TODO Commented as cudnnMathType_t is unsupported in MIOpen
  private:
   CuDNNAlgoType algo_number_;
   bool is_tensor_core_algo_;

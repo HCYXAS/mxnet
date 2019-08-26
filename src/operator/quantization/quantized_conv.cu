@@ -49,7 +49,8 @@ struct QuantizedBiasAddKernel {
   }
 };
 
-#if MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 6 && CUDA_VERSION >= 8000
+#if MXNET_USE_CUDNN == 1 && CUDA_VERSION >= 8000
+STATIC_ASSERT_CUDNN_VERSION_GE(6000);
 template<typename SrcType, typename DstType, typename CmpType>
 class QuantizedCuDNNConvOp {
  public:
@@ -78,7 +79,7 @@ class QuantizedCuDNNConvOp {
     src_type_ = mshadow::DataType<SrcType>::kCudnnFlag;
     dst_type_ = mshadow::DataType<DstType>::kCudnnFlag;
     cmp_type_ = mshadow::DataType<CmpType>::kCudnnFlag;
-    algo_ = miopenConvolutionFwdAlgoGEMM;//CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_PRECOMP_GEMM;
+    algo_ = miopenConvolutionFwdAlgoGEMM;
     //format_ = CUDNN_TENSOR_NHWC;
     InitDescriptors(in_shape, out_shape);
     GetTempSize(ctx);
@@ -205,26 +206,21 @@ class QuantizedCuDNNConvOp {
                                                param_.stride[1],
                                                1,
                                                1));
-                                               /*CUDNN_CROSS_CORRELATION,
-                                               cmp_type_));*/
-
+                                               
     CUDNN_CALL(miopenSet4dTensorDescriptor(data_desc_,
-                                          //format_,
                                           src_type_,
                                           dshape[N],
                                           dshape[C],
                                           dshape[H],
                                           dshape[W]));
-    CUDNN_CALL(miopenSet4dTensorDescriptor(out_desc_,
-                                          //format_,
+    CUDNN_CALL(miopenSet4dTensorDescriptor(out_desc_,                                          
                                           dst_type_,
                                           oshape[N],
                                           oshape[C],
                                           oshape[H],
                                           oshape[W]));
     CUDNN_CALL(miopenSet4dTensorDescriptor(filter_desc_,
-                                          src_type_,
-                                          //format_,
+                                          src_type_,                                   
                                           kshape[N],
                                           kshape[C],
                                           kshape[H],
@@ -260,7 +256,7 @@ class QuantizedCuDNNConvOp {
   float alpha_ = 1.0f;
   float beta_ = 0.0f;
 };  // class QuantizedCuDNNConvOp
-#endif  // MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 6 && CUDA_VERSION >= 8000
+#endif  // MXNET_USE_CUDNN == 1 && CUDA_VERSION >= 8000
 
 void QuantizedConvForwardGPU(const nnvm::NodeAttrs& attrs,
                              const OpContext& ctx,
@@ -270,7 +266,7 @@ void QuantizedConvForwardGPU(const nnvm::NodeAttrs& attrs,
   const ConvolutionParam& param = nnvm::get<ConvolutionParam>(attrs.parsed);
   CHECK_EQ(param.kernel.ndim(), 2U)
     << "QuantizedConvForward<gpu> only supports 2D convolution for now";
-#if MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 6 && CUDA_VERSION >= 8000
+#if MXNET_USE_CUDNN == 1 && CUDA_VERSION >= 8000
   typedef QuantizedCuDNNConvOp<int8_t, float, int32_t> QuantizedConvOpInt8;
 #if DMLC_CXX11_THREAD_LOCAL
   static thread_local QuantizedConvOpInt8 op;
@@ -282,7 +278,7 @@ void QuantizedConvForwardGPU(const nnvm::NodeAttrs& attrs,
 #else
   LOG(FATAL) << "QuantizedConvForward<gpu> only supports cudnnConvolutionForward "
                 "with CUDNN >= 6.0 and CUDA >= 8.0";
-#endif  // MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 6 && CUDA_VERSION >= 8000
+#endif  // MXNET_USE_CUDNN == 1 && CUDA_VERSION >= 8000
 }
 
 NNVM_REGISTER_OP(_contrib_quantized_conv)

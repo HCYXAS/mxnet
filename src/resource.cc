@@ -443,7 +443,7 @@ void Resource::get_cudnn_dropout_desc(
                                          seed));
   } else {
     // cudnnRestoreDropoutDescriptor() introduced with cuDNN v7
-    STATIC_ASSERT_CUDNN_VERSION_GE(7000);
+    //STATIC_ASSERT_CUDNN_VERSION_GE(7000);
     CUDNN_CALL(cudnnRestoreDropoutDescriptor(*dropout_desc, stream->dnn_handle_,
                                              dropout,
                                              state_space->handle.dptr,

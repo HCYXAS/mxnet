@@ -171,12 +171,12 @@ static std::vector<ResourceRequest> RNNResourceEx(const NodeAttrs& attrs, const 
                                                   const DispatchMode dispatch_mode) {
   std::vector<ResourceRequest> request;
   if (dev_mask == kGPU) {
-#if MXNET_USE_CUDNN_RNN
+#if MXNET_USE_CUDNN == 1
     request.emplace_back(ResourceRequest::kTempSpace);
 
     const RNNParam& param = nnvm::get<RNNParam>(attrs.parsed);
     if (param.p != 0 && 1.0f - param.p > 0) {
-      //request.emplace_back(ResourceRequest::kCuDNNDropoutDesc);
+      //request.emplace_back(ResourceRequest::kCuDNNDropoutDesc); //TODO unsupported in MIOpen
     }
 #endif
   }
