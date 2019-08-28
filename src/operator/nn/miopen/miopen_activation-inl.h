@@ -29,6 +29,7 @@
 #include <algorithm>
 #include <vector>
 #include "../activation-inl.h"
+#include "../../../common/cuda_utils.h"
 
 namespace mxnet {
 namespace op {

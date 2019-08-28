@@ -44,6 +44,7 @@ namespace op {
  */
 template <typename CuDNNAlgoType>
 class CuDNNAlgo {
+
  public:
   CuDNNAlgo() :
       algo_number_(static_cast<CuDNNAlgoType>(0)),

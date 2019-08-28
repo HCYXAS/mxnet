@@ -31,7 +31,8 @@
 #include "./bilinear_sampler-inl.h"
 namespace mxnet {
 namespace op {
-#if defined(__HIPCC__) && MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 5
+#if defined(__HIPCC__) && MXNET_USE_CUDNN == 1
+STATIC_ASSERT_CUDNN_VERSION_GE(5000);
 template<typename DType>
 class CuDNNBilinearSamplerOp : public Operator {
  public:
@@ -132,9 +133,7 @@ class CuDNNBilinearSamplerOp : public Operator {
                    const std::vector<TBlob> &in_data,
                    const std::vector<TBlob> &out_data) {
     using namespace mshadow;
-    #if CUDNN_MAJOR >= 5
     format_ = CUDNN_TENSOR_NCHW;
-    #endif
     CHECK_EQ(in_data.size(), 2U);
     CHECK_EQ(out_data.size(), 2U);
     if (!init_cudnn_) {
@@ -174,9 +173,7 @@ class CuDNNBilinearSamplerOp : public Operator {
   cudnnTensorDescriptor_t in_desc_;
   cudnnTensorDescriptor_t out_desc_;
   cudnnSamplerType_t sampler_;
-  #if CUDNN_MAJOR >= 5
   cudnnTensorFormat_t format_;
-  #endif
   BilinearSamplerParam param_;
 };
 #endif  // __HIPCC__ && CUDNN

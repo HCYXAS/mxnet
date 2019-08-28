@@ -567,7 +567,7 @@ struct BLASEngine<gpu, half::half_t> {
         B_h, ldb, k * n,
         beta_h, C_h, ldc, m * n,
         batch_count);
-      CHECK_EQ(err, HIPBLAS_STATUS_SUCCESS) << "Cublas: HgemmStridedBatched fail";
+      CHECK_EQ(err, HIPBLAS_STATUS_SUCCESS) << "Hipblas: HgemmStridedBatched fail";
       return;
     }
 #endif

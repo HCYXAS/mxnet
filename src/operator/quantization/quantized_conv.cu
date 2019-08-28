@@ -49,12 +49,15 @@ struct QuantizedBiasAddKernel {
   }
 };
 
-#if (MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 6 && CUDA_VERSION >= 8000) || MXNET_USE_MIOPEN == 1
+#if (MXNET_USE_CUDNN == 1 && CUDA_VERSION >= 8000) || MXNET_USE_MIOPEN == 1
+#if (MXNET_USE_CUDNN == 1 )
+STATIC_ASSERT_CUDNN_VERSION_GE(6000);
+#endif
 template<typename SrcType, typename DstType, typename CmpType>
 class QuantizedCuDNNConvOp {
  public:
   QuantizedCuDNNConvOp() {
-#if MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 6
+#if MXNET_USE_CUDNN == 1 
     CUDNN_CALL(cudnnCreateConvolutionDescriptor(&conv_desc_));
     CUDNN_CALL(cudnnCreateTensorDescriptor(&data_desc_));
     CUDNN_CALL(cudnnCreateTensorDescriptor(&out_desc_));
@@ -86,7 +89,7 @@ class QuantizedCuDNNConvOp {
     src_type_ = mshadow::DataType<SrcType>::kCudnnFlag;
     dst_type_ = mshadow::DataType<DstType>::kCudnnFlag;
     cmp_type_ = mshadow::DataType<CmpType>::kCudnnFlag;
-#if MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 6
+#if MXNET_USE_CUDNN == 1 
     algo_ = CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_PRECOMP_GEMM;
     format_ = CUDNN_TENSOR_NHWC;
 #endif
@@ -99,7 +102,7 @@ class QuantizedCuDNNConvOp {
   }
 
   ~QuantizedCuDNNConvOp() {
-#if MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 6
+#if MXNET_USE_CUDNN == 1 
     CUDNN_CALL(cudnnDestroyFilterDescriptor(filter_desc_));
     CUDNN_CALL(cudnnDestroyTensorDescriptor(data_desc_));
     CUDNN_CALL(cudnnDestroyTensorDescriptor(out_desc_));
@@ -168,7 +171,7 @@ class QuantizedCuDNNConvOp {
       // input:  [NHWC](batch, in_height, in_width, in_channels)
       // filter: [HWNC](out_channels, filter_height, filter_width, in_channels)
       // output: [NHWC](batch, out_height, out_width, out_channels)
-#if MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 6
+#if MXNET_USE_CUDNN == 1 
       CUDNN_CALL(cudnnConvolutionForward(s->dnn_handle_,
                                          &alpha_,
                                          data_desc_,
@@ -235,7 +238,7 @@ class QuantizedCuDNNConvOp {
     const mxnet::TShape& dshape =  in_shape[0];
     const mxnet::TShape& kshape =  in_shape[1];
     const mxnet::TShape& oshape = out_shape[0];
-#if MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 6
+#if MXNET_USE_CUDNN == 1
     CUDNN_CALL(cudnnSetConvolution2dDescriptor(conv_desc_,
                                                param_.pad[0],
                                                param_.pad[1],
@@ -301,7 +304,7 @@ class QuantizedCuDNNConvOp {
 
   void GetTempSize(const OpContext& ctx) {
     mshadow::Stream<gpu> *s = ctx.get_stream<gpu>();
-#if MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 6
+#if MXNET_USE_CUDNN == 1 
     CUDNN_CALL(cudnnGetConvolutionForwardWorkspaceSize(s->dnn_handle_,
                                                        data_desc_,
                                                        filter_desc_,
@@ -325,7 +328,7 @@ class QuantizedCuDNNConvOp {
   ConvolutionParam param_;
   size_t workspace_;
   size_t workspace_byte_;
-#if MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 6
+#if MXNET_USE_CUDNN == 1 
   cudnnDataType_t src_type_;
   cudnnDataType_t dst_type_;
   cudnnDataType_t cmp_type_;
@@ -360,7 +363,7 @@ void QuantizedConvForwardGPU(const nnvm::NodeAttrs& attrs,
   const ConvolutionParam& param = nnvm::get<ConvolutionParam>(attrs.parsed);
   CHECK_EQ(param.kernel.ndim(), 2U)
     << "QuantizedConvForward<gpu> only supports 2D convolution for now";
-#if (MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 6 && CUDA_VERSION >= 8000) || MXNET_USE_MIOPEN == 1
+#if (MXNET_USE_CUDNN == 1 &&  CUDA_VERSION >= 8000) || MXNET_USE_MIOPEN == 1
   typedef QuantizedCuDNNConvOp<int8_t, float, int32_t> QuantizedConvOpInt8;
 #if DMLC_CXX11_THREAD_LOCAL
   static thread_local QuantizedConvOpInt8 op;
@@ -372,7 +375,7 @@ void QuantizedConvForwardGPU(const nnvm::NodeAttrs& attrs,
 #else
   LOG(FATAL) << "QuantizedConvForward<gpu> only supports cudnnConvolutionForward "
                 "with CUDNN >= 6.0 and CUDA >= 8.0";
-#endif  // MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 6 && CUDA_VERSION >= 8000
+#endif  // MXNET_USE_CUDNN == 1 &&  CUDA_VERSION >= 8000
 }
 
 NNVM_REGISTER_OP(_contrib_quantized_conv)
