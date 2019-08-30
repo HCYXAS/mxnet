@@ -22,6 +22,7 @@
  * \file c_api_executor.cc
  * \brief C API of mxnet
  */
+#include <unistd.h>
 #include <mxnet/base.h>
 #include <mxnet/c_api.h>
 #include <mxnet/executor.h>
@@ -44,6 +45,7 @@ int MXExecutorPrint(ExecutorHandle handle, const char **out_str) {
 
 int MXExecutorFree(ExecutorHandle handle) {
   API_BEGIN();
+  usleep(200);
   delete static_cast<Executor*>(handle);
   API_END();
 }
