@@ -420,7 +420,7 @@ class RNNOp {
     init_mem_ = false;
     reserve_mem_size_ = 0;
 #endif
-#if MXNET_USE_CUDNN == 1
+#if MXNET_USE_CUDNN == 1  || MXNET_USE_MIOPEN == 1 
     init_cudnn_ = false;
     dtype_ = mshadow::DataType<DType>::kCudnnFlag;
     // TensorCore algos only allowed on fp16-I/O convolutions if permitted by the global policy.
@@ -430,6 +430,7 @@ class RNNOp {
     // cudnn_tensor_core =
     //     mshadow::DataType<DType>::kFlag == mshadow::kFloat16 && GetEnvAllowTensorCore();
     // Defaults
+#if  MXNET_USE_CUDNN == 1 
     input_mode_ = CUDNN_LINEAR_INPUT;  // Don't support this yet
     // RNN Mode
     switch (param_.mode) {
@@ -447,6 +448,27 @@ class RNNOp {
         break;
       default:
         LOG(FATAL) << "Not implmented";
+#endif
+#if MXNET_USE_MIOPEN ==1
+	 // Defaults
+    input_mode_ = miopenRNNlinear;  // Don't support this yet
+    // RNN Mode
+    switch (param_.mode) {
+      case rnn_enum::kRnnRelu:
+        mode_ = miopenRNNRELU;
+        break;
+      case rnn_enum::kRnnTanh:
+        mode_ = miopenRNNTANH;
+        break;
+      case rnn_enum::kLstm:
+        mode_ = miopenLSTM;
+        break;
+      case rnn_enum::kGru:
+        mode_ = miopenGRU;
+        break;
+      default:
+        LOG(FATAL) << "Not implmented";
+#endif	
     }
 #if MXNET_USE_CUDNN_GE_7200
     if (param_.projection_size.has_value()) {
@@ -474,6 +496,7 @@ class RNNOp {
           && !param_.lstm_state_clip_max.has_value())
       << "State clipping is only supported for LSTM with CuDNN version later than 7.2.1.";
 #endif  // MXNET_USE_CUDNN_GE_7200
+#if  MXNET_USE_CUDNN == 1 
     // RNN Direction
     direction_ = param_.bidirectional ? CUDNN_BIDIRECTIONAL : CUDNN_UNIDIRECTIONAL;
     // Create descriptors
@@ -491,7 +514,25 @@ class RNNOp {
 
     CUDNN_CALL(cudnnCreateRNNDescriptor(&rnn_desc_));
     CUDNN_CALL(cudnnCreateDropoutDescriptor(&dropout_desc_));
+#endif
+#if MXNET_USE_MIOPEN ==1
+     direction_ = param_.bidirectional ? miopenRNNbidirection : miopenRNNunidirection;
+    // Create descriptors
+    MIOPEN_CALL(miopenCreateTensorDescriptor(&hx_desc_));
+    MIOPEN_CALL(miopenCreateTensorDescriptor(&cx_desc_));
+    MIOPEN_CALL(miopenCreateTensorDescriptor(&hy_desc_));
+    MIOPEN_CALL(miopenCreateTensorDescriptor(&cy_desc_));
+    MIOPEN_CALL(miopenCreateTensorDescriptor(&dhx_desc_));
+    MIOPEN_CALL(miopenCreateTensorDescriptor(&dcx_desc_));
+    MIOPEN_CALL(miopenCreateTensorDescriptor(&dhy_desc_));
+    MIOPEN_CALL(miopenCreateTensorDescriptor(&dcy_desc_));
 
+    MIOPEN_CALL(miopenCreateTensorDescriptor(&w_desc_));
+    MIOPEN_CALL(miopenCreateTensorDescriptor(&dw_desc_));
+
+    MIOPEN_CALL(miopenCreateRNNDescriptor(&rnn_desc_));
+
+#endif
 #if MXNET_USE_CUDNN_GE_7200
     CUDNN_CALL(cudnnCreateRNNDataDescriptor(&x_data_desc_));
     CUDNN_CALL(cudnnCreateRNNDataDescriptor(&y_data_desc_));
@@ -527,7 +568,8 @@ class RNNOp {
       init_mem_ = false;
     }
 #endif  // MXNET_USE_MKLDNN
-#if MXNET_USE_CUDNN == 1
+#if MXNET_USE_CUDNN == 1 || MXNET_USE_MIOPEN ==1 
+#if MXNET_USE_CUDNN ==1     
     CUDNN_CALL(cudnnDestroyTensorDescriptor(hx_desc_));
     CUDNN_CALL(cudnnDestroyTensorDescriptor(cx_desc_));
     CUDNN_CALL(cudnnDestroyTensorDescriptor(hy_desc_));
@@ -541,13 +583,35 @@ class RNNOp {
     CUDNN_CALL(cudnnDestroyFilterDescriptor(dw_desc_));
     CUDNN_CALL(cudnnDestroyRNNDescriptor(rnn_desc_));
     CUDNN_CALL(cudnnDestroyDropoutDescriptor(dropout_desc_));
+#endif
+#if MXNET_USE_MIOPEN ==1
+    MIOPEN_CALL(miopenDestroyTensorDescriptor(hx_desc_));
+    MIOPEN_CALL(miopenDestroyTensorDescriptor(cx_desc_));
+    MIOPEN_CALL(miopenDestroyTensorDescriptor(hy_desc_));
+    MIOPEN_CALL(miopenDestroyTensorDescriptor(cy_desc_));
+    MIOPEN_CALL(miopenDestroyTensorDescriptor(dhx_desc_));
+    MIOPEN_CALL(miopenDestroyTensorDescriptor(dcx_desc_));
+    MIOPEN_CALL(miopenDestroyTensorDescriptor(dhy_desc_));
+    MIOPEN_CALL(miopenDestroyTensorDescriptor(dcy_desc_));
 
+    MIOPEN_CALL(miopenDestroyTensorDescriptor(w_desc_));
+    MIOPEN_CALL(miopenDestroyTensorDescriptor(dw_desc_));
+    MIOPEN_CALL(miopenDestroyRNNDescriptor(rnn_desc_));
+#endif     
     if (init_cudnn_) {
       for (size_t i = 0; i < x_desc_vec_.size(); ++i) {
-        CUDNN_CALL(cudnnDestroyTensorDescriptor(x_desc_vec_[i]));
+#if MXNET_USE_CUDNN ==1        
+	CUDNN_CALL(cudnnDestroyTensorDescriptor(x_desc_vec_[i]));
         CUDNN_CALL(cudnnDestroyTensorDescriptor(y_desc_vec_[i]));
         CUDNN_CALL(cudnnDestroyTensorDescriptor(dx_desc_vec_[i]));
         CUDNN_CALL(cudnnDestroyTensorDescriptor(dy_desc_vec_[i]));
+#endif
+#if MXNET_USE_MIOPEN ==1
+	MIOPEN_CALL(miopenDestroyTensorDescriptor(x_desc_vec_[i]));
+        MIOPEN_CALL(miopenDestroyTensorDescriptor(y_desc_vec_[i]));
+        MIOPEN_CALL(miopenDestroyTensorDescriptor(dx_desc_vec_[i]));
+        MIOPEN_CALL(miopenDestroyTensorDescriptor(dy_desc_vec_[i]));
+#endif	
       }
       init_cudnn_ = false;
       Storage::Get()->Free(reserve_space_);
@@ -672,7 +736,7 @@ class RNNOp {
     CHECK_EQ(hx.CheckContiguous(), true);
     CHECK_EQ(y.CheckContiguous(), true);
 
-#if MXNET_USE_CUDNN == 1 && defined(__HIPCC__)
+#if (MXNET_USE_CUDNN == 1 || MXNET_USE_MIOPEN ==1 ) && defined(__HIPCC__)
     if (!init_cudnn_) {
       Init(ctx, s, in_data, out_data);
     }
@@ -699,7 +763,7 @@ class RNNOp {
       }
       layout_t = CUDNN_RNN_DATA_LAYOUT_SEQ_MAJOR_PACKED;
     }
-
+#if MXNET_USE_CUDNN == 1
     CUDNN_CALL(cudnnSetRNNDataDescriptor(x_data_desc_,
                                          dtype_,
                                          layout_t,
@@ -708,9 +772,11 @@ class RNNOp {
                                          param_.input_size_,
                                          sequence_length_cpu_int,
                                          reinterpret_cast<void*>(&padding_fill_)));
+#endif
     int out_size =
       (param_.projection_size.has_value()) ? param_.projection_size.value() : param_.state_size;
     out_size = (param_.bidirectional) ? (out_size * 2) : out_size;
+#if MXNET_USE_CUDNN == 1 
     CUDNN_CALL(cudnnSetRNNDataDescriptor(y_data_desc_,
                                          dtype_,
                                          layout_t,
@@ -719,8 +785,10 @@ class RNNOp {
                                          out_size,
                                          sequence_length_cpu_int,
                                          reinterpret_cast<void*>(&padding_fill_)));
+#endif
     if (ctx.is_train) {
-      CUDNN_CALL(cudnnSetRNNDataDescriptor(dx_data_desc_,
+#if MXNET_USE_CUDNN == 1     
+	    CUDNN_CALL(cudnnSetRNNDataDescriptor(dx_data_desc_,
                                            dtype_,
                                            layout_t,
                                            param_.seq_length_,
@@ -736,16 +804,19 @@ class RNNOp {
                                            out_size,
                                            sequence_length_cpu_int,
                                            reinterpret_cast<void*>(&padding_fill_)));
+#endif
     }
 
     bool clip_state = param_.lstm_state_clip_min.has_value();
     bool clip_nan = param_.lstm_state_clip_nan;
+#if MXNET_USE_CUDNN == 1    
     CUDNN_CALL(cudnnRNNSetClip(s->dnn_handle_,
                                rnn_desc_,
                                clip_state ? CUDNN_RNN_CLIP_MINMAX : CUDNN_RNN_CLIP_NONE,
                                clip_nan ? CUDNN_NOT_PROPAGATE_NAN : CUDNN_PROPAGATE_NAN,
                                clip_state ? param_.lstm_state_clip_min.value() : 0.0,
                                clip_state ? param_.lstm_state_clip_max.value() : 0.0));
+#endif    
 #endif  // MXNET_USE_CUDNN_GE_7200
 
     if (ctx.is_train) {
@@ -779,6 +850,7 @@ class RNNOp {
                                            reserve_space_.dptr,
                                            reserve_space_byte_));
 #else
+#if MXNET_USE_CUDNN == 1      
       CUDNN_CALL(cudnnRNNForwardTraining(s->dnn_handle_,
                                          rnn_desc_,
                                          param_.seq_length_,
@@ -800,6 +872,32 @@ class RNNOp {
                                          workspace_byte_,
                                          reserve_space_.dptr,
                                          reserve_space_byte_));
+#endif      
+#if MXNET_USE_MIOPEN == 1
+       MIOPEN_CALL(miopenRNNForwardTraining(s->dnn_handle_,
+                                         rnn_desc_,
+                                         param_.seq_length_,
+                                         x_desc_vec_.data(),
+                                         x.dptr_,
+                                         hx_desc_,
+                                         hx.dptr_,
+                                         cx_desc_,
+                                         cx_ptr,
+                                         w_desc_,
+                                         w.dptr_,
+                                         y_desc_vec_.data(),
+                                         y.dptr_,
+                                         hy_desc_,
+                                         hy_ptr,
+                                         cy_desc_,
+                                         cy_ptr,
+                                         temp_space.dptr_,
+                                         workspace_byte_,
+                                         reserve_space_.dptr,
+                                         reserve_space_byte_));
+
+#endif
+
 #endif  // MXNET_USE_CUDNN_GE_7200
     } else {
 #if MXNET_USE_CUDNN_GE_7200
@@ -830,6 +928,7 @@ class RNNOp {
                                             temp_space.dptr_,
                                             workspace_byte_));
 #else
+#if MXNET_USE_CUDNN == 1      
       CUDNN_CALL(cudnnRNNForwardInference(s->dnn_handle_,
                                           rnn_desc_,
                                           param_.seq_length_,
@@ -849,6 +948,30 @@ class RNNOp {
                                           cy_ptr,
                                           temp_space.dptr_,
                                           workspace_byte_));
+#endif 
+#if MXNET_USE_MIOPEN == 1
+ MIOPEN_CALL(miopenRNNForwardInference(s->dnn_handle_,
+                                          rnn_desc_,
+                                          param_.seq_length_,
+                                          x_desc_vec_.data(),
+                                          x.dptr_,
+                                          hx_desc_,
+                                          hx.dptr_,
+                                          cx_desc_,
+                                          cx_ptr,
+                                          w_desc_,
+                                          w.dptr_,
+                                          y_desc_vec_.data(),
+                                          y.dptr_,
+                                          hy_desc_,
+                                          hy_ptr,
+                                          cy_desc_,
+                                          cy_ptr,
+                                          temp_space.dptr_,
+                                          workspace_byte_));
+
+#endif
+
 #endif  // MXNET_USE_CUDNN_GE_7200
     }
 #endif  // MXNET_USE_CUDNN == 1 && defined(__HIPCC__)
@@ -1060,7 +1183,7 @@ class RNNOp {
         dcy_ptr = (out_grad[rnn_enum::kStateCellOut].get<xpu, 3, DType>(s)).dptr_;
     }
 
-    #if MXNET_USE_CUDNN == 1 && defined(__HIPCC__)
+#if (MXNET_USE_CUDNN == 1 || MXNET_USE_MIOPEN ==1 )  && defined(__HIPCC__)
     if (!init_cudnn_) {
       Init(ctx, s, in_data, out_data);
     }
@@ -1117,6 +1240,7 @@ class RNNOp {
                                          reserve_space_.dptr,
                                          reserve_space_byte_));
 #else
+#if MXNET_USE_CUDNN == 1    
     CUDNN_CALL(cudnnRNNBackwardData(s->dnn_handle_,
                                     rnn_desc_,
                                     param_.seq_length_,
@@ -1159,6 +1283,51 @@ class RNNOp {
                                        dw.dptr_,
                                        reserve_space_.dptr,
                                        reserve_space_byte_));
+#endif
+#if MXNET_USE_MIOPEN == 1
+    MIOPEN_CALL(miopenRNNBackwardData(s->dnn_handle_,
+                                    rnn_desc_,
+                                    param_.seq_length_,
+                                    y_desc_vec_.data(),
+                                    y.dptr_,
+                                    dy_desc_vec_.data(),
+                                    dy.dptr_,
+                                    dhy_desc_,
+                                    dhy_ptr,
+                                    dcy_desc_,
+                                    dcy_ptr,
+                                    w_desc_,
+                                    w.dptr_,
+                                    hx_desc_,
+                                    hx.dptr_,
+                                    cx_desc_,
+                                    cx_ptr,
+                                    dx_desc_vec_.data(),
+                                    dx.dptr_,
+                                    dhx_desc_,
+                                    dhx.dptr_,
+                                    dcx_desc_,
+                                    dcx_ptr,
+                                    temp_space.dptr_,
+                                    workspace_byte_,
+                                    reserve_space_.dptr,
+                                    reserve_space_byte_));
+ MIOPEN_CALL(miopenRNNBackwardWeights(s->dnn_handle_,
+                                       rnn_desc_,
+                                       param_.seq_length_,
+                                       x_desc_vec_.data(),
+                                       x.dptr_,
+                                       hx_desc_,
+                                       hx.dptr_,
+                                       y_desc_vec_.data(),
+                                       y.dptr_,
+                                       dw_desc_,
+                                       dw.dptr_,
+                                       temp_space.dptr_,
+                                       workspace_byte_,
+                                       reserve_space_.dptr,
+                                       reserve_space_byte_))
+#endif    
 #endif  // MXNET_USE_CUDNN_GE_7200
 #endif  // MXNET_USE_CUDNN == 1 && defined(__HIPCC__)
 
@@ -1229,9 +1398,10 @@ class RNNOp {
     CHECK_EQ(in_data.size(), num_inputs);
     CHECK_EQ(out_data.size(), num_outputs);
 
-#if MXNET_USE_CUDNN == 1 && defined(__HIPCC__)
+#if (MXNET_USE_CUDNN == 1  || MXNET_USE_MIOPEN ==1 ) && defined(__HIPCC__)
+#if MXNET_USE_CUDNN == 1
     format_ = CUDNN_TENSOR_NCHW;
-
+#endif
     if (!init_cudnn_) {
       init_cudnn_ = true;
       // get input + output tensors
@@ -1240,27 +1410,42 @@ class RNNOp {
       param_.seq_length_ = x.shape_[0];
       param_.batch_size_ = x.shape_[1];
       param_.input_size_ = x.shape_[2];
-
+#if MXNET_USE_CUDNN == 1
       // Tensor Descriptors
       std::vector<cudnnTensorDescriptor_t> x_vec(param_.seq_length_);
       std::vector<cudnnTensorDescriptor_t> y_vec(param_.seq_length_);
       std::vector<cudnnTensorDescriptor_t> dx_vec(param_.seq_length_);
       std::vector<cudnnTensorDescriptor_t> dy_vec(param_.seq_length_);
+#endif
+#if MXNET_USE_MIOPEN == 1
+      std::vector<miopenTensorDescriptor_t> x_vec(param_.seq_length_);
+      std::vector<miopenTensorDescriptor_t> y_vec(param_.seq_length_);
+      std::vector<miopenTensorDescriptor_t> dx_vec(param_.seq_length_);
+      std::vector<miopenTensorDescriptor_t> dy_vec(param_.seq_length_);
+#endif      
       int dimA[3];
       int strideA[3];
       for (int i = 0; i < param_.seq_length_; i++) {
+#if MXNET_USE_CUDNN == 1	      
         CUDNN_CALL(cudnnCreateTensorDescriptor(&x_vec[i]));
         CUDNN_CALL(cudnnCreateTensorDescriptor(&y_vec[i]));
         CUDNN_CALL(cudnnCreateTensorDescriptor(&dx_vec[i]));
         CUDNN_CALL(cudnnCreateTensorDescriptor(&dy_vec[i]));
+#endif
+#if MXNET_USE_MIOPEN == 1
+	MIOPEN_CALL(miopenCreateTensorDescriptor(&x_vec[i]));
+        MIOPEN_CALL(miopenCreateTensorDescriptor(&y_vec[i]));
+        MIOPEN_CALL(miopenCreateTensorDescriptor(&dx_vec[i]));
+        MIOPEN_CALL(miopenCreateTensorDescriptor(&dy_vec[i]));
 
+#endif 	
         dimA[0] = param_.batch_size_;
         dimA[1] = param_.input_size_;
         dimA[2] = 1;
         strideA[0] = dimA[2] * dimA[1];
         strideA[1] = dimA[2];
         strideA[2] = 1;
-
+#if MXNET_USE_CUDNN == 1 
         CUDNN_CALL(cudnnSetTensorNdDescriptor(x_vec[i],
                                               dtype_,
                                               3,
@@ -1271,13 +1456,14 @@ class RNNOp {
                                               3,
                                               dimA,
                                               strideA));
+#endif	
         dimA[0] = param_.batch_size_;
         dimA[1] = param_.bidirectional ? param_.state_size * 2 : param_.state_size;
         dimA[2] = 1;
         strideA[0] = dimA[2] * dimA[1];
         strideA[1] = dimA[2];
         strideA[2] = 1;
-
+#if MXNET_USE_CUDNN == 1 
         CUDNN_CALL(cudnnSetTensorNdDescriptor(y_vec[i],
                                               dtype_,
                                               3,
@@ -1288,6 +1474,7 @@ class RNNOp {
                                               3,
                                               dimA,
                                               strideA));
+#endif 	
       }
       x_desc_vec_ = x_vec;
       y_desc_vec_ = y_vec;
@@ -1319,17 +1506,21 @@ class RNNOp {
                                             dimB,
                                             strideB));
 #else
+#if MXNET_USE_CUDNN == 1       
       CUDNN_CALL(cudnnSetTensorNdDescriptor(hx_desc_,
                                             dtype_,
                                             3,
                                             dimA,
                                             strideA));
+#endif      
 #endif  // MXNET_USE_CUDNN_GE_7200
+#if MXNET_USE_CUDNN == 1      
       CUDNN_CALL(cudnnSetTensorNdDescriptor(cx_desc_,
                                             dtype_,
                                             3,
                                             dimA,
                                             strideA));
+#endif      
 #if MXNET_USE_CUDNN_GE_7200
       CUDNN_CALL(cudnnSetTensorNdDescriptor(hy_desc_,
                                             dtype_,
@@ -1337,17 +1528,21 @@ class RNNOp {
                                             dimB,
                                             strideB));
 #else
+#if MXNET_USE_CUDNN == 1      
       CUDNN_CALL(cudnnSetTensorNdDescriptor(hy_desc_,
                                             dtype_,
                                             3,
                                             dimA,
                                             strideA));
+#endif
 #endif  // MXNET_USE_CUDNN_GE_7200
+#if MXNET_USE_CUDNN == 1      
       CUDNN_CALL(cudnnSetTensorNdDescriptor(cy_desc_,
                                             dtype_,
                                             3,
                                             dimA,
                                             strideA));
+#endif
 #if MXNET_USE_CUDNN_GE_7200
       CUDNN_CALL(cudnnSetTensorNdDescriptor(dhx_desc_,
                                             dtype_,
@@ -1355,17 +1550,21 @@ class RNNOp {
                                             dimB,
                                             strideB));
 #else
+#if MXNET_USE_CUDNN == 1      
       CUDNN_CALL(cudnnSetTensorNdDescriptor(dhx_desc_,
                                             dtype_,
                                             3,
                                             dimA,
                                             strideA));
+#endif      
 #endif  // MXNET_USE_CUDNN_GE_7200
+#if MXNET_USE_CUDNN == 1  
       CUDNN_CALL(cudnnSetTensorNdDescriptor(dcx_desc_,
                                             dtype_,
                                             3,
                                             dimA,
                                             strideA));
+#endif
 #if MXNET_USE_CUDNN_GE_7200
       CUDNN_CALL(cudnnSetTensorNdDescriptor(dhy_desc_,
                                             dtype_,
@@ -1373,34 +1572,47 @@ class RNNOp {
                                             dimB,
                                             strideB));
 #else
+#if MXNET_USE_CUDNN == 1     
       CUDNN_CALL(cudnnSetTensorNdDescriptor(dhy_desc_,
                                             dtype_,
                                             3,
                                             dimA,
                                             strideA));
+#endif
 #endif  // MXNET_USE_CUDNN_GE_7200
+#if MXNET_USE_CUDNN == 1    
       CUDNN_CALL(cudnnSetTensorNdDescriptor(dcy_desc_,
                                             dtype_,
                                             3,
                                             dimA,
                                             strideA));
-
+#endif
       // Create Dropout descriptors
       if (param_.p > 0) {
+#if MXNET_USE_CUDNN == 1	      
          ctx.requested[rnn_enum::kCuDNNDropoutDescSpace].get_cudnn_dropout_desc
             (&dropout_desc_, s, 1.0f - param_.p, seed_);
+#endif	 
       }
+
       // Only update the probability by passing in a null dropout_states ptr
       DType* dropout_states = NULL;
       size_t dropout_bytes = 0;
+#if MXNET_USE_CUDNN == 1
       CUDNN_CALL(cudnnSetDropoutDescriptor(dropout_desc_, s->dnn_handle_,
                                            param_.p,  // discard probability
                                            dropout_states, dropout_bytes,
                                            seed_));
-
+#endif
+#if MXNET_USE_CUDNN == 1      
       // RNN descriptors
       cudnnDataType_t dtype_with_fallback_;
       cudnnRNNAlgo_t rnn_algo = CUDNN_RNN_ALGO_STANDARD;
+#endif
+#if MXNET_USE_MIOPEN ==1
+      miopenDataType_t dtype_with_fallback_;
+      miopenRNNAlgo_t rnn_algo = miopenRNNdefault;
+#endif      
       // On arch's 50 and 52(Maxwell), the gpu doesn't support native fp16 compute.
       // Before cuDNN 7.5.0, when running fp16, cuDNN fallback to fp32 under the hood on Maxwell.
       // That's not the case begining from 7.5.0. Thereby adding fallback explicitly here.
@@ -1413,6 +1625,7 @@ class RNNOp {
 #else
         dtype_with_fallback_ = dtype_;
 #endif
+#if MXNET_USE_CUDNN == 1 	
       CUDNN_CALL(cudnnSetRNNDescriptor_v6(s->dnn_handle_,
                                           rnn_desc_,
                                           param_.state_size,
@@ -1434,18 +1647,23 @@ class RNNOp {
       }
 #endif
       CUDNN_CALL(cudnnSetRNNMatrixMathType(rnn_desc_, math_type));
+#endif      
 #if MXNET_USE_CUDNN_GE_7200
       if (param_.projection_size.has_value()) {
+#if MXNET_USE_CUDNN == 1	      
         CUDNN_CALL(cudnnSetRNNProjectionLayers(s->dnn_handle_,
                                                rnn_desc_,
                                                param_.projection_size.value(),
                                                0));
+#endif	
       }
       if (param_.use_sequence_length) {
+#if MXNET_USE_CUDNN == 1	      
         CUDNN_CALL(cudnnSetRNNPaddingMode(rnn_desc_, CUDNN_RNN_PADDED_IO_ENABLED));
+#endif	
       }
 #endif  // MXNET_USE_CUDNN_GE_7200
-
+#if MXNET_USE_CUDNN == 1
       // Get temp space sizes
       CUDNN_CALL(cudnnGetRNNWorkspaceSize(s->dnn_handle_,
                                           rnn_desc_,
@@ -1457,20 +1675,46 @@ class RNNOp {
                                                 param_.seq_length_,
                                                 x_desc_vec_.data(),
                                                 &reserve_space_byte_));
+#endif
+#if MXNET_USE_MIOPEN ==1
+      MIOPEN_CALL(miopenGetRNNWorkspaceSize(s->dnn_handle_,
+                                          rnn_desc_,
+                                          param_.seq_length_,
+                                          x_desc_vec_.data(),
+                                          &workspace_byte_));
+      MIOPEN_CALL(miopenGetRNNTrainingReserveSize(s->dnn_handle_,
+                                                rnn_desc_,
+                                                param_.seq_length_,
+                                                x_desc_vec_.data(),
+                                                &reserve_space_byte_));
+
+#endif      
       workspace_size_ = workspace_byte_ / sizeof(DType);
       // Allocate the reserve space
       reserve_space_ = Storage::Get()->Alloc(reserve_space_byte_, Context::GPU(s->dev_id));
       // Check that number of params are correct
       size_t cudnn_param_size;
+#if MXNET_USE_CUDNN == 1
+      
       CUDNN_CALL(cudnnGetRNNParamsSize(s->dnn_handle_,
                                        rnn_desc_,
                                        x_desc_vec_[0],
                                        &cudnn_param_size,
                                        dtype_));
+#endif 
+#if MXNET_USE_MIOPEN ==1
+      MIOPEN_CALL(miopenGetRNNParamsSize(s->dnn_handle_,
+                                       rnn_desc_,
+                                       x_desc_vec_[0],
+                                       &cudnn_param_size,
+                                       dtype_));
+
+#endif      
       CHECK_EQ(w.shape_[0] * sizeof(DType), cudnn_param_size);
       // Set param descriptors
       int dim_w[3] = {1, 1, 1};
       dim_w[0] = w.shape_[0];
+#if MXNET_USE_CUDNN == 1       
       CUDNN_CALL(cudnnSetFilterNdDescriptor(w_desc_,
                                             dtype_,
                                             format_,
@@ -1481,7 +1725,7 @@ class RNNOp {
                                             format_,
                                             3,
                                             dim_w));
-
+#endif
       // Query weight layout
       // cudnnFilterDescriptor_t m_desc;
       // CHECK_EQ(cudnnCreateFilterDescriptor(&m_desc), CUDNN_STATUS_SUCCESS);
@@ -1548,6 +1792,29 @@ class RNNOp {
 
   cudnnTensorFormat_t format_;
 #endif  // MXNET_USE_CUDNN
+#if MXNET_USE_MIOPEN == 1
+  miopenDataType_t dtype_;
+  bool init_cudnn_;
+  miopenRNNDescriptor_t rnn_desc_;
+  miopenRNNMode_t mode_;
+  miopenRNNDirectionMode_t direction_;
+  miopenRNNInputMode_t input_mode_;
+  Storage::Handle reserve_space_;
+  uint64_t seed_ = 17 + rand() % 4096;  // NOLINT(runtime/threadsafe_fn)
+  size_t workspace_byte_, reserve_space_byte_;
+  int workspace_size_;
+  std::vector<miopenTensorDescriptor_t> x_desc_vec_, y_desc_vec_, dx_desc_vec_, dy_desc_vec_;
+  miopenTensorDescriptor_t hx_desc_, cx_desc_;
+  miopenTensorDescriptor_t hy_desc_, cy_desc_;
+  miopenTensorDescriptor_t dhx_desc_, dcx_desc_;
+  miopenTensorDescriptor_t dhy_desc_, dcy_desc_;
+
+  miopenTensorDescriptor_t w_desc_, dw_desc_;
+  // Allow TensorCore algo policy
+  bool cudnn_tensor_core_;
+
+#endif
+
   bool init_space_, temp_init_space_;
   size_t reserve_cpu_space_size_, temp_cpu_space_size_;
   Storage::Handle reserve_cpu_space_, temp_cpu_space_;

@@ -23,19 +23,18 @@
  * \brief
  * \author Sebastian Bodenstein
 */
-#if defined(__HIP_PLATFORM_NVCC__)
+
 #include "./rnn-inl.h"
-#endif
 #include <algorithm>
+
 namespace mxnet {
 namespace op {
-#if defined(__HIP_PLATFORM_NVCC__)
+
 
 NNVM_REGISTER_OP(RNN)
 .set_attr<FStatefulCompute>("FStatefulCompute<gpu>", RNNStatefulCompute<gpu>);
 
 NNVM_REGISTER_OP(_backward_RNN)
 .set_attr<FStatefulCompute>("FStatefulCompute<gpu>", RNNStatefulGradCompute<gpu>);
-#endif
 }  // namespace op
 }  // namespace mxnet

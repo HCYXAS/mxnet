@@ -25,15 +25,12 @@
 */
 
 #include <iterator>
-#if defined(__HIP_PLATFORM_NVCC__)
+
 #include "./rnn-inl.h"
-#endif
-
-
 
 namespace mxnet {
 namespace op {
-#if defined(__HIP_PLATFORM_NVCC__)
+
 DMLC_REGISTER_PARAMETER(RNNParam);
 static inline std::vector<std::string> ListArguments(const RNNParam& param_) {
   // All RNNs start off with same 3 input arguments
@@ -637,6 +634,7 @@ static void RNNStatefulComputeCPU(const OpStatePtr& state_ptr,
 #endif
 
 NNVM_REGISTER_OP(RNN)
+.add_alias("_npx_rnn")
 .describe(R"code(Applies recurrent layers to input data. Currently, vanilla RNN, LSTM and GRU are
 implemented, with both multi-layer and bidirectional support.
 
@@ -744,6 +742,5 @@ NNVM_REGISTER_OP(_backward_RNN)
 .set_attr<nnvm::TIsBackward>("TIsBackward", true)
 .set_attr<FStatefulCompute>("FStatefulCompute<cpu>", RNNStatefulGradCompute<cpu>)
 .set_attr<FResourceRequestEx>("FResourceRequestEx", RNNResourceEx);
-#endif
 }  // namespace op
 }  // namespace mxnet
