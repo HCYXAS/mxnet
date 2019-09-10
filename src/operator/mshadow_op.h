@@ -40,7 +40,6 @@
 namespace mxnet {
 namespace op {
 namespace mshadow_op {
-//#ifdef __CUDA_ARCH__
 #if __HIP_DEVICE_COMPILE__
 __constant__ const float PI = 3.14159265358979323846;
 __constant__ const float SELU_ALPHA = 1.6732632423543772848170429916717;

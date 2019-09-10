@@ -184,7 +184,7 @@ class CuDNNBatchNormOp {
 
 /*#if CUDNN_VERSION >= 7002
     auto mode = CUDNN_BATCHNORM_SPATIAL_PERSISTENT;
-#else*/
+#else*/ //TODO unsupported in MIOpen
     auto mode = miopenBNSpatial;
 //#endif
     MSHADOW_REAL_TYPE_SWITCH(dtype_param_, DTypeParam, {

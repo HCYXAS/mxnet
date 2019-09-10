@@ -26,12 +26,10 @@
 */
 #ifndef MXNET_OPERATOR_TENSOR_INDEXING_OP_CUH_
 #define MXNET_OPERATOR_TENSOR_INDEXING_OP_CUH_
-//#include <cub/device/device_run_length_encode.cuh>
-//#include <cub/device/device_scan.cuh>
+#include <hipcub/hipcub.hpp>
 #include "../mxnet_op.h"
 #include "../mshadow_op.h"
 #include "./util/tensor_util-inl.cuh"
-#include <hipcub/hipcub.hpp>
 
 #if defined(__HIP_PLATFORM_NVCC__) && CUDA_VERSION >= 9000
 #define FULLMASK 0xFFFFFFFF

@@ -50,7 +50,6 @@ class StorageImpl : public Storage {
   static int num_gpu_device;
 #endif  // MXNET_USE_GPU
 
-
   // internal storage managers
   std::array<common::LazyAllocArray<storage::StorageManager>,
              kMaxNumberOfDevices> storage_managers_;

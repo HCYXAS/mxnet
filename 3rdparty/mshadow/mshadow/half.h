@@ -21,7 +21,6 @@
 #if defined MSHADOW_USE_GPU && (defined(__HIP_PLATFORM_HCC__) || (defined(__HIP_PLATFORM_NVCC__) && ( CUDA_VERSION >= 7050)))
   #define MSHADOW_CUDA_HALF 1
   #include <hip/hip_fp16.h>
-  //#if defined(__CUDA_ARCH__)
   #if __HIP_DEVICE_COMPILE__
     /*! \brief __half2float_warp */
     __host__ __device__ static float __half2float_warp(const volatile __half& h) { /* NOLINT(*) */
@@ -69,7 +68,6 @@ namespace half {
     return *this = half_t(float(*this) OP float(a));  /* NOLINT(*)*/      \
   }
 
-//#if (MSHADOW_CUDA_HALF && defined(__CUDA_ARCH__))
 #if (MSHADOW_CUDA_HALF && defined(__HIP_DEVICE_COMPILE__))
 #define MSHADOW_HALF_CONVERSIONOP(T)                                      \
   MSHADOW_XINLINE operator T() const {                                    \
@@ -325,7 +323,6 @@ class MSHADOW_ALIGNED(2) half_t {
 
   template<typename T>
   MSHADOW_XINLINE void constructor(const T& value) {
-//#if (MSHADOW_CUDA_HALF && defined(__CUDA_ARCH__))
 #if (MSHADOW_CUDA_HALF && defined(__HIP_DEVICE_COMPILE__))
     cuhalf_ = __float2half(float(value));  // NOLINT(*)
 #elif(MSHADOW_USE_F16C)

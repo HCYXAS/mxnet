@@ -44,11 +44,11 @@ struct ResourceRequest {
     kTempSpace,
     /*! \brief common::RandGenerator<xpu> object, which can be used in GPU kernel functions */
     kParallelRandom
-#if MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 7
+#if MXNET_USE_CUDNN == 1
     ,
     /*! \brief cudnnDropoutDescriptor_t object for GPU dropout kernel functions */
     kCuDNNDropoutDesc
-#endif  // MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 7
+#endif  // MXNET_USE_CUDNN == 1
   };
   /*! \brief type of resources */
   Type type;
@@ -162,7 +162,7 @@ struct Resource {
         reinterpret_cast<DType*>(get_space_internal(shape.Size() * sizeof(DType))),
         shape, shape[ndim - 1], stream);
   }
-#if MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 7
+#if MXNET_USE_CUDNN == 1
   /*!
    * \brief Get cudnn dropout descriptor from shared state space.
    *
@@ -170,12 +170,12 @@ struct Resource {
    * \param stream the stream of retruning tensor.
    * \return the mshadow tensor requested.
    */
-  void get_cudnn_dropout_desc(
-      cudnnDropoutDescriptor_t* dropout_desc,
+  /*void get_cudnn_dropout_desc(
+      cudnnDropoutDescriptor_t* dropout_desc, //TODO unsupported in MIOpen
       mshadow::Stream<gpu> *stream,
       const float dropout,
-      uint64_t seed) const;
-#endif  // MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 7
+      uint64_t seed) const;*/
+#endif  // MXNET_USE_CUDNN == 1
 
   /*!
    * \brief Get CPU space as mshadow Tensor in specified type.
