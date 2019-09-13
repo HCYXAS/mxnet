@@ -514,7 +514,6 @@ struct BLASEngine<gpu, half::half_t> {
                           const half::half_t *A, int lda,
                           const half::half_t *B, int ldb, half::half_t beta,
                           half::half_t *C, int ldc) {
-//#if defined(CUDA_VERSION) && CUDA_VERSION >= 7050
 #if defined(__HIP_PLATFORM_HCC__) || (defined(__HIP_PLATFORM_NVCC__) && CUDA_VERSION >= 7050)
   // Always use pseudo-fp16: fp32 compute with fp16 I/O.
   float alpha_f = float(alpha);  // NOLINT(*)

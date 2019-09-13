@@ -464,7 +464,7 @@ inline cublasMath_t SetCublasMathMode(hipblasHandle_t blas_handle, cublasMath_t 
   HIPBLAS_CALL(cublasSetMathMode(blas_handle, new_math_type));
   return handle_math_mode;
 }
-#endif*/ //hip porting for the cublas apis not supported
+#endif*/ //TODO hip porting for the cublas apis not supported
 
 #endif  // MXNET_USE_GPU
 
@@ -560,7 +560,8 @@ static inline __device__  void atomicAdd(double *address, double val) {
 // Overload atomicAdd for half precision
 // Taken from:
 // https://github.com/torch/cutorch/blob/master/lib/THC/THCAtomics.cuh
-#if (__HIP_DEVICE_COMPILE__) || defined(__HIPCC__)
+//#if (__HIP_DEVICE_COMPILE__) || defined(__HIPCC__)
+#ifdef __HIPCC__
 static inline __device__ void atomicAdd(mshadow::half::half_t *address,
                                         mshadow::half::half_t val) {
   unsigned int *address_as_ui =
