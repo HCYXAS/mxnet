@@ -18,34 +18,29 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
- * \file np_init_op.cu
- * \brief GPU Implementation of numpy init op
+ * Copyright (c) 2019 by Contributors
+ * \file np_choice_op.cu
+ * \brief Operator for random subset sampling
  */
 
-#include "../tensor/init_op.h"
-#include "./np_init_op.h"
+#include <thrust/execution_policy.h>
+#include <thrust/sort.h>
+#include <thrust/swap.h>
+#include "./np_choice_op.h"
 
 namespace mxnet {
 namespace op {
 
-NNVM_REGISTER_OP(_npi_zeros)
-.set_attr<FCompute>("FCompute<gpu>", FillCompute<gpu, 0>);
+template <>
+void _sort<gpu>(float* key, int64_t* data, index_t length) {
+  thrust::device_ptr<float> dev_key(key);
+  thrust::device_ptr<int64_t> dev_data(data);
+  thrust::sort_by_key(dev_key, dev_key + length, dev_data,
+                      thrust::greater<float>());
+}
 
-NNVM_REGISTER_OP(_npi_ones)
-.set_attr<FCompute>("FCompute<gpu>", FillCompute<gpu, 1>);
-
-NNVM_REGISTER_OP(_np_zeros_like)
-.set_attr<FCompute>("FCompute<gpu>", FillCompute<gpu, 0>);
-
-NNVM_REGISTER_OP(_np_ones_like)
-.set_attr<FCompute>("FCompute<gpu>", FillCompute<gpu, 1>);
-
-NNVM_REGISTER_OP(_npi_arange)
-.set_attr<FCompute>("FCompute<gpu>", RangeCompute<gpu, RangeParam>);
-
-NNVM_REGISTER_OP(_npi_indices)
-.set_attr<FCompute>("FCompute<gpu>", IndicesCompute<gpu>);
+NNVM_REGISTER_OP(_npi_choice)
+.set_attr<FCompute>("FCompute<gpu>", NumpyChoiceForward<gpu>);
 
 }  // namespace op
 }  // namespace mxnet

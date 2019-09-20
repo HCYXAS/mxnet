@@ -30,6 +30,7 @@ import random
 import collections
 import scipy.stats as ss
 from mxnet.test_utils import verify_generator, gen_buckets_probs_with_ppf, retry
+import platform
 
 
 @with_seed()
@@ -1645,6 +1646,148 @@ def test_np_cumsum():
                         mx_out = np.cumsum(x, axis=axis, dtype=otype)
                         np_out = _np.cumsum(x.asnumpy(), axis=axis, dtype=otype)
                         assert_almost_equal(mx_out.asnumpy(), np_out, rtol=1e-3, atol=1e-5)
+
+
+@with_seed()
+@use_np
+def test_np_choice():
+    class TestUniformChoice(HybridBlock):
+        def __init__(self, sample_size, replace):
+            super(TestUniformChoice, self).__init__()
+            self.sample_size = sample_size
+            self.replace = replace
+
+        def hybrid_forward(self, F, a):
+            return F.np.random.choice(a=a, size=self.sample_size, replace=self.replace, p=None)
+
+    class TestWeightedChoice(HybridBlock):
+        def __init__(self, sample_size, replace):
+            super(TestWeightedChoice, self).__init__()
+            self.sample_size = sample_size
+            self.replace = replace
+
+        def hybrid_forward(self, F, a, p):
+            op = getattr(F.np.random, "choice", None)
+            return F.np.random.choice(a, self.sample_size, self.replace, p)
+
+    def test_sample_with_replacement(sampler, num_classes, shape, weight=None):
+        samples = sampler(num_classes, shape, replace=True, p=weight).asnumpy()
+        generated_density = _np.histogram(samples, _np.arange(num_classes + 1), density=True)[0]
+        expected_density = (weight.asnumpy() if weight is not None else
+                            _np.array([1 / num_classes] * num_classes))
+        # test almost equal
+        assert_almost_equal(generated_density, expected_density, rtol=1e-1, atol=1e-1)
+        # test shape
+        assert (samples.shape == shape)
+
+    def test_sample_without_replacement(sampler, num_classes, shape, num_trials, weight=None):
+        samples = sampler(num_classes, shape, replace=False, p=weight).asnumpy()
+        # Check shape and uniqueness
+        assert samples.shape == shape
+        assert len(_np.unique(samples)) == samples.size
+        # Check distribution
+        bins = _np.zeros((num_classes))
+        expected_freq = (weight.asnumpy() if weight is not None else
+                         _np.array([1 / num_classes] * num_classes))
+        for i in range(num_trials):
+            out = sampler(num_classes, 1, replace=False, p=weight).item()
+            bins[out] += 1
+        bins /= num_trials
+        assert_almost_equal(bins, expected_freq, rtol=1e-1, atol=1e-1)
+
+    def test_indexing_mode(sampler, set_size, samples_size, replace, weight=None):
+        a = np.arange(set_size)
+        if weight is not None:
+            samples = sampler(a, weight)
+        else:
+            samples = sampler(a)
+        assert len(samples) == samples_size
+        if not replace:
+            assert len(_np.unique(samples)) == samples_size
+
+    num_classes = 10
+    num_samples = 10 ** 8
+    # Density tests are commented out due to their huge time comsumption.
+    # Tests passed locally.
+    # shape_list1 = [
+    #     (10 ** 8, 1),
+    #     (10 ** 5, 10 ** 3),
+    #     (10 ** 2, 10 ** 3, 10 ** 3)
+    # ]
+    # for shape in shape_list1:
+    #     test_sample_with_replacement(np.random.choice, num_classes, shape)
+    #     weight = np.array(_np.random.dirichlet([1.0] * num_classes))
+    #     test_sample_with_replacement(np.random.choice, num_classes, shape, weight)
+
+    # Tests passed locally,
+    # commented out for the same reason as above.
+    # shape_list2 = [
+    #     (6, 1),
+    #     (2, 3),
+    #     (1, 2, 3),
+    #     (2, 2),
+    # ]
+    # for shape in shape_list2:
+    #     test_sample_without_replacement(np.random.choice, num_classes, shape, 10 ** 5)
+    #     weight = np.array(_np.random.dirichlet([1.0] * num_classes))
+    #     test_sample_without_replacement(np.random.choice, num_classes, shape, 10 ** 5, weight)
+
+    # Test hypridize mode:
+    for hybridize in [True, False]:
+        for replace in [True, False]:
+            test_choice = TestUniformChoice(num_classes // 2, replace)
+            test_choice_weighted = TestWeightedChoice(num_classes // 2, replace)
+            if hybridize:
+                test_choice.hybridize()
+                test_choice_weighted.hybridize()
+            weight = np.array(_np.random.dirichlet([1.0] * num_classes))
+            test_indexing_mode(test_choice, num_classes, num_classes // 2, replace, None)
+            test_indexing_mode(test_choice_weighted, num_classes, num_classes // 2, replace, weight)
+
+
+@with_seed()
+@use_np
+def test_np_indices():
+    dtypes = ['int32', 'int64', 'float16', 'float32', 'float64']
+    shapes = [
+        (0,),
+        (3,),
+        (2, 3, 4),
+        (2, 0, 4),
+        (1, 1, 1, 1),
+        (1, 0, 0, 1),
+        (2, 3, 4, 5, 6, 7)
+    ]
+    if platform.system() == 'Windows':
+        shapes = shapes[1:]  #beacuse in numpy windows version, indces not support dimensions is empty tuple.
+    for dtype in dtypes:
+        for shape in shapes:
+            np_out = _np.indices(dimensions=shape, dtype=dtype)
+            mx_out = np.indices(dimensions=shape, dtype=dtype)
+            same(mx_out.asnumpy(), np_out)
+            assert mx_out.shape == np_out.shape
+
+    @use_np
+    class TestIndices(HybridBlock):
+        def __init__(self, dimensions=None, dtype=None):
+            super(TestIndices, self).__init__()
+            self._dimensions = dimensions
+            self._dtype = dtype
+
+        def hybrid_forward(self, F, x):
+            return x + F.np.indices(dimensions=self._dimensions, dtype=self._dtype)
+
+    for dtype in dtypes:
+        for shape in shapes:
+            x = np.zeros(shape=(), dtype=dtype)
+            for hybridize in [False, True]:
+                net = TestIndices(dimensions=shape, dtype=dtype)
+                np_out = _np.indices(dimensions=shape, dtype=dtype)
+                if hybridize:
+                    net.hybridize()
+                mx_out = net(x)
+                same(mx_out.asnumpy(), np_out)
+                assert mx_out.shape == np_out.shape
 
 
 if __name__ == '__main__':
