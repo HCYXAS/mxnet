@@ -26,6 +26,8 @@
 */
 #ifndef MXNET_OPERATOR_TENSOR_INDEXING_OP_CUH_
 #define MXNET_OPERATOR_TENSOR_INDEXING_OP_CUH_
+//#include <hipcub/device/device_run_length_encode.cuh>
+//#include <hipcub/device/device_scan.cuh>
 #include "../mxnet_op.h"
 #include "../mshadow_op.h"
 #include "./util/tensor_util-inl.cuh"

@@ -386,7 +386,7 @@ void TopKImpl(const RunContext &ctx,
   bool is_ascend = false;
   int k = 0;
   size_t alignment = std::max(sizeof(DType), sizeof(int));
-  TShape target_shape;
+  mxnet::TShape target_shape;
   ParseTopKParam(src.shape_, param,
                  &target_shape, &batch_size, &element_num, &axis, &k, &do_transpose, &is_ascend);
   CHECK_LE(element_num, mxnet::common::MaxIntegerValue<IDType>())

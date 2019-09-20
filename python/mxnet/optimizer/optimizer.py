@@ -564,6 +564,7 @@ class SGD(Optimizer):
         self.momentum = momentum
         self.lazy_update = lazy_update
         self.aggregate_num = int(os.getenv('MXNET_OPTIMIZER_AGGREGATION_SIZE', "4"))
+        self.num = int(os.getenv('MXNET_SET_NUM',4))
 
     def create_state_multi_precision(self, index, weight):
         weight_master_copy = None
@@ -614,7 +615,7 @@ class SGD(Optimizer):
                                          num_weights=len(weights), lrs=lrs, wds=wds, **kwargs)
                 else:
                     multi_sgd_update(*_flatten_list(zip(weights, grads)), out=weights,
-                                     num_weights=len(weights), lrs=lrs, wds=wds, **kwargs)
+                                     num_weights=len(weights), lrs=lrs, wds=wds,number=num,**kwargs)
             else:
                 if self.momentum > 0:
                     multi_mp_sgd_mom_update(*_flatten_list(zip(weights, grads, *zip(*states))),

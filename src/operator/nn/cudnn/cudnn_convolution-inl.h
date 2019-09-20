@@ -104,10 +104,7 @@ class CuDNNConvolutionOp {
       param_.cudnn_tune = dmlc::GetEnv("MXNET_CUDNN_AUTOTUNE_DEFAULT", 1);
     }
     */
-    ReserveElements({in_shape[conv::kData].Size(),
-                         in_shape[conv::kWeight].Size(),
-                         out_shape[conv::kOut].Size()});    
-    GetTempSize(rctx);
+   GetTempSize(rctx);
     // In cuDNN_v6, dilated convolution descriptors are compatible with only a
     // single convolution algorithm.  Despite this, we go through the algorithm
     // selection process, which will return the only algorithm supported.  This

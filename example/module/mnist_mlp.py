@@ -52,8 +52,16 @@ val_dataiter = mx.io.MNISTIter(
 ################################################################################
 mod = mx.mod.Module(softmax)
 mod.bind(data_shapes=train_dataiter.provide_data, label_shapes=train_dataiter.provide_label)
-mod.init_params()
-
+#init = mx.init.Xavier(rnd_type='gaussian', factor_type="in", magnitude=2)
+#init = mx.init.Uniform(0.1)
+#init = mx.initializer.One()
+#init = mx.initializer.Zero()
+init = mx.init.Normal(0.5)
+mod.init_params(init)
+for dictionary in mod.get_params():
+     for key in dictionary:
+         print(key)
+         print(dictionary[key].asnumpy())
 mod.init_optimizer(optimizer_params={'learning_rate':0.01, 'momentum': 0.9})
 metric = mx.metric.create('acc')
 
