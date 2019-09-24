@@ -27,8 +27,9 @@ import mxnet as mx
 
 def ConvFactory(data, num_filter, kernel, stride=(1,1), pad=(0, 0), name=None, suffix=''):
     conv = mx.symbol.Convolution(data=data, num_filter=num_filter, kernel=kernel, stride=stride, pad=pad, name='conv_%s%s' %(name, suffix))
-    act = mx.symbol.Activation(data=conv, act_type='tanh', name='relu_%s%s' %(name, suffix))
-    return act
+    act = mx.symbol.Activation(data=conv, act_type='relu', name='relu_%s%s' %(name, suffix))
+    final = mx.symbol.BatchNorm(act)
+    return final
 
 def InceptionFactory(data, num_1x1, num_3x3red, num_3x3, num_d5x5red, num_d5x5, pool, proj, name):
     # 1x1
