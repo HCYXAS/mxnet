@@ -155,9 +155,9 @@ class NaiveEngine final : public Engine {
                  int priority = 0,
                  const char* opr_name = nullptr,
                  bool wait = false) override {
+    bool req_completed = false;
     CallbackOnComplete callback = CreateCallback(
-        NaiveEngine::OnComplete, nullptr);
-    this->req_completed_ = false;
+        NaiveEngine::OnComplete, &req_completed);
     profiler::Profiler *profiler = profiler::Profiler::Get();
     auto opr_deleter = [this](NaiveOpr* p) {
       this->DeleteOperator(p);
@@ -188,7 +188,7 @@ class NaiveEngine final : public Engine {
         aux_streams_.resize(dev_id + 1, nullptr);
       }
       if (streams_[dev_id] == nullptr) {
-        streams_[dev_id] = mshadow::NewStream<gpu>(true,(MXNET_USE_CUDNN || MXNET_USE_MIOPEN)!= 0, dev_id);
+        streams_[dev_id] = mshadow::NewStream<gpu>(true, MXNET_USE_CUDNN != 0, dev_id);
         aux_streams_[dev_id] = new GPUAuxStream(streams_[dev_id]);
       }
       exec_fun(RunContext{exec_ctx, streams_[dev_id], aux_streams_[dev_id], false}, callback);
@@ -202,7 +202,7 @@ class NaiveEngine final : public Engine {
     for (auto var : mutable_vars) {
       ++var->version_;
     }
-    CHECK(this->req_completed_)
+    CHECK(req_completed)
         << "NaiveEngine only support synchronize Push so far";
     if (profiling) {
       opr->opr_profile->stop();
@@ -235,10 +235,9 @@ class NaiveEngine final : public Engine {
   // callback to oncomplete
   static void OnComplete(Engine *engine, void *param,
                          const dmlc::Error* error) {
-    static_cast<NaiveEngine*>(engine)->req_completed_ = true;
+    bool *req_completed = static_cast<bool*>(param);
+    *req_completed = true;
   }
-  // whether action is completed
-  bool req_completed_;
   /*! \brief whether it is during shutdown phase*/
   std::atomic<bool> shutdown_phase_{false};
   // CPU stream

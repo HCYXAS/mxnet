@@ -511,7 +511,7 @@ class BatchNormValidator : public test::op::Validator<DType, AccReal> {
     TEST_ISTRUE(compare(*info_1.executor_, *info_2.executor_, ForwardOutputs::kForOutData));
     CHECK_EQ(info_2.prop_->getParam().use_global_stats, info_1.prop_->getParam().use_global_stats);
 
-#if (MXNET_USE_CUDNN != 1) && ( MXNET_USE_MIOPEN !=1) /* CUDNN takes a different approach here on first pass */
+#if MXNET_USE_CUDNN != 1 /* CUDNN takes a different approach here on first pass */
     // Aux
     TEST_ISTRUE(compare(*info_1.executor_, *info_2.executor_, ForwardOutputs::kForOutMean));
     TEST_ISTRUE(compare(*info_1.executor_, *info_2.executor_, ForwardOutputs::kForOutVar));

@@ -31,6 +31,7 @@
 #error("Must define exactly one of __HIP_PLATFORM_HCC__ or __HIP_PLATFORM_NVCC__");
 #endif
 
+
 namespace mxnet {
 namespace op {
 

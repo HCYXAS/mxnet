@@ -84,7 +84,7 @@ endif
 ENABLE_CUDA_RTC = 0
 
 # whether use CuDNN R3 library
-USE_CUDNN = 0
+USE_CUDNN = 1
 
 ifeq ($(USE_CUDNN), 1)
   ifeq ($(HIP_PLATFORM),hcc)
@@ -236,7 +236,7 @@ EXTRA_OPERATORS =
 #----------------------------
 
 # Create C++ interface package
-USE_CPP_PACKAGE = 1
+USE_CPP_PACKAGE = 0
 
 # Use int64_t type to represent the total number of elements in a tensor
 # This will cause performance degradation reported in issue #14496

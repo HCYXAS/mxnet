@@ -67,7 +67,7 @@ class CuDNNActivationOp {
   ~CuDNNActivationOp() {
     CUDNN_CALL(cudnnDestroyTensorDescriptor(shape_desc_));
     CUDNN_CALL(cudnnDestroyActivationDescriptor(desc_));
-    }
+  }
 
   void Forward(const OpContext &ctx, const TBlob &in_data,
       const OpReqType &req, const TBlob &out_data) {
@@ -114,7 +114,7 @@ class CuDNNActivationOp {
                                      &beta,
                                      shape_desc_,
                                      out.dptr_));
-   }
+  }
 
   // backward computation for cudnn activation operator. Note that for relu
   // it's okay to pass "out_data" as "in_data", since it doesn't make any

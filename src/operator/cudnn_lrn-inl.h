@@ -44,6 +44,8 @@ class CuDNNLocalResponseNormOp : public Operator {
     if (init_cudnn_) {
       CUDNN_CALL(cudnnDestroyLRNDescriptor(lrn_desc_));
       CUDNN_CALL(cudnnDestroyTensorDescriptor(shape_desc_));
+      if(workspace !=nullptr)
+         hipFree(workspace);
     }
   }
 

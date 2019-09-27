@@ -87,7 +87,7 @@ class CuDNNDeconvolutionOp {
       });
     // Double check to make sure this class supports the operation
     if (!Supports(param, forward_compute_type, backward_compute_type, rctx.ctx.dev_id))
-      LOG(FATAL) << "Need CuDNN >= 6.0 for dilated deconvolution.";
+      LOG(FATAL) << "Deconvolution parameters not supported by cuDNN implementation.";
 
     InitDescriptors(in_shape, out_shape,
                     cudnn_forward_compute_type, cudnn_backward_compute_type);

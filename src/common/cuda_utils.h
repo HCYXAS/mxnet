@@ -20,7 +20,7 @@
 /*!
  * Copyright (c) 2015 by Contributors
  * \file cuda_utils.h
- * \brief CUDA debugging utilities.
+ * \brief Common CUDA utilities.
  */
 #ifndef MXNET_COMMON_CUDA_UTILS_H_
 #define MXNET_COMMON_CUDA_UTILS_H_
@@ -327,6 +327,28 @@ class DeviceStore {
   bool restore_;
 };
 
+/*!
+ * \brief Get the largest datatype suitable to read
+ *         requested number of bytes.
+ *
+ *  \input Number of bytes to be read
+ *  \return mshadow representation of type that could
+ *          be used for reading
+ */
+int get_load_type(size_t N);
+
+/*!
+ * \brief Determine how many rows in a 2D matrix should a block
+ *        of threads handle based on the row size and the number
+ *        of threads in a block.
+ * \param row_size Size of the row expressed in the number of reads required to fully
+ *                 load it. For example, if the row has N elements, but  each thread
+ *                 reads 2 elements with a single read, row_size should be N / 2.
+ * \param num_threads_per_block Number of threads in a block.
+ * \return the number of rows that should be handled by a single block.
+ */
+int get_rows_per_block(size_t row_size, int num_threads_per_block);
+
 }  // namespace cuda
 }  // namespace common
 }  // namespace mxnet
@@ -442,7 +464,7 @@ inline cublasMath_t SetCublasMathMode(hipblasHandle_t blas_handle, cublasMath_t 
   HIPBLAS_CALL(cublasSetMathMode(blas_handle, new_math_type));
   return handle_math_mode;
 }
-#endif*/ //hip porting for the cublas apis not supported
+#endif*/ //TODO hip porting for the cublas apis not supported
 
 #endif  // MXNET_USE_GPU
 
@@ -581,7 +603,8 @@ static inline __device__  void atomicAdd(double *address, double val) {
 // Overload atomicAdd for half precision
 // Taken from:
 // https://github.com/torch/cutorch/blob/master/lib/THC/THCAtomics.cuh
-#if (__HIP_DEVICE_COMPILE__) || defined(__HCC__)
+//#if (__HIP_DEVICE_COMPILE__) || defined(__HIPCC__)
+#ifdef __HIPCC__
 static inline __device__ void atomicAdd(mshadow::half::half_t *address,
                                         mshadow::half::half_t val) {
   unsigned int *address_as_ui =
@@ -646,6 +669,52 @@ __device__ inline DType ldg(const DType* address) {
     return *address;
 #endif
 }
+
+#if defined (__HIP_PLATFORM_NVCC__)
+template <typename OP, typename T>
+__device__ inline T warp_reduce(T value, OP redfun) {
+  value = redfun(value, __shfl_down_sync(0xffffffff, value, 16));
+  value = redfun(value, __shfl_down_sync(0xffffffff, value, 8));
+  value = redfun(value, __shfl_down_sync(0xffffffff, value, 4));
+  value = redfun(value, __shfl_down_sync(0xffffffff, value, 2));
+  value = redfun(value, __shfl_down_sync(0xffffffff, value, 1));
+  return value;
+}
+
+template <typename OP>
+__device__ inline mshadow::half::half_t warp_reduce(mshadow::half::half_t value, OP redfun) {
+  float v = static_cast<float>(value);
+  v = redfun(v, __shfl_down_sync(0xffffffff, v, 16));
+  v = redfun(v, __shfl_down_sync(0xffffffff, v, 8));
+  v = redfun(v, __shfl_down_sync(0xffffffff, v, 4));
+  v = redfun(v, __shfl_down_sync(0xffffffff, v, 2));
+  v = redfun(v, __shfl_down_sync(0xffffffff, v, 1));
+  return mshadow::half::half_t(v);
+}  
+#else
+template <typename OP, typename T>
+__device__ inline T warp_reduce(T value, OP redfun) {
+  value = redfun(value, __shfl_down(0xffffffff, value, 16));
+  value = redfun(value, __shfl_down(0xffffffff, value, 8));
+  value = redfun(value, __shfl_down(0xffffffff, value, 4));
+  value = redfun(value, __shfl_down(0xffffffff, value, 2));
+  value = redfun(value, __shfl_down(0xffffffff, value, 1));
+  return value;
+}
+
+template <typename OP>
+__device__ inline mshadow::half::half_t warp_reduce(mshadow::half::half_t value, OP redfun) {
+  float v = static_cast<float>(value);
+  v = redfun(v, __shfl_down(0xffffffff, v, 16));
+  v = redfun(v, __shfl_down(0xffffffff, v, 8));
+  v = redfun(v, __shfl_down(0xffffffff, v, 4));
+  v = redfun(v, __shfl_down(0xffffffff, v, 2));
+  v = redfun(v, __shfl_down(0xffffffff, v, 1));
+  return mshadow::half::half_t(v);
+  
+}
 #endif
+
+#endif  // __HIPCC__
 
 #endif  // MXNET_COMMON_CUDA_UTILS_H_

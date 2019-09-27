@@ -165,7 +165,7 @@ class DropoutOp {
     const int count = mask.shape_[0] * mask.shape_[1];
 #pragma omp parallel for num_threads(engine::OpenMP::Get()->GetRecommendedOMPThreadCount())
     for (int i = 0; i < count; ++i) {
-     ingradptr[i] = outgradptr[i] * maskptr[i];
+      ingradptr[i] = outgradptr[i] * maskptr[i];
     }
   }
 
