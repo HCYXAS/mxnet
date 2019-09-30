@@ -551,7 +551,8 @@ struct BLASEngine<gpu, half::half_t> {
                                   const half::half_t *A, int lda, const half::half_t *B, int ldb,
                                   half::half_t beta, half::half_t *C, int ldc, int batch_count,
                                   half::half_t **workspace) {
-/*#if defined(__HIPCC__) && CUDA_VERSION >= 9000
+//#if defined(__HIPCC__) && CUDA_VERSION >= 9000
+#if defined(__HIPCC__) && (defined(__HIP_PLATFORM_HCC__) || (defined(__HIP_PLATFORM_NVCC__) && CUDA_VERSION >= 9000))
     int major = stream->prop.major;
     int minor = stream->prop.minor;
     // fp16 is not supported before ARCH 53
@@ -561,22 +562,16 @@ struct BLASEngine<gpu, half::half_t> {
       __half* alpha_h = reinterpret_cast<__half*>(&alpha);
       __half* beta_h = reinterpret_cast<__half*>(&beta);
       __half* C_h = reinterpret_cast<__half*>(C);
-      //cublasStatus_t err = cublasHgemmStridedBatched(Stream<gpu>::GetBlasHandle(stream),
-      //hipblasStatus_t err = hipblasSgemmStridedBatched(Stream<gpu>::GetBlasHandle(stream),
-        //GetT(transa), GetT(transb), m, n, k, alpha_h,
-        //A_h, lda, m * k,
-        //B_h, ldb, k * n,
-        //beta_h, C_h, ldc, m * n,
-        //batch_count);    //TODO : cublasHgemmStridedBatched not supported 
-        GetT(transa), GetT(transb), m, n, k, alpha_h,
-        A_h, lda, m * k,
-        B_h, ldb, k * n,
-        beta_h, C_h, ldc, m * n,
-        batch_count);
+      hipblasStatus_t err = hipblasHgemmStridedBatched(Stream<gpu>::GetBlasHandle(stream),
+                                                       GetT(transa), GetT(transb), m, n, k, alpha_h,
+                                                       A_h, lda, m * k,
+                                                       B_h, ldb, k * n,
+                                                       beta_h, C_h, ldc, m * n,
+                                                       batch_count);     
       CHECK_EQ(err, HIPBLAS_STATUS_SUCCESS) << "Hipblas: HgemmStridedBatched fail";
       return;
     }
-#endif*/
+#endif
     for (int i = 0; i < batch_count; ++i) {
       gemm(stream, transa, transb, m, n, k, alpha,
            A + i * m * k, lda, B + i * k * n, ldb,

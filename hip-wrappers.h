@@ -12,6 +12,24 @@
 #include "hip/hip_fp16.h"
 
 
+hipblasStatus_t  hipblasHgemmStridedBatched(hipblasHandle_t handle,
+                                            hipblasOperation_t transa,
+                                            hipblasOperation_t transb,
+                                            int m,
+                                            int n,
+                                            int k,
+                                            const __half           *alpha,
+                                            const __half           *A,
+                                            int lda,
+                                            long long int          strideA,
+                                            const __half           *B,
+                                            int ldb,
+                                            long long int          strideB,
+                                            const __half           *beta,
+                                            __half                 *C,
+                                            int ldc,
+                                            long long int          strideC,
+                                            int batchCount);
 
 hipblasStatus_t hipblasSgemmEx  (hipblasHandle_t handle,
                                  hipblasOperation_t transa,
