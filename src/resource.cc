@@ -432,7 +432,7 @@ void Resource::get_cudnn_dropout_desc(
   if (!state_space->handle.size) {
     // not initialized yet.
     size_t dropout_state_size;
-    CUDNN_CALL(cudnnDropoutGetStatesSize(stream->dnn_handle_, &dropout_state_size));
+   CUDNN_CALL(cudnnDropoutGetStatesSize(stream->dnn_handle_, &dropout_state_size));
     // reserve GPU space
     Storage::Get()->DirectFree(
       Storage::Get()->Alloc(dropout_state_size, state_space->ctx));
@@ -451,7 +451,7 @@ void Resource::get_cudnn_dropout_desc(
                                              seed));
   }
 }
-#endif  // MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 7
+#endif  // MXNET_USE_CUDNN == 1
 
 ResourceManager* ResourceManager::Get() {
   typedef dmlc::ThreadLocalStore<resource::ResourceManagerImpl> inst;

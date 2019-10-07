@@ -652,6 +652,25 @@ MSHADOW_XINLINE int64_t MinValue<int64_t>(void) {
 }
 
 /*!
+ * \brief negative infinity of certain types
+ * \tparam DType data type
+ */
+template<typename DType>
+MSHADOW_XINLINE DType NegInfValue(void) {
+  return MinValue<DType>();
+}
+/*! \brief negative infinity value of float */
+template<>
+MSHADOW_XINLINE float NegInfValue<float>(void) {
+  return -HUGE_VALF;
+}
+/*! \brief negative infinity value of double */
+template<>
+MSHADOW_XINLINE double NegInfValue<double>(void) {
+  return -HUGE_VAL;
+}
+
+/*!
  * \brief maximum value of certain types
  * \tparam DType data type
  */
@@ -692,6 +711,26 @@ template<>
 MSHADOW_XINLINE int64_t MaxValue<int64_t>(void) {
   return LLONG_MAX;
 }
+
+/*!
+ * \brief positive infinity of certain types
+ * \tparam DType data type
+ */
+template<typename DType>
+MSHADOW_XINLINE DType PosInfValue(void) {
+  return MaxValue<DType>();
+}
+/*! \brief positive infinity value of float */
+template<>
+MSHADOW_XINLINE float PosInfValue<float>(void) {
+  return HUGE_VALF;
+}
+/*! \brief positive infinity value of double */
+template<>
+MSHADOW_XINLINE double PosInfValue<double>(void) {
+  return HUGE_VAL;
+}
+
 }  // namespace limits
 
 /*! \brief sum reducer */
