@@ -25,6 +25,7 @@
  * Adapted from Caffe2
 */
 #include "./roi_align-inl.h"
+#include "../mxnet_op.h"
 
 
 namespace mxnet {

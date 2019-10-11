@@ -838,7 +838,7 @@ struct maximum {
    */
   template<typename DType>
   MSHADOW_XINLINE static void SetInitValue(DType &initv) { // NOLINT(*)
-    initv = limits::MinValue<DType>();
+    initv = limits::NegInfValue<DType>();
   }
   /*!
    *\brief set the initial value during reduction
@@ -894,7 +894,7 @@ struct minimum {
    */
   template<typename DType>
   MSHADOW_XINLINE static void SetInitValue(DType &initv) { // NOLINT(*)
-    initv = limits::MaxValue<DType>();
+    initv = limits::PosInfValue<DType>();
   }
   /*!
    *\brief set the initial value during reduction
