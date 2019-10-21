@@ -501,14 +501,23 @@ CFLAGS += -I$(TVM_PATH)/include -DMXNET_USE_TVM_OP=1
 LDFLAGS += -L$(ROOTDIR)/lib -ltvm_runtime -Wl,-rpath,'$${ORIGIN}'
 
 TVM_USE_CUDA := OFF
-ifeq ($(USE_CUDA), 1)
+TVM_USE_ROCM := OFF
+ifeq ($(USE_GPU), 1)
+ifeq ($(HIP_PLATFORM), nvcc)
 	TVM_USE_CUDA := ON
 	ifneq ($(USE_CUDA_PATH), NONE)
 		TVM_USE_CUDA := $(USE_CUDA_PATH)
 	endif
 endif
-endif
 
+ifeq ($(HIP_PLATFORM), hcc)
+	TVM_USE_ROCM := ON
+	ifneq ($(USE_ROCM_PATH), NONE)
+	        TVM_USE_ROCM := $(USE_ROCM_PATH)
+	endif	
+endif
+endif
+endif
 # extra operators
 ifneq ($(EXTRA_OPERATORS),)
 	EXTRA_SRC = $(wildcard $(patsubst %, %/*.cc, $(EXTRA_OPERATORS)) $(patsubst %, %/*/*.cc, $(EXTRA_OPERATORS)))
@@ -662,8 +671,13 @@ lib/libtvm_runtime.so:
 	echo "Compile TVM"
 	[ -e $(LLVM_PATH)/bin/llvm-config ] || sh $(ROOTDIR)/contrib/tvmop/prepare_tvm.sh; \
 	cd $(TVM_PATH)/build; \
+	ifeq ($(HIP_PLATFORM), nvcc)
 	cmake -DUSE_LLVM="$(LLVM_PATH)/bin/llvm-config" \
-		  -DUSE_SORT=OFF -DUSE_GPU=$(TVM_USE_CUDA) -DUSE_CUDNN=OFF ..; \
+		  -DUSE_SORT=OFF -DUSE_CUDA=$(TVM_USE_CUDA) -DUSE_CUDNN=OFF ..; \
+        elifeq ($(HIP_PLATFORM), hcc)
+	cmake -DUSE_LLVM="$(LLVM_PATH)/bin/llvm-config" \
+	           -DUSE_SORT=OFF -DUSE_ROCM=$(TVM_USE_ROCM) -DUSE_MIOPEN=OFF ..; \
+        endif
 	$(MAKE) VERBOSE=1; \
 	mkdir -p $(ROOTDIR)/lib; \
 	cp $(TVM_PATH)/build/libtvm_runtime.so $(ROOTDIR)/lib/libtvm_runtime.so; \

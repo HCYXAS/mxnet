@@ -137,7 +137,7 @@ inline __device__ bool __is_supported_cuda_architecture() {
   {                                                             \
     hiprandStatus_t e = (func);                                  \
     CHECK_EQ(e, HIPRAND_STATUS_SUCCESS)                          \
-        << "hipRAND: " << common::cuda::HiprandGetErrorString(e); \
+        << "hipRAND: " << mxnet::common::cuda::HiprandGetErrorString(e); \
   }
 
 /*!
