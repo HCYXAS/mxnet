@@ -44,6 +44,11 @@
 #include <thrust/device_vector.h>
 #endif
 
+#ifdef __HIPCC__
+#include "./pseudo2DTranspose_op-inl.cuh"
+#endif
+
+
 namespace mxnet {
 namespace op {
 
@@ -302,7 +307,6 @@ MSHADOW_XINLINE void Transpose2D(const DType *in, DType *out, index_t row, index
   }
 }
 
-
 template<typename xpu>
 void TransposeImpl(RunContext ctx,
                    const TBlob& src,
@@ -314,6 +318,17 @@ void TransposeImpl(RunContext ctx,
   // zero-size tensor, no need to compute
   if (src.shape_.Size() == 0U) return;
   Stream<xpu> *s = ctx.get_stream<xpu>();
+#ifdef __HIPCC__
+  // This transpose can be used only if there exist n and m such that:
+  // params = (0, ..., n-1, n+m, ..., params.size, n, ..., n+m-1)
+  // Example: (0, 2, 3, 1) or (0, 3, 1, 2), but not (0, 2, 1, 3).
+  if (isPseudo2DTranspose(axes)) {
+    MSHADOW_TYPE_SWITCH(ret.type_flag_, DType, {
+      transpose_pseudo2D<DType>(ret, src, axes, s);
+    });
+    return;
+  }
+#endif
   MSHADOW_TYPE_SWITCH(ret.type_flag_, DType, {
     switch (axes.ndim()) {
      case 0: {
@@ -2697,24 +2712,14 @@ inline bool SplitOpType(const nnvm::NodeAttrs& attrs,
   return true;
 }
 
-inline bool SplitOpShape(const nnvm::NodeAttrs& attrs,
-                         mxnet::ShapeVector* in_attrs,
-                         mxnet::ShapeVector* out_attrs) {
+inline bool SplitOpShapeImpl(const nnvm::NodeAttrs& attrs,
+                             mxnet::ShapeVector* in_attrs,
+                             mxnet::ShapeVector* out_attrs,
+                             const int real_axis) {
   using namespace mshadow;
   const SplitParam& param = nnvm::get<SplitParam>(attrs.parsed);
-  CHECK_EQ(in_attrs->size(), 1U);
   mxnet::TShape dshape = in_attrs->at(split_enum::kData);
   mxnet::TShape ishape = in_attrs->at(split_enum::kData);
-  if (!mxnet::ndim_is_known(dshape)) return false;
-  if (param.axis >= 0) {
-    CHECK_LT(static_cast<size_t>(param.axis), dshape.ndim());
-  } else {
-    CHECK_LT(param.axis + dshape.ndim(), dshape.ndim());
-  }
-  int real_axis = param.axis;
-  if (real_axis < 0) {
-    real_axis += dshape.ndim();
-  }
   const mxnet::TShape indices =
     (param.sections > 0) ? GetSplitIndices(ishape, real_axis, param.sections) : param.indices;
   int num_outputs = (param.sections > 0) ? indices.ndim() - 1 : indices.ndim();
@@ -2731,7 +2736,7 @@ inline bool SplitOpShape(const nnvm::NodeAttrs& attrs,
     if (ishape[real_axis] == 0U) {
       end = start;
     } else {
-      CHECK(start < end)
+      CHECK(start <= end)
         << "start " << start << " is not less than end " << end << "for subarray " << i;
       CHECK(end <= ishape[real_axis])
         << "end " << end << " is no less than the size of the axis " << ishape[real_axis];
@@ -2765,6 +2770,26 @@ inline bool SplitOpShape(const nnvm::NodeAttrs& attrs,
   }
   SHAPE_ASSIGN_CHECK(*in_attrs, split_enum::kData, back_calculate_dshape);
   return true;
+}
+
+inline bool SplitOpShape(const nnvm::NodeAttrs& attrs,
+                         mxnet::ShapeVector* in_attrs,
+                         mxnet::ShapeVector* out_attrs) {
+  using namespace mshadow;
+  const SplitParam& param = nnvm::get<SplitParam>(attrs.parsed);
+  CHECK_EQ(in_attrs->size(), 1U);
+  mxnet::TShape dshape = in_attrs->at(split_enum::kData);
+  if (!mxnet::ndim_is_known(dshape)) return false;
+  if (param.axis >= 0) {
+    CHECK_LT(param.axis, dshape.ndim());
+  } else {
+    CHECK_LT(param.axis + dshape.ndim(), dshape.ndim());
+  }
+  int real_axis = param.axis;
+  if (real_axis < 0) {
+    real_axis += dshape.ndim();
+  }
+  return SplitOpShapeImpl(attrs, in_attrs, out_attrs, real_axis);
 }
 
 struct SplitKernel {
@@ -2832,24 +2857,19 @@ struct ConcatenateKernel {
 };
 
 template<typename xpu>
-inline void SplitOpForward(const nnvm::NodeAttrs& attrs,
-                           const OpContext& ctx,
-                           const std::vector<TBlob>& inputs,
-                           const std::vector<OpReqType>& req,
-                           const std::vector<TBlob>& outputs) {
+inline void SplitOpForwardImpl(const nnvm::NodeAttrs& attrs,
+                               const OpContext& ctx,
+                               const std::vector<TBlob>& inputs,
+                               const std::vector<OpReqType>& req,
+                               const std::vector<TBlob>& outputs,
+                               const int real_axis) {
   using namespace mshadow;
   using namespace mshadow::expr;
   using namespace mxnet_op;
   const SplitParam& param = nnvm::get<SplitParam>(attrs.parsed);
-  CHECK_EQ(inputs.size(), 1U);
-  CHECK_EQ(outputs.size(), (param.sections > 0) ? param.sections : param.indices.ndim());
   Stream<xpu> *s = ctx.get_stream<xpu>();
   const TBlob& input_data = inputs[split_enum::kData];
   size_t leading = 1, trailing = 1;
-  int real_axis = param.axis;
-  if (real_axis < 0) {
-    real_axis += input_data.ndim();
-  }
   CHECK_LT(real_axis, input_data.ndim());
   size_t mid = input_data.shape_[real_axis];
   for (int i = 0; i < real_axis; ++i) {
@@ -2895,25 +2915,39 @@ inline void SplitOpForward(const nnvm::NodeAttrs& attrs,
 }
 
 template<typename xpu>
-inline void SplitOpBackward(const nnvm::NodeAttrs& attrs,
-                            const OpContext& ctx,
-                            const std::vector<TBlob>& inputs,
-                            const std::vector<OpReqType>& req,
-                            const std::vector<TBlob>& outputs) {
+inline void SplitOpForward(const nnvm::NodeAttrs& attrs,
+                           const OpContext& ctx,
+                           const std::vector<TBlob>& inputs,
+                           const std::vector<OpReqType>& req,
+                           const std::vector<TBlob>& outputs) {
   using namespace mshadow;
   using namespace mshadow::expr;
   using namespace mxnet_op;
   const SplitParam& param = nnvm::get<SplitParam>(attrs.parsed);
-  CHECK_EQ(inputs.size(), (param.sections > 0) ? param.sections : param.indices.ndim())
-    << "out grad vector size mush match the output size";
-  CHECK_EQ(outputs.size(), 1U);
+  CHECK_EQ(inputs.size(), 1U);
+  CHECK_EQ(outputs.size(), (param.sections > 0) ? param.sections : param.indices.ndim());
+  const TBlob& input_data = inputs[split_enum::kData];
+  int real_axis = param.axis;
+  if (real_axis < 0) {
+    real_axis += input_data.ndim();
+  }
+  SplitOpForwardImpl<xpu>(attrs, ctx, inputs, req, outputs, real_axis);
+}
+
+template<typename xpu>
+inline void SplitOpBackwardImpl(const nnvm::NodeAttrs& attrs,
+                                const OpContext& ctx,
+                                const std::vector<TBlob>& inputs,
+                                const std::vector<OpReqType>& req,
+                                const std::vector<TBlob>& outputs,
+                                const int real_axis) {
+  using namespace mshadow;
+  using namespace mshadow::expr;
+  using namespace mxnet_op;
+  const SplitParam& param = nnvm::get<SplitParam>(attrs.parsed);
   Stream<xpu> *s = ctx.get_stream<xpu>();
   TBlob input_grad = outputs[split_enum::kData];
   size_t leading = 1, trailing = 1;
-  int real_axis = param.axis;
-  if (real_axis < 0) {
-      real_axis += input_grad.ndim();
-  }
   CHECK_LT(real_axis, input_grad.ndim());
   size_t mid = input_grad.shape_[real_axis];
   for (int i = 0; i < real_axis; ++i) {
@@ -2956,6 +2990,26 @@ inline void SplitOpBackward(const nnvm::NodeAttrs& attrs,
       s, input_grad.Size(), ptrs_xpu_tensor.dptr_, input_grad.dptr<DType>(),
       indices_xpu_tensor.dptr_, indices.size() - 1, mid, trailing);
   });
+}
+
+template<typename xpu>
+inline void SplitOpBackward(const nnvm::NodeAttrs& attrs,
+                            const OpContext& ctx,
+                            const std::vector<TBlob>& inputs,
+                            const std::vector<OpReqType>& req,
+                            const std::vector<TBlob>& outputs) {
+  using namespace mshadow;
+  using namespace mshadow::expr;
+  using namespace mxnet_op;
+  const SplitParam& param = nnvm::get<SplitParam>(attrs.parsed);
+  CHECK_EQ(inputs.size(), (param.sections > 0) ? param.sections : param.indices.ndim())
+    << "out grad vector size mush match the output size";
+  CHECK_EQ(outputs.size(), 1U);
+  int real_axis = param.axis;
+  if (real_axis < 0) {
+      real_axis += outputs[split_enum::kData].ndim();
+  }
+  SplitOpBackwardImpl<xpu>(attrs, ctx, inputs, req, outputs, real_axis);
 }
 
 inline uint32_t SplitNumOutputs(const NodeAttrs& attrs) {

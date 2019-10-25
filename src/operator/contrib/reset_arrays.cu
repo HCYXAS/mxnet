@@ -18,31 +18,23 @@
  */
 
 /*!
- * \file mkldnn_flatten-inl.h
- * \brief Implement flatten operator by using mkldnn reorder primitive
- * \author Wuxun Zhang
+ *  Copyright (c) 2019 by Contributors
+ * \file reset_arrays.cu
+ * \brief setting all array element values to zeros
+ * \author Moises Hernandez-Fernandez, Andrei Ivanov
  */
-
-#ifndef MXNET_OPERATOR_NN_MKLDNN_MKLDNN_FLATTEN_INL_H_
-#define MXNET_OPERATOR_NN_MKLDNN_MKLDNN_FLATTEN_INL_H_
-#if MXNET_USE_MKLDNN == 1
-
-#include "mkldnn_reshape-inl.h"
+#include "./reset_arrays-inl.h"
 
 namespace mxnet {
 namespace op {
 
-class MKLDNNFlattenFwd : public MKLDNNReshapeFwd {
- public:
-  explicit MKLDNNFlattenFwd(const OpReqType &req, const NDArray &input, const NDArray &output)
-      : MKLDNNReshapeFwd(req, input, output) {}
-};
+template<>
+void ResetMemory<gpu>(void *pntr, size_t len, mshadow::Stream<gpu> *s) {
+  CUDA_CALL(hipMemsetAsync(pntr, 0, len, mshadow::Stream<gpu>::GetStream(s)));
+}
 
-void MKLDNNFlattenForward(const nnvm::NodeAttrs &attrs, const OpContext &ctx, const NDArray &input,
-                          const OpReqType &req, const NDArray &output);
+NNVM_REGISTER_OP(reset_arrays)
+.set_attr<FCompute>("FCompute<gpu>", ResetArrays<gpu>);
 
 }  // namespace op
 }  // namespace mxnet
-
-#endif  // MXNET_USE_MKLDNN == 1
-#endif  // MXNET_OPERATOR_NN_MKLDNN_MKLDNN_FLATTEN_INL_H_

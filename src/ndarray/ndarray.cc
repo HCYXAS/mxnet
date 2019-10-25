@@ -1819,7 +1819,13 @@ bool NDArray::Load(dmlc::Stream *strm) {
     *this = std::move(temp); return true;
   } else {
 #if MXNET_USE_GPU
-    *this = temp.Copy(ctx); return true;
+    int device_count = -1;
+    hipGetDeviceCount(&device_count);
+    if (device_count > 0) {
+      *this = temp.Copy(ctx); return true;
+    } else {
+      *this = std::move(temp); return true;
+    }
 #else
     *this = std::move(temp); return true;
 #endif

@@ -39,7 +39,7 @@
 #include "../linalg.h"
 #include "../../common/utils.h"
 #include "../tensor/broadcast_reduce_op.h"
-
+#include "hip/hip_runtime.h"
 namespace mxnet {
 namespace op {
 

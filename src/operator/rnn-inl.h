@@ -493,7 +493,7 @@ class RNNOp {
 
     CUDNN_CALL(miopenCreateRNNDescriptor(&rnn_desc_));
     //CUDNN_CALL(cudnnCreateDropoutDescriptor(&dropout_desc_));
-CUDA_CALL(hipEventCreateWithFlags(&dgrad_sync_event_, hipEventDisableTiming));
+     CUDA_CALL(hipEventCreateWithFlags(&dgrad_sync_event_, hipEventDisableTiming));
 
     #if MXNET_USE_CUDNN_GE_7200
     /*CUDNN_CALL(cudnnCreateRNNDataDescriptor(&x_data_desc_));
@@ -941,9 +941,9 @@ CUDA_CALL(hipEventCreateWithFlags(&dgrad_sync_event_, hipEventDisableTiming));
                                      hy_ptr,
                                      cy_ptr,
                                      param_.mode);
-        #if MXNET_USE_MKLDNN == 1
+#if MXNET_USE_MKLDNN == 1
         }
-        #endif
+#endif
       }
     }
   }
@@ -1026,7 +1026,7 @@ CUDA_CALL(hipEventCreateWithFlags(&dgrad_sync_event_, hipEventDisableTiming));
         dcy_ptr = (out_grad[rnn_enum::kStateCellOut].get<xpu, 3, DType>(s)).dptr_;
     }
 
-    #if MXNET_USE_CUDNN == 1 && defined(__HIPCC__)
+#if MXNET_USE_CUDNN == 1 && defined(__HIPCC__)
     if (!init_cudnn_) {
       Init(ctx, s, in_data, out_data);
     }
@@ -1037,7 +1037,7 @@ CUDA_CALL(hipEventCreateWithFlags(&dgrad_sync_event_, hipEventDisableTiming));
         ctx.requested[rnn_enum::kTempSpace].get_space_typed<gpu, 1, DType>(
             mshadow::Shape1(temp_size), s);
 
-    #if MXNET_USE_CUDNN_GE_7200
+#if MXNET_USE_CUDNN_GE_7200
     /*CUDNN_CALL(cudnnRNNBackwardDataEx(s->dnn_handle_,
                                       rnn_desc_,
                                       y_data_desc_,
@@ -1068,8 +1068,8 @@ CUDA_CALL(hipEventCreateWithFlags(&dgrad_sync_event_, hipEventDisableTiming));
                                       workspace_byte_,
                                       reserve_space_.dptr,
                                       reserve_space_byte_));
- 	SyncDgrad();
-    	if (req[rnn_enum::kParams] != kNullOp) {
+    SyncDgrad();
+    if (req[rnn_enum::kParams] != kNullOp) {
     CUDNN_CALL(cudnnRNNBackwardWeightsEx(s->dnn_handle_,
                                          rnn_desc_,
                                          x_data_desc_,
@@ -1084,6 +1084,7 @@ CUDA_CALL(hipEventCreateWithFlags(&dgrad_sync_event_, hipEventDisableTiming));
                                          dw.dptr_,
                                          reserve_space_.dptr,
                                          reserve_space_byte_));*/
+}
     #else
     CUDNN_CALL(miopenRNNBackwardData(s->dnn_handle_,
                                     rnn_desc_,
@@ -1129,6 +1130,7 @@ CUDA_CALL(hipEventCreateWithFlags(&dgrad_sync_event_, hipEventDisableTiming));
                                        workspace_byte_,                             
 				       reserve_space_.dptr,
                                        reserve_space_byte_));
+    }
     #endif
     #endif
 
@@ -1532,7 +1534,7 @@ CUDA_CALL(hipEventCreateWithFlags(&dgrad_sync_event_, hipEventDisableTiming));
   bool cudnn_tensor_core_;
 
    //cudnnTensorFormat_t format_;
-  miopen Event_t dgrad_sync_event_;
+  hipEvent_t dgrad_sync_event_;
   bool dgrad_sync_needed_ = false;
    #endif
   bool init_space_, temp_init_space_;
