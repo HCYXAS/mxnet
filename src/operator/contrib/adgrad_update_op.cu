@@ -23,7 +23,7 @@
  * \brief Optimizer operators
  * \author Leonard Lausen
  */
-#include "./optimizer_op-inl.h"
+#include "./adgrad_update_op-inl.h"
 //#include <cub/cub.cuh>
 #include <hipcub/hipcub.hpp>
 

@@ -24,7 +24,7 @@
  * \author Leonard Lausen
  */
 #include "../elemwise_op_common.h"
-#include "./optimizer_op-inl.h"
+#include "./adgrad_update_op-inl.h"
 
 namespace mxnet {
 namespace op {
