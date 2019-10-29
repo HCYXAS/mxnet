@@ -226,7 +226,8 @@ struct MultiSGDKernel {
   template<typename DType>
   MSHADOW_XINLINE static void Map(int i, const MultiSGDKernelParam<DType, MPDType>* param,
     const OpReqType req) {
-    for (int index = 0; index < param[0].count; ++index) {
+	  int count = param[0].count;
+    for (int index = 0; index < count; ++index) {
       if ((size_t)i < param[index].sizes) {
         MPDType w = has_mixed_precision ? param[index].weights32[i] :
                                           MPDType(param[index].weights[i]);
@@ -261,7 +262,7 @@ template<typename xpu,
          typename MPDType,
          typename ParamType = MultiSGDParam,
          int input_stride = 2>
-MultiSGDKernelParam<DType, MPDType> *FillMultiSGDKernelParam(const nnvm::NodeAttrs& attrs,
+MultiSGDKernelParam<DType, MPDType> * FillMultiSGDKernelParam(const nnvm::NodeAttrs& attrs,
                                                             const OpContext &ctx,
                                                             const std::vector<TBlob> &inputs,
                                                             const std::vector<TBlob> &outputs) {
@@ -272,7 +273,7 @@ MultiSGDKernelParam<DType, MPDType> *FillMultiSGDKernelParam(const nnvm::NodeAtt
   const int N = p.num_weights;
   int maxSize =0;
   param = (MultiSGDKernelParam<DType, MPDType> *)malloc ( N * sizeof(MultiSGDKernelParam<DType, MPDType>));
- for (int i =0 ; i< N ; i++)
+ for (int i =0 ; i< N ; ++i)
  {
   param[i].clip_gradient = p.clip_gradient;
   param[i].rescale_grad = p.rescale_grad;
@@ -299,16 +300,8 @@ MultiSGDKernelParam<DType, MPDType> *FillMultiSGDKernelParam(const nnvm::NodeAtt
  for (int i =0 ;i <N; i++){
 	 param[i].max_size = maxSize;
  }
- if (std::is_same<xpu,cpu>::value) {
-  return param;
- }
- else if (std::is_same<xpu,gpu>::value) {
-	 MultiSGDKernelParam<DType, MPDType> *d_param;
-	 hipMalloc((void**)&d_param, N * sizeof(MultiSGDKernelParam<DType, MPDType>));
-	 hipMemcpy(d_param,param, N * sizeof(MultiSGDKernelParam<DType, MPDType>),hipMemcpyHostToDevice);
-	 free(param);
-	 return d_param;
-}
+
+return param;
 
 }
 template<typename xpu,
@@ -323,31 +316,19 @@ MultiSGDKernelParam<DType, MPDType> *FillMultiSGDMomKernelParam(const nnvm::Node
   const MultiSGDMomParam& p = nnvm::get<MultiSGDMomParam>(attrs.parsed);
   Stream<xpu>* s = ctx.get_stream<xpu>();
 
-  MultiSGDKernelParam<DType, MPDType> *param =
+  MultiSGDKernelParam<DType, MPDType> * param = 
     FillMultiSGDKernelParam<xpu,
                             DType,
                             MPDType,
                             MultiSGDMomParam,
                             input_stride>(attrs, ctx, inputs, outputs);
- 
-if (std::is_same<xpu,cpu>::value) {
+
   for (int i = 0; i < param[0].count; ++i) {
    param[i].momentum = p.momentum;
     param[i].mom = inputs[i * input_stride + 2].FlatTo2D<xpu, MPDType>(s).dptr_;
     }
-   }
-  else if(std::is_same<xpu,gpu>::value) {
-      int N= p.num_weights;
-      for (int i = 0; i < N; ++i) {
-	      MPDType *dmom;  
-              hipMemcpy(&(param[i].momentum),&(p.momentum), sizeof(MPDType),hipMemcpyHostToDevice);
-	      dmom = inputs[i * input_stride + 2].FlatTo2D<xpu, MPDType>(s).dptr_;
-	      hipMemcpy(&(param[i].mom),&(dmom), sizeof(MPDType*),hipMemcpyHostToDevice);
-          }
-  }
-  
   return param;
-	 
+   
 }
 
 template<typename T>
@@ -372,32 +353,34 @@ inline void MultiSGDUpdate(const nnvm::NodeAttrs& attrs,
   Stream<xpu>* s = ctx.get_stream<xpu>();
   MSHADOW_REAL_TYPE_SWITCH(outputs[0].type_flag_, DType, {
     using MPDType = typename MPTypeChooser<DType>::type;
-    MultiSGDKernelParam<DType, MPDType> *param =
-      FillMultiSGDKernelParam<xpu,
+      MultiSGDKernelParam<DType, MPDType>*param =
+       FillMultiSGDKernelParam<xpu,
                               DType,
                               MPDType,
                               MultiSGDParam,
                               input_stride>(attrs, ctx, inputs, outputs);
-     size_t  maxsize=1;
-     if (std::is_same<xpu,cpu>::value) {
-          maxsize = param[0].max_size;
-      }
-     else if (std::is_same<xpu,gpu>::value) {
-     hipMemcpy(&maxsize,&param[0].max_size, sizeof(size_t),hipMemcpyDeviceToHost);
+     size_t  maxsize=param[0].max_size;
+     const int N = param[0].count;
+     if (std::is_same<xpu,gpu>::value) {
+              MultiSGDKernelParam<DType, MPDType> *d_param;
+              hipMalloc((void**)&d_param, N * sizeof(MultiSGDKernelParam<DType, MPDType>));
+              hipMemcpy(d_param,param, N * sizeof(MultiSGDKernelParam<DType, MPDType>),hipMemcpyHostToDevice);
+              free(param);
+	      Kernel<MultiSGDKernel<MPDType,
+                                    false,
+                                    !std::is_same<DType, MPDType>::value>,
+                                    xpu>::Launch(s, maxsize, d_param, req[0]);
+              hipDeviceSynchronize();
+	      hipFree(d_param);
+
     }
-
-    Kernel<MultiSGDKernel<MPDType,
-                          false,
-                          !std::is_same<DType, MPDType>::value>,
-                          xpu>::Launch(s, maxsize, param, req[0]);
-  if (std::is_same<xpu,cpu>::value) {
-     free(param);
+    else if(std::is_same<xpu,cpu>::value){
+                 Kernel<MultiSGDKernel<MPDType,
+                                       false,
+                                       !std::is_same<DType, MPDType>::value>,
+                                       xpu>::Launch(s, maxsize, param, req[0]);
+                 free(param);
   }
-  else if (std::is_same<xpu,gpu>::value) {
-     hipFree(param);
-  }
-
-
   });
 }
 
@@ -411,27 +394,32 @@ inline void MultiSGDMomUpdate(const nnvm::NodeAttrs& attrs,
   Stream<xpu>* s = ctx.get_stream<xpu>();
   MSHADOW_REAL_TYPE_SWITCH(outputs[0].type_flag_, DType, {
     using MPDType = typename MPTypeChooser<DType>::type;
-    MultiSGDKernelParam<DType, MPDType> *param =
-      FillMultiSGDMomKernelParam<xpu,
+      MultiSGDKernelParam<DType, MPDType> *param =  
+        FillMultiSGDMomKernelParam<xpu,
                                  DType,
                                  MPDType,
                                  input_stride>(attrs, ctx, inputs, outputs);
-     size_t  maxsize=1;
-   if (std::is_same<xpu,cpu>::value) {
-        maxsize = param[0].max_size;
-  }
-  else if (std::is_same<xpu,gpu>::value) {
-     hipMemcpy(&maxsize,&param[0].max_size, sizeof(size_t),hipMemcpyDeviceToHost);
+     size_t  maxsize=param[0].max_size;
+     const int N = param[0].count;
+     if (std::is_same<xpu,gpu>::value) {
+              MultiSGDKernelParam<DType, MPDType> *d_param;
+              hipMalloc((void**)&d_param, N * sizeof(MultiSGDKernelParam<DType, MPDType>));
+              hipMemcpy(d_param,param, N * sizeof(MultiSGDKernelParam<DType, MPDType>),hipMemcpyHostToDevice);
+              free(param);
+              Kernel<MultiSGDKernel<MPDType,
+                                    false,
+                                    !std::is_same<DType, MPDType>::value>,
+                                    xpu>::Launch(s, maxsize, d_param, req[0]);
+	      hipDeviceSynchronize();
+              hipFree(d_param);
+
     }
-    Kernel<MultiSGDKernel<MPDType,
-                          true,
-                          !std::is_same<DType, MPDType>::value>,
-                          xpu>::Launch(s, maxsize, param, req[0]);
-  if (std::is_same<xpu,cpu>::value) {
-  free(param);
-  }
-  else if (std::is_same<xpu,gpu>::value) {
-  hipFree(param);
+    else if (std::is_same<xpu,cpu>::value) {
+              Kernel<MultiSGDKernel<MPDType,
+                                    true,
+                                    !std::is_same<DType, MPDType>::value>,
+                                    xpu>::Launch(s, maxsize, param, req[0]);
+              free(param);
   }
 
 
