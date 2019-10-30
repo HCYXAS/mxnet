@@ -229,7 +229,7 @@ namespace op {
 template<>
 Operator* CreateOp<gpu>(BilinearSamplerParam param, int dtype) {
   Operator *op = NULL;
-#if (MXNET_USE_CUDNN == 1) || MXNET_USE_MIOPEN == 1
+#if (MXNET_USE_CUDNN == 1) 
   MSHADOW_REAL_TYPE_SWITCH(dtype, DType, {
     if (param.cudnn_off.has_value() && param.cudnn_off.value()) {
       op = new BilinearSamplerOp<gpu, DType>(param);

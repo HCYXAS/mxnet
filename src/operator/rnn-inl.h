@@ -41,6 +41,7 @@ STATIC_ASSERT_CUDNN_VERSION_GE(7000);
 #include <string>
 #include <utility>
 #include <cstdint>
+
 #include "./math.h"
 #include "./math_functions-inl.h"
 #include "./operator_common.h"

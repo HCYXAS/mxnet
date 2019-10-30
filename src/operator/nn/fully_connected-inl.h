@@ -32,6 +32,7 @@
 #include <vector>
 #include <string>
 #include <utility>
+#include <algorithm>
 #include "../operator_common.h"
 #include "../elemwise_op_common.h"
 #include "../linalg.h"
@@ -59,6 +60,7 @@ struct FullyConnectedParam : public dmlc::Parameter<FullyConnectedParam> {
   int num_hidden;
   bool no_bias;
   bool flatten;
+
   DMLC_DECLARE_PARAMETER(FullyConnectedParam) {
     // TODO(bing) add support for boolean
     DMLC_DECLARE_FIELD(num_hidden).set_lower_bound(1)
@@ -74,6 +76,72 @@ struct FullyConnectedParam : public dmlc::Parameter<FullyConnectedParam> {
            this->flatten == other.flatten;
   }
 };
+
+template<typename DType>
+void AddBias(Tensor<cpu, 1, DType> bias, Tensor<cpu, 2, DType> data,
+             Tensor<cpu, 2, DType> out, Stream<cpu>*) {
+  using namespace mshadow;
+  using namespace mshadow::expr;
+  out += repmat(bias, data.size(0));
+}
+
+#if defined(__HIPCC__)
+
+namespace {
+  constexpr int nthreads_addbias = 256;
+  constexpr int nthreads_addbiasgrad_phase1 = 512;
+  constexpr int nthreads_addbiasgrad_phase2 = 128;
+  constexpr int threads_per_warp = 32;
+
+  inline int ceil_div(int x, int y) {
+    return (x + y - 1) / y;
+  }
+}  // namespace
+
+template <typename DType, typename LType>
+__global__ void add_bias_kernel(DType* mat, DType* bias, size_t lead_dim, size_t bias_length) {
+  __shared__ LType scratch[nthreads_addbias * 2];
+  const index_t N = bias_length * sizeof(DType)/sizeof(LType);
+  const index_t base = blockIdx.x * N;
+  LType* const mat_aligned = reinterpret_cast<LType*>(mat) + base;
+  const LType* const bias_aligned = reinterpret_cast<LType*>(bias);
+  LType* const scratch_bias_load = scratch + threadIdx.x;
+  DType* const scratch_bias = reinterpret_cast<DType*>(scratch_bias_load);
+  LType* const scratch_mat_load = scratch_bias_load + nthreads_addbias;
+  DType* const scratch_mat = reinterpret_cast<DType*>(scratch_mat_load);
+  for (index_t i = threadIdx.x; i < N; i += blockDim.x) {
+    *scratch_bias_load = bias_aligned[i];
+    *scratch_mat_load = mat_aligned[i];
+#pragma unroll
+    for (int j = 0; j < sizeof(LType)/sizeof(DType); ++j) {
+      scratch_mat[j] += scratch_bias[j];
+    }
+    mat_aligned[i] = *scratch_mat_load;
+  }
+}
+
+template<typename DType>
+void AddBias(Tensor<gpu, 1, DType> bias, Tensor<gpu, 2, DType> data,
+             Tensor<gpu, 2, DType> out, Stream<gpu>* s) {
+    int ltype = mxnet::common::cuda::get_load_type(bias.shape_[0] * sizeof(DType));
+    MXNET_LOAD_TYPE_SWITCH(ltype, LType, {
+    /*add_bias_kernel<DType, LType><<<data.size(0),
+                                    nthreads_addbias,
+                                    0,
+                                    Stream<gpu>::GetStream(s)>>>(out.dptr_,
+                                                                 bias.dptr_,
+                                                                 data.size(0),
+                                                                 bias.shape_[0]);*/
+
+          hipLaunchKernelGGl((add_bias_kernel<DType, LType>),data.size(0), nthreads_addbias, 0,Stream<gpu>::GetStream(s),out.dptr_,
+                                                                                    bias.dptr_,
+                                                                                    data.size(0),
+                                                                                     bias.shape_[0]); 
+    });
+    MSHADOW_CUDA_POST_KERNEL_CHECK(add_bias_kernel);
+}
+
+#endif  // __HIPCC__
 
 template<typename xpu, typename DType>
 void FCForward(const OpContext &ctx, const FullyConnectedParam &param,

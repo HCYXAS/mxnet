@@ -40,7 +40,6 @@
 namespace mxnet {
 namespace op {
 namespace mshadow_op {
-//#ifdef __CUDA_ARCH__
 #if __HIP_DEVICE_COMPILE__
 __constant__ const float PI = 3.14159265358979323846;
 __constant__ const float SELU_ALPHA = 1.6732632423543772848170429916717;
@@ -55,6 +54,7 @@ using std::isnan;
 #endif
 using std::enable_if;
 using std::is_unsigned;
+using std::is_integral;
 
 #define MXNET_UNARY_MATH_OP(name, expr) \
   struct name : public mxnet_op::tunable { \
@@ -321,6 +321,16 @@ MXNET_BINARY_MATH_OP(power_rgrad, math::pow(a, b) * math::log(a));
 MXNET_BINARY_MATH_OP(rpower, math::pow(b, a));
 
 MXNET_BINARY_MATH_OP(rpower_grad, math::id(a) * math::log(b));
+
+MXNET_BINARY_MATH_OP(arctan2, math::atan2(a, b));
+
+MXNET_BINARY_MATH_OP(arctan2_grad, math::id(b) / (math::id(a * a + b * b)));
+
+MXNET_BINARY_MATH_OP(arctan2_rgrad, -math::id(a) / (math::id(a * a + b * b)));
+
+MXNET_BINARY_MATH_OP(rarctan2, math::atan2(b, a));
+
+MXNET_BINARY_MATH_OP(rarctan2_grad, math::id(a) / (math::id(a * a + b * b)));
 
 MXNET_UNARY_MATH_OP_NC(nt, a != DType(0) ? DType(0) : DType(1));
 
@@ -1076,6 +1086,48 @@ struct nanprod_grad : public mxnet_op::tunable {
   template<typename DType>
   MSHADOW_XINLINE static DType Map(DType a, DType b) {
     return isnan_typed::IsNan(a) ? DType(0) : b / a;
+  }
+};
+
+/*! \brief used for computing binary lowest common multiple */
+struct lcm : public mxnet_op::tunable {
+  template<typename DType>
+  MSHADOW_XINLINE static typename enable_if<is_integral<DType>::value, DType>::type
+  Map(DType a, DType b) {
+    // minus cases.
+    if (a < 0) {
+      a = -a;
+    }
+    if (b < 0) {
+      b = -b;
+    }
+    // handle zero-valued cases.
+    DType c;
+    if (a == 0 || b == 0) {
+      c = 0;
+    } else {
+      DType tmp;
+      DType tmp_a = a;
+      DType tmp_b = b;
+      if (a < b) {
+        tmp = a;
+        a = b;
+        b = tmp;
+      }
+      while (a % b != 0) {
+        a = a % b;
+        tmp = a;
+        a = b;
+        b = tmp;
+      }
+      c = tmp_a / b * tmp_b;
+    }
+    return c;
+  }
+  template<typename DType>
+  MSHADOW_XINLINE static typename enable_if<!is_integral<DType>::value, DType>::type
+  Map(DType a, DType b) {
+    return DType(0.0f);
   }
 };
 
