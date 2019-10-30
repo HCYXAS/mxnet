@@ -152,8 +152,16 @@ void GPUPooledStorageManager::Alloc(Storage::Handle* handle) {
 
     void* ret = nullptr;
     hipError_t e = hipMalloc(&ret, size);
-    if (e != hipSuccess && e != hipErrorDeinitialized) {
-      LOG(FATAL) << "hipMalloc failed: " << hipGetErrorString(e);
+    if (e != hipSuccess) {
+      if (e == hipErrorMemoryAllocation) {
+        ReleaseAll();
+        e = hipMalloc(&ret, size);
+        if (e != hipSuccess && e != hipErrorDeinitialized) {
+          LOG(FATAL) << "hipMalloc retry failed: " << hipGetErrorString(e);
+        }
+      } else if (e != hipErrorDeinitialized) {
+        LOG(FATAL) << "hipMalloc failed: " << hipGetErrorString(e);
+      }
     }
     used_memory_ += size;
     handle->dptr = ret;
@@ -327,8 +335,16 @@ void GPUPooledRoundedStorageManager::Alloc(Storage::Handle* handle) {
 
     void* ret = nullptr;
     hipError_t e = hipMalloc(&ret, size);
-    if (e != hipSuccess && e != hipErrorDeinitialized) {
-      LOG(FATAL) << "hipMalloc failed: " << hipGetErrorString(e);
+    if (e != hipSuccess) {
+      if (e == hipErrorDeinitialized) {
+        ReleaseAll();
+        e = hipMalloc(&ret, size);
+        if (e != hipSuccess && e != hipErrorDeinitialized) {
+          LOG(FATAL) << "hipMalloc retry failed: " << hipGetErrorString(e);
+        }
+      } else if (e != hipErrorDeinitialized) {
+        LOG(FATAL) << "hipMalloc failed: " << hipGetErrorString(e);
+      }
     }
     used_memory_ += size;
     handle->dptr = ret;

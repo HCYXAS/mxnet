@@ -99,6 +99,19 @@ inline bool NumpyMultinomialOpType(const nnvm::NodeAttrs& attrs,
   return true;
 }
 
+template<typename DType>
+void CheckPvalGPU(DType* input, int prob_length);
+
+template<typename DType>
+void CheckPval(DType* input, int prob_length) {
+  DType sum = DType(0.0);
+  for (int i = 0; i < prob_length; ++i) {
+    sum += input[i];
+    CHECK_LE(sum, 1.0 + 1e-12)
+      << "sum(pvals[:-1]) > 1.0";
+  }
+}
+
 struct multinomial_kernel {
   template<typename DType>
   MSHADOW_XINLINE static void Map(int i,
