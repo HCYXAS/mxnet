@@ -23,12 +23,17 @@
  * \brief
  * \author Bing Xu, Dick Carter
 */
+#ifndef MXNET_OPERATOR_NN_CUDNN_CUDNN_CONVOLUTION_INL_H_
+#define MXNET_OPERATOR_NN_CUDNN_CUDNN_CONVOLUTION_INL_H_
 
-#ifndef MXNET_OPERATOR_NN_CUDNN_CUDNN_POOLING_INL_H_
-#define MXNET_OPERATOR_NN_CUDNN_CUDNN_POOLING_INL_H_
+#include <mxnet/storage.h>
 #include <algorithm>
-#include <array>
-#include "../pooling-inl.h"
+#include <vector>
+#include <mutex>
+#include <string>
+#include "../convolution-inl.h"
+#include "./miopen_algoreg-inl.h"
+#include "../../../common/cuda_utils.h"
 
 namespace mxnet {
 namespace op {
