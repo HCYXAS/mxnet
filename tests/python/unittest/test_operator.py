@@ -2931,6 +2931,7 @@ def test_big_transpose():
     assert_allclose(x_np, z.asnumpy().astype('uint8'))
 
 
+@with_seed()
 def test_larger_transpose():
     x = mx.nd.random.normal(shape=(50,51))
     y = mx.nd.transpose(x)
@@ -3291,9 +3292,9 @@ def test_batch_dot():
                         agrad_npy = np.empty((batch_size, m, k), dtype=data_type)
                         bgrad_npy = np.empty((batch_size, k, n), dtype=data_type)
                         a_init_grad_npy = np.random.normal(size=(batch_size, m, k))
-                        a_init_grad_npy = a_npy.astype(data_type)
+                        a_init_grad_npy = a_init_grad_npy.astype(data_type)
                         b_init_grad_npy = np.random.normal(size=(batch_size, k, n))
-                        b_init_grad_npy = b_npy.astype(data_type)
+                        b_init_grad_npy = b_init_grad_npy.astype(data_type)
                         for i in range(batch_size):
                             c_npy[i, :, :] = np.dot(a_npy[i, :, :], b_npy[i, :, :])
                             bgrad_npy[i, :, :] = np.dot(a_npy[i, :, :].T, ograd_npy[i, :, :])
@@ -9276,6 +9277,62 @@ def test_min_max_inf():
 
                 assert_array_equal(min_data_np, min_data_mx.asnumpy())
                 assert_array_equal(max_data_np, max_data_mx.asnumpy())
+
+
+def test_large_tensor_disabled_err_msg():
+    LARGE_X = 4300000000
+    MEDIUM_X = 1000000000
+    SMALL_Y = 1
+    shape = (2, LARGE_X)
+
+    def check_nd_array():
+        x = np.arange(0, LARGE_X)
+        assertRaises(MXNetError, mx.nd.array, x)
+
+    def check_nd_ones():
+        assertRaises(MXNetError, mx.nd.ones, shape)
+
+    def check_nd_zeros():
+        assertRaises(MXNetError, mx.nd.zeros, shape)
+
+    def check_nd_full():
+        val = 1
+        assertRaises(Exception, mx.nd.full, shape, val)
+
+    def check_nd_arange():
+        start = 0
+        stop = LARGE_X
+        assertRaises(Exception, mx.nd.arange, start, stop)
+
+    def check_nd_random():
+        shape = (2, LARGE_X)
+        def check_random_exp():
+            lam = 4
+            assertRaises(MXNetError, mx.nd.random_exponential, lam, shape)
+
+        def check_random_gamma():
+            alpha = 9
+            beta = 0.5
+            assertRaises(MXNetError, mx.nd.random_gamma, alpha, beta, shape)
+
+        def check_random_normal():
+            loc = 0
+            scale = 1
+            assertRaises(MXNetError, mx.nd.random_normal, loc, scale, shape)
+
+        def check_random_poisson():
+            lam = 4
+            assertRaises(MXNetError, mx.nd.random_poisson, alpha, lam, shape)
+
+        def check_random_randint():
+            low = 0
+            high = 1000000
+            assertRaises(MXNetError, mx.nd.random_randint, low, high, shape)
+
+        def check_random_uniform():
+            low = 0
+            hight = 1
+            assertRaises(MXNetError, mx.nd.random_uniform, alpha, beta, shape)
 
 
 if __name__ == '__main__':

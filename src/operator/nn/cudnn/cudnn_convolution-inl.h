@@ -249,8 +249,6 @@ class CuDNNConvolutionOp {
       CHECK_LE(back_workspace_byte_dgrad_, workspace_size);
       CHECK_LE(back_workspace_byte_wgrad_, workspace_size);
     }
-
-   
       typename DataType<DType>::ScaleType alpha = 1.0f;
       typename DataType<DType>::ScaleType beta = 0.0f;
       typename DataType<DType>::ScaleType beta_add = 1.0f;
@@ -396,7 +394,6 @@ class CuDNNConvolutionOp {
     mxnet::TShape wshape = in_shape[conv::kWeight];
     mxnet::TShape oshape = out_shape[conv::kOut];
     mxnet::TShape dstride, ostride, wstride;
-
 
     if (param_.kernel.ndim() == 1 || param_.kernel.ndim() == 2) {
       // 1d or 2d conv

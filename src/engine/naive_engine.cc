@@ -260,5 +260,6 @@ class NaiveEngine final : public Engine {
 Engine *CreateNaiveEngine() {
   return new NaiveEngine();
 }
+
 }  // namespace engine
 }  // namespace mxnet

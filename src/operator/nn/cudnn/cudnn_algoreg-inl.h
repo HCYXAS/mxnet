@@ -44,6 +44,7 @@ namespace op {
  */
 template <typename CuDNNAlgoType>
 class CuDNNAlgo {
+  //STATIC_ASSERT_CUDNN_VERSION_GE(7000);
 
  public:
   CuDNNAlgo() :

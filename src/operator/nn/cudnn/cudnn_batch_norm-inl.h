@@ -44,6 +44,8 @@ enum CuDNNBatchNormOpAuxiliary {kMovingMean, kMovingInvVar};
 #if defined(__HIPCC__)
 template<typename DType>
 class CuDNNBatchNormOp {
+  //STATIC_ASSERT_CUDNN_VERSION_GE(5000);
+
  public:
   CuDNNBatchNormOp() {
     using namespace mshadow;

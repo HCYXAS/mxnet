@@ -60,8 +60,7 @@ def get_gpu_memory(gpu_dev_id):
 
 
 def set_np_shape(active):
-    """
-    Turns on/off NumPy shape semantics, in which `()` represents the shape of scalar tensors,
+    """Turns on/off NumPy shape semantics, in which `()` represents the shape of scalar tensors,
     and tuples with `0` elements, for example, `(0,)`, `(1, 0, 2)`, represent the shapes
     of zero-size tensors. This is turned off by default for keeping backward compatibility.
 
@@ -568,8 +567,7 @@ def use_np(func):
 
 
 def np_ufunc_legal_option(key, value):
-    """
-    Checking if ufunc arguments are legal inputs
+    """Checking if ufunc arguments are legal inputs
 
     Parameters
     ----------
@@ -627,9 +625,11 @@ def wrap_np_unary_func(func):
                 if value != _np_ufunc_default_kwargs[key]:
                     # if the provided value of the argument is a legal option, raise NotImplementedError
                     if np_ufunc_legal_option(key, value):
-                        raise NotImplementedError("{}={} is not implemented yet".format(key, str(value)))
+                        raise NotImplementedError("{}={} is not implemented yet for operator {}"
+                                                  .format(key, str(value), func.__name__))
                     # otherwise raise TypeError with not understood error message
-                    raise TypeError("{} {} not understood".format(key, value))
+                    raise TypeError("{}={} not understood for operator {}"
+                                    .format(key, value, func.__name__))
         return func(x, out=out)
     return _wrap_np_unary_func
 
@@ -663,6 +663,7 @@ def wrap_np_binary_func(func):
                     raise TypeError("{} {} not understood".format(key, value))
         return func(x1, x2, out=out)
     return _wrap_np_binary_func
+
 
 def _set_np_array(active):
     """Turns on/off NumPy array semantics for the current thread in which `mxnet.numpy.ndarray`

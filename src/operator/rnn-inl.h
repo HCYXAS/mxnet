@@ -493,7 +493,6 @@ class RNNOp {
 
     CUDNN_CALL(miopenCreateRNNDescriptor(&rnn_desc_));
     //CUDNN_CALL(cudnnCreateDropoutDescriptor(&dropout_desc_));
-     CUDA_CALL(hipEventCreateWithFlags(&dgrad_sync_event_, hipEventDisableTiming));
 
     #if MXNET_USE_CUDNN_GE_7200
     /*CUDNN_CALL(cudnnCreateRNNDataDescriptor(&x_data_desc_));
@@ -538,6 +537,7 @@ class RNNOp {
     CUDNN_CALL(miopenDestroyTensorDescriptor(dw_desc_));
     CUDNN_CALL(miopenDestroyRNNDescriptor(rnn_desc_));
     //CUDNN_CALL(cudnnDestroyDropoutDescriptor(dropout_desc_));
+    if (dgrad_sync_event_created_)
     CUDA_CALL(hipEventDestroy(dgrad_sync_event_));
 
     if (init_cudnn_) {
@@ -1502,6 +1502,10 @@ class RNNOp {
     if (CUDNN_VERSION <= 7604 && dgrad_sync_needed_) {
       // Without blocking the CPU, create a synchronization point of all current GPU activity.  No
       // need to call cudaStreamWaitEvent- cudaEventRecord on the legacy default stream suffices.
+ if (!dgrad_sync_event_created_) {
+        CUDA_CALL(hipEventCreateWithFlags(&dgrad_sync_event_, hipEventDisableTiming));
+        dgrad_sync_event_created_ = true;
+      }
       //CUDA_CALL(hipEventRecord(dgrad_sync_event_, cudaStreamLegacy)); //TODO: cudaStreamLegacy not supported
     }
   }
@@ -1535,6 +1539,7 @@ class RNNOp {
 
    //cudnnTensorFormat_t format_;
   hipEvent_t dgrad_sync_event_;
+  bool dgrad_sync_event_created_ = false;
   bool dgrad_sync_needed_ = false;
    #endif
   bool init_space_, temp_init_space_;
