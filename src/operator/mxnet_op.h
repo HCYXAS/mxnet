@@ -620,6 +620,18 @@ MSHADOW_XINLINE Shape<ndim> calc_stride(const Shape<ndim>& shape) {
   return stride;
 }
 
+/* Increment coordinates */
+template<int ndim>
+MSHADOW_XINLINE bool inc(Shape<ndim>* coord, const Shape<ndim>& shape) {
+  ++(*coord)[ndim-1];
+  #pragma unroll
+  for (int i = ndim - 1; i > 0 && (*coord)[i] >= shape[i]; --i) {
+    (*coord)[i] -= shape[i];
+    ++(*coord)[i-1];
+  }
+  return (*coord)[0] < shape[0];
+}
+
 /* Increment coordinates and modify index */
 template<int ndim>
 MSHADOW_XINLINE void inc(Shape<ndim>* coord, const Shape<ndim>& shape,
@@ -660,7 +672,7 @@ template <typename xpu>
 MSHADOW_CINLINE void copy(mshadow::Stream<xpu> *s, const TBlob& to, const TBlob& from) {
   CHECK_EQ(from.Size(), to.Size());
   CHECK_EQ(from.dev_mask(), to.dev_mask());
-  MSHADOW_TYPE_SWITCH(to.type_flag_, DType, {
+  MSHADOW_TYPE_SWITCH_WITH_BOOL(to.type_flag_, DType, {
     if (to.type_flag_ == from.type_flag_) {
       mshadow::Copy(to.FlatTo1D<xpu, DType>(s), from.FlatTo1D<xpu, DType>(s), s);
     } else {

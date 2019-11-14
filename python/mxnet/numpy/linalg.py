@@ -20,7 +20,7 @@
 from __future__ import absolute_import
 from ..ndarray import numpy as _mx_nd_np
 
-__all__ = ['norm', 'svd']
+__all__ = ['norm', 'svd', 'cholesky']
 
 
 def norm(x, ord=None, axis=None, keepdims=False):
@@ -54,10 +54,35 @@ def norm(x, ord=None, axis=None, keepdims=False):
     n : float or ndarray
         Norm of the matrix or vector(s).
 
+    Notes
+    -----
+    This operator differs from NumPy in the aspect that it always returns a
+    zero-dim tensor for the cases where Python float values are expected
+    in NumPy.
+
     References
     ----------
     .. [1] G. H. Golub and C. F. Van Loan, *Matrix Computations*,
            Baltimore, MD, Johns Hopkins University Press, 1985, pg. 15
+
+    Examples
+    --------
+    >>> from numpy import linalg as LA
+    >>> a = np.arange(9) - 4
+    >>> a
+    array([-4., -3., -2., -1.,  0.,  1.,  2.,  3.,  4.])
+    >>> b = a.reshape((3, 3))
+    >>> b
+    array([[-4., -3., -2.],
+           [-1.,  0.,  1.],
+           [ 2.,  3.,  4.]])
+    >>> LA.norm(a)
+    array(7.745967)
+    >>>
+    >>> LA.norm(b)
+    array(7.745967)
+    >>> LA.norm(b, 'fro')
+    array(7.745967)
     """
     return _mx_nd_np.linalg.norm(x, ord, axis, keepdims)
 
@@ -134,3 +159,62 @@ def svd(a):
     array(0.)
     """
     return _mx_nd_np.linalg.svd(a)
+
+
+def cholesky(a):
+    r"""
+    Cholesky decomposition.
+
+    Return the Cholesky decomposition, `L * L.T`, of the square matrix `a`,
+    where `L` is lower-triangular and .T is the transpose operator. `a` must be
+    symmetric and positive-definite. Only `L` is actually returned. Complex-valued
+    input is currently not supported.
+
+    Parameters
+    ----------
+    a : (..., M, M) ndarray
+        Symmetric, positive-definite input matrix.
+
+    Returns
+    -------
+    L : (..., M, M) ndarray
+        Lower-triangular Cholesky factor of `a`.
+
+    Raises
+    ------
+    MXNetError
+        If the decomposition fails, for example, if `a` is not positive-definite.
+
+    Notes
+    -----
+    Broadcasting rules apply.
+
+    The Cholesky decomposition is often used as a fast way of solving
+
+    .. math:: A \mathbf{x} = \mathbf{b}
+
+    (when `A` is both symmetric and positive-definite).
+
+    First, we solve for :math:`\mathbf{y}` in
+
+    .. math:: L \mathbf{y} = \mathbf{b},
+
+    and then for :math:`\mathbf{x}` in
+
+    .. math:: L.T \mathbf{x} = \mathbf{y}.
+
+    Examples
+    --------
+    >>> A = np.array([[16, 4], [4, 10]])
+    >>> A
+    array([[16.,  4.],
+           [ 4., 10.]])
+    >>> L = np.linalg.cholesky(A)
+    >>> L
+    array([[4., 0.],
+           [1., 3.]])
+    >>> np.dot(L, L.T)
+    array([[16.,  4.],
+           [ 4., 10.]])
+    """
+    return _mx_nd_np.linalg.cholesky(a)

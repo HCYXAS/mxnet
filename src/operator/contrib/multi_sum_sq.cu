@@ -153,9 +153,7 @@ void MultiSumSqRun<gpu>(const std::vector<TBlob> &inputs, int nInputs,
         if (!(tensors_full || blocks_full || last_chunk))
           continue;
 
-        /*MultiSumSqKernel<<<loc_block_info, block_size, 0, stream>>>
-          (chunk_size, param, out_ptr + output_offset);*/
-	hipLaunchKernelGGL((MultiSumSqKernel),loc_block_info, block_size, 0, stream,chunk_size, param, out_ptr + output_offset);
+     hipLaunchKernelGGL((MultiSumSqKernel),loc_block_info, block_size, 0, stream,chunk_size, param, out_ptr + output_offset);
         MSHADOW_CUDA_POST_KERNEL_CHECK(MultiSumSqKernel);
         loc_block_info = 0;
         if (last_curr_chunk) {  // if you start from a new tensor

@@ -692,6 +692,7 @@ build_ubuntu_cpu_mkldnn_mkl() {
         USE_TVM_OP=1                  \
         USE_BLAS=mkl                  \
         USE_SIGNAL_HANDLER=1          \
+        USE_INTEL_PATH=/opt/intel/    \
         -j$(nproc)
 }
 
@@ -877,9 +878,9 @@ build_ubuntu_gpu_cmake_mkldnn() {
         /work/mxnet
 
     ninja -v
-    # libmkldnn.so.0 is a link file. We need an actual binary file named libmkldnn.so.0.
-    cp 3rdparty/mkldnn/src/libmkldnn.so.0 3rdparty/mkldnn/src/libmkldnn.so.0.tmp
-    mv 3rdparty/mkldnn/src/libmkldnn.so.0.tmp 3rdparty/mkldnn/src/libmkldnn.so.0
+    # libmkldnn.so.1 is a link file. We need an actual binary file named libmkldnn.so.1.
+    cp 3rdparty/mkldnn/src/libmkldnn.so.1 3rdparty/mkldnn/src/libmkldnn.so.1.tmp
+    mv 3rdparty/mkldnn/src/libmkldnn.so.1.tmp 3rdparty/mkldnn/src/libmkldnn.so.1
 }
 
 build_ubuntu_gpu_cmake() {
@@ -1481,8 +1482,9 @@ nightly_test_installation() {
 nightly_test_imagenet_inference() {
     set -ex
     echo $PWD
-    cp /work/mxnet/build/cpp-package/example/imagenet_inference .
-    /work/mxnet/cpp-package/example/inference/unit_test_imagenet_inference.sh
+    cp /work/mxnet/build/cpp-package/example/imagenet_inference /work/mxnet/cpp-package/example/inference/
+    cd /work/mxnet/cpp-package/example/inference/
+    ./unit_test_imagenet_inference.sh
 }
 
 #Runs a simple MNIST training example
