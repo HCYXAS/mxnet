@@ -82,7 +82,7 @@ TEST(DROPOUT_PERF, TimingCPU) {
   }
 }
 
-#if MXNET_USE_CUDA == 1
+#if MXNET_USE_GPU == 1
 /*!
  * \brief DropoutOp timing test for GPU
  */
@@ -108,4 +108,4 @@ TEST(DROPOUT_PERF, TimingGPU) {
     runner.TimingTest("Dropout Operator GPU", true, false, kwargs, 2, 10, { shape }, false);
   }
 }
-#endif  // MXNET_USE_CUDA == 1
+#endif  // MXNET_USE_GPU == 1

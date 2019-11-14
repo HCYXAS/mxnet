@@ -84,7 +84,7 @@ TEST(FULLY_CONNECTED, FullyConnectedTimingCPU) {
   }
 }
 
-#if MXNET_USE_CUDA == 1
+#if MXNET_USE_GPU == 1
 /*!
  * \brief Timing test for GPU
  */
@@ -119,4 +119,4 @@ TEST(FULLY_CONNECTED, FullyConnectedTimingGPU) {
                       { shape, shape2 }, false);
   }
 }
-#endif  // MXNET_USE_CUDA == 1
+#endif  // MXNET_USE_GPU == 1
