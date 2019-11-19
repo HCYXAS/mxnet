@@ -47,7 +47,7 @@ TEST(Storage, Basic_CPU) {
   storage->Free(handle);
 }
 
-#if MXNET_USE_GPU
+#if MXNET_USE_CUDA
 TEST(Storage_GPU, Basic_GPU) {
   if (mxnet::test::unitTestsWithCuda) {
     putenv("MXNET_GPU_MEM_POOL_ROUND_LINEAR_CUTOFF=20");
@@ -105,5 +105,5 @@ TEST(Storage_GPU, Basic_GPU) {
     storage->Free(handle);
   }
 }
-#endif  // MXNET_USE_GPU
+#endif  // MXNET_USE_CUDA
 

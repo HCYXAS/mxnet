@@ -76,7 +76,7 @@ TEST(SLICE_CHANNEL_PERF, TimingCPU) {
   }
 }
 
-#if MXNET_USE_GPU == 1
+#if MXNET_USE_CUDA == 1
 /*!
  * \brief ActivationOp timing test for GPU
  */
@@ -100,5 +100,5 @@ TEST(SLICE_CHANNEL_PERF, TimingGPU) {
     runner.TimingTest("SliceChannel Operator GPU", true, false, kwargs, 2, 10, { shape });
   }
 }
-#endif  // MXNET_USE_GPU == 1
+#endif  // MXNET_USE_CUDA == 1
 

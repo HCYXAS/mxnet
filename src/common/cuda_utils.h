@@ -137,7 +137,7 @@ inline __device__ bool __is_supported_cuda_architecture() {
   {                                                             \
     hiprandStatus_t e = (func);                                  \
     CHECK_EQ(e, HIPRAND_STATUS_SUCCESS)                          \
-        << "hipRAND: " << common::cuda::HiprandGetErrorString(e); \
+        << "hipRAND: " << mxnet::common::cuda::HiprandGetErrorString(e); \
   }
 
 /*!
@@ -662,7 +662,6 @@ static inline __device__  void atomicAdd(double *address, double val) {
 // Overload atomicAdd for half precision
 // Taken from:
 // https://github.com/torch/cutorch/blob/master/lib/THC/THCAtomics.cuh
-//#if (__HIP_DEVICE_COMPILE__) || defined(__HIPCC__)
 #ifdef __HIPCC__
 static inline __device__ void atomicAdd(mshadow::half::half_t *address,
                                         mshadow::half::half_t val) {

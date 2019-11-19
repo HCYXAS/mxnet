@@ -271,7 +271,7 @@ TEST(CORE_OP_RUNNER, TimingCPUBinaryDotProduct) {
                       false, kwargs, 2, 10, input_shapes);
   }
 }
-#if MXNET_USE_GPU == 1
+#if MXNET_USE_CUDA == 1
 TEST(CORE_OP_RUNNER, TimingGPUSimpleUnary) {
   typedef float DType;
 
@@ -339,4 +339,4 @@ TEST(CORE_OP_RUNNER, TimingGPUBinary) {
   }
 }
 
-#endif  // MXNET_USE_GPU == 1
+#endif  // MXNET_USE_CUDA == 1

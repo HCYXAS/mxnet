@@ -273,7 +273,7 @@ class CoreOpExecutor : public test::op::OperatorDataInitializer<DType>
     ctx_.run_ctx.ctx.dev_id = 0;
     ctx_.run_ctx.stream = nullptr;
     ctx_.run_ctx.ctx.dev_type = Context::kCPU;
-#if MXNET_USE_GPU
+#if MXNET_USE_CUDA
     if (isGPU) {
       ctx_.run_ctx.ctx.dev_type = Context::kGPU;
       allocGPUStream_.reset(new GPUStreamScope(&ctx_));
@@ -778,7 +778,7 @@ class CoreOpExecutor : public test::op::OperatorDataInitializer<DType>
    */
   OpContext ctx_;
 
-#if MXNET_USE_GPU
+#if MXNET_USE_CUDA
   /*! \brief
    * Scoped GPU stream
    */

@@ -220,7 +220,8 @@ void FCForward(const OpContext &ctx, const FullyConnectedParam &param,
       << "Incomplete bias tensor detected: bias.data().shape[1] != weight.data().shape[0]."
          " This is not supported by FCForward. If bias is in row_sparse format, please"
          " make sure all row ids are present.";
-    out += repmat(bias, data.size(0));
+      out += repmat(bias, data.size(0));
+     //AddBias(bias, data, out, s);
   }
 }
 

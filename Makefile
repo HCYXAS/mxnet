@@ -242,14 +242,18 @@ ifeq ($(USE_LAPACK), 1)
 ifeq ($(USE_BLAS),$(filter $(USE_BLAS),blas openblas atlas mkl))
 ifeq (,$(wildcard $(USE_LAPACK_PATH)/liblapack.a))
 ifeq (,$(wildcard $(USE_LAPACK_PATH)/liblapack.so))
+ifeq (,$(wildcard $(USE_LAPACK_PATH)/liblapack.dylib))
 ifeq (,$(wildcard /lib/liblapack.a))
 ifeq (,$(wildcard /lib/liblapack.so))
 ifeq (,$(wildcard /usr/lib/liblapack.a))
 ifeq (,$(wildcard /usr/lib/liblapack.so))
+ifeq (,$(wildcard /usr/lib/liblapack.dylib))
 ifeq (,$(wildcard /usr/lib64/liblapack.a))
 ifeq (,$(wildcard /usr/lib64/liblapack.so))
 	USE_LAPACK = 0
         $(warning "USE_LAPACK disabled because libraries were not found")
+endif
+endif
 endif
 endif
 endif
@@ -492,16 +496,39 @@ ifeq ($(USE_DIST_KVSTORE), 1)
 	LDFLAGS += $(PS_LDFLAGS_A)
 endif
 
-.PHONY: clean all extra-packages test lint docs clean_all rcpplint rcppexport roxygen\
+.PHONY: clean all extra-packages test lint clean_all rcpplint rcppexport roxygen\
 	cython2 cython3 cython cyclean
 
-all: lib/libmxnet.a lib/libmxnet.so $(BIN) extra-packages
+all: lib/libmxnet.a lib/libmxnet.so $(BIN) extra-packages sample_lib
 
 SRC = $(wildcard src/*/*/*/*.cc src/*/*/*.cc src/*/*.cc src/*.cc)
 OBJ = $(patsubst %.cc, build/%.o, $(SRC))
 CUSRC = $(wildcard src/*/*/*/*.cu src/*/*/*.cu src/*/*.cu src/*.cu *.cu)
 CUOBJ = $(patsubst %.cu, build/%_gpu.o, $(CUSRC))
 
+ifeq ($(USE_TVM_OP), 1)
+LIB_DEP += lib/libtvm_runtime.so lib/libtvmop.so
+CFLAGS += -I$(TVM_PATH)/include -DMXNET_USE_TVM_OP=1
+LDFLAGS += -L$(ROOTDIR)/lib -ltvm_runtime -Wl,-rpath,'$${ORIGIN}'
+
+TVM_USE_CUDA := OFF
+TVM_USE_ROCM := OFF
+ifeq ($(USE_GPU), 1)
+ifeq ($(HIP_PLATFORM), nvcc)
+	TVM_USE_CUDA := ON
+	ifneq ($(USE_CUDA_PATH), NONE)
+		TVM_USE_CUDA := $(USE_CUDA_PATH)
+	endif
+endif
+
+ifeq ($(HIP_PLATFORM), hcc)
+	TVM_USE_ROCM := ON
+	ifneq ($(USE_ROCM_PATH), NONE)
+	        TVM_USE_ROCM := $(USE_ROCM_PATH)
+	endif	
+endif
+endif
+endif
 # extra operators
 ifneq ($(EXTRA_OPERATORS),)
 	EXTRA_SRC = $(wildcard $(patsubst %, %/*.cc, $(EXTRA_OPERATORS)) $(patsubst %, %/*/*.cc, $(EXTRA_OPERATORS)))
@@ -650,34 +677,28 @@ $(DMLC_CORE)/libdmlc.a: DMLCCORE
 DMLCCORE:
 	+ cd $(DMLC_CORE); $(MAKE) libdmlc.a USE_SSE=$(USE_SSE) config=$(ROOTDIR)/$(config); cd $(ROOTDIR)
 
-ifeq ($(USE_TVM_OP), 1)
-LIB_DEP += lib/libtvm_runtime.so lib/libtvmop.so
-CFLAGS += -I$(TVM_PATH)/include -DMXNET_USE_TVM_OP=1
-LDFLAGS += -L$(TVM_PATH)/build -ltvm_runtime
-
-TVM_USE_CUDA := OFF
-ifeq ($(USE_GPU), 1)
-	TVM_USE_CUDA := ON
-	ifneq ($(USE_CUDA_PATH), NONE)
-		TVM_USE_CUDA := $(USE_CUDA_PATH)
-	endif
-endif
 lib/libtvm_runtime.so:
 	echo "Compile TVM"
 	[ -e $(LLVM_PATH)/bin/llvm-config ] || sh $(ROOTDIR)/contrib/tvmop/prepare_tvm.sh; \
 	cd $(TVM_PATH)/build; \
+	ifeq ($(HIP_PLATFORM), nvcc)
 	cmake -DUSE_LLVM="$(LLVM_PATH)/bin/llvm-config" \
-		  -DUSE_SORT=OFF -DUSE_GPU=$(TVM_USE_CUDA) -DUSE_CUDNN=OFF ..; \
+		  -DUSE_SORT=OFF -DUSE_CUDA=$(TVM_USE_CUDA) -DUSE_CUDNN=OFF ..; \
+        elifeq ($(HIP_PLATFORM), hcc)
+	cmake -DUSE_LLVM="$(LLVM_PATH)/bin/llvm-config" \
+	           -DUSE_SORT=OFF -DUSE_ROCM=$(TVM_USE_ROCM) -DUSE_MIOPEN=OFF ..; \
+        endif
 	$(MAKE) VERBOSE=1; \
+	mkdir -p $(ROOTDIR)/lib; \
 	cp $(TVM_PATH)/build/libtvm_runtime.so $(ROOTDIR)/lib/libtvm_runtime.so; \
+	ls $(ROOTDIR)/lib; \
 	cd $(ROOTDIR)
 
 lib/libtvmop.so: lib/libtvm_runtime.so $(wildcard contrib/tvmop/*/*.py contrib/tvmop/*.py)
 	echo "Compile TVM operators"
-	PYTHONPATH=$(TVM_PATH)/python:$(TVM_PATH)/topi/python:$(ROOTDIR)/contrib:$PYTHONPATH \
-		LD_LIBRARY_PATH=lib \
+	PYTHONPATH=$(TVM_PATH)/python:$(TVM_PATH)/topi/python:$(ROOTDIR)/contrib \
+		LD_LIBRARY_PATH=$(ROOTDIR)/lib \
 	    python3 $(ROOTDIR)/contrib/tvmop/compile.py -o $(ROOTDIR)/lib/libtvmop.so
-endif
 
 NNVM_INC = $(wildcard $(NNVM_PATH)/include/*/*.h)
 NNVM_SRC = $(wildcard $(NNVM_PATH)/src/*/*/*.cc $(NNVM_PATH)/src/*/*.cc $(NNVM_PATH)/src/*.cc)
@@ -711,17 +732,6 @@ cpplint:
 pylint:
 	python3 -m pylint --rcfile=$(ROOTDIR)/ci/other/pylintrc --ignore-patterns=".*\.so$$,.*\.dll$$,.*\.dylib$$" python/mxnet tools/caffe_converter/*.py
 
-doc: docs
-
-docs:
-	make -C docs html
-
-clean_docs:
-	make -C docs clean
-
-doxygen:
-	doxygen docs/Doxyfile
-
 # Cython build
 cython:
 	cd python; $(PYTHON) setup.py build_ext --inplace --with-cython
@@ -750,6 +760,10 @@ rpkg:
 		cp -rf lib/libmklml_intel.so R-package/inst/libs; \
 	fi
 
+	if [ -e "lib/libtvm_runtime.so" ]; then \
+		cp -rf lib/libtvm_runtime.so R-package/inst/libs; \
+	fi
+
 	mkdir -p R-package/inst/include
 	cp -rl include/* R-package/inst/include
 	Rscript -e "if(!require(devtools)){install.packages('devtools', repo = 'https://cloud.r-project.org/')}"
@@ -766,6 +780,10 @@ rpkg:
 rpkgtest:
 	Rscript -e 'require(testthat);res<-test_dir("R-package/tests/testthat");if(!testthat:::all_passed(res)){stop("Test failures", call. = FALSE)}'
 	Rscript -e 'res<-covr:::package_coverage("R-package");fileConn<-file(paste("r-package_coverage_",toString(runif(1)),".json"));writeLines(covr:::to_codecov(res), fileConn);close(fileConn)'
+
+
+sample_lib:
+	$(CXX) -shared -fPIC example/lib_api/mylib.cc -o libsample_lib.so -I include/mxnet
 
 scalaclean:
 	(cd $(ROOTDIR)/scala-package && mvn clean)

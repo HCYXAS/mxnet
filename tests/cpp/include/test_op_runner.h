@@ -67,7 +67,7 @@ class OperatorRunner {
     const mxnet::ShapeVector& inputShapes,
     const std::vector<std::pair<std::string, std::string> > &kwargs,
     const size_t count = 1) {
-#if MXNET_USE_GPU
+#if MXNET_USE_CUDA
     if (isGPU && !test::unitTestsWithCuda) {
       LOG(INFO) << "GPU not found, running test as non-GPU";
     }

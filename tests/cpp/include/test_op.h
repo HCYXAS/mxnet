@@ -57,13 +57,13 @@ namespace mxnet {
 namespace test {
 namespace op {
 
-#if MXNET_USE_GPU
+#if MXNET_USE_CUDA
 #define MXNET_CUDA_ONLY(__i$) __i$
 #else
 #define MXNET_CUDA_ONLY(__i$) ((void)0)
 #endif
 
-#if MXNET_USE_GPU
+#if MXNET_USE_CUDA
 /*!
  * \brief Maintain the lifecycle of a GPU stream
  */
@@ -84,7 +84,7 @@ struct GPUStreamScope {
   }
   OpContext& opContext_;
 };
-#endif  // MXNET_USE_GPU
+#endif  // MXNET_USE_CUDA
 
 /*!
  * \brief Base class for operator test-data classes

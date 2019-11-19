@@ -80,6 +80,15 @@ else
 	USE_CUDA_PATH = NONE
 endif
 
+#add the path to ROCm library to link and compile flag
+ifeq ($(HIP_PLATFORM), hcc)
+        USE_ROCM_PATH = /opt/rocm/
+else
+        USE_ROCM_PATH = NONE
+endif
+
+
+
 # whether to enable CUDA runtime compilation
 ENABLE_CUDA_RTC = 0
 

@@ -114,7 +114,7 @@ class CAccessAsCPU {
   : run_ctx_(run_ctx)
     , src_(src)
     , copy_back_result_(copy_back_result) {
-#if MXNET_USE_GPU
+#if MXNET_USE_CUDA
     if (run_ctx.ctx.dev_type == Context::kCPU) {
       blob_ = src;
     } else {
@@ -134,7 +134,7 @@ class CAccessAsCPU {
 #endif
   }
   ~CAccessAsCPU() {
-#if MXNET_USE_GPU
+#if MXNET_USE_CUDA
     if (copy_back_result_) {
       // Copy back from GPU to CPU
       if (run_ctx_.ctx.dev_type == Context::kGPU) {
@@ -171,7 +171,7 @@ template <typename CallbackFunction>
 inline void AccessAsCPU(const NDArray &src,
                                const RunContext &run_ctx,
                                CallbackFunction cb) {
-#if MXNET_USE_GPU
+#if MXNET_USE_CUDA
   if (src.ctx().dev_type == Context::kCPU) {
     cb(src);
   } else {
@@ -205,7 +205,7 @@ template <typename CallbackFunction>
 inline void AccessAsCPU(const TBlob& src,
                                const RunContext &run_ctx,
                                CallbackFunction cb) {
-#if MXNET_USE_GPU
+#if MXNET_USE_CUDA
   if (run_ctx.ctx.dev_type == Context::kCPU) {
     cb(src);
   } else {
@@ -341,12 +341,12 @@ inline StreamType& print_blob_(const RunContext& ctx,
                                const bool doChannels = true,
                                const bool doBatches = true,
                                const bool add_endl = true) {
-#if MXNET_USE_GPU
+#if MXNET_USE_CUDA
   if (blob.dev_mask() == gpu::kDevMask) {
     return print_blob_<DType>(ctx, _os, CAccessAsCPU(ctx, blob, false)(), doChannels,
                               doBatches, add_endl);
   }
-#endif  // MXNET_USE_GPU
+#endif  // MXNET_USE_CUDA
 
   StreamType &os = *_os;
   const size_t dim = static_cast<size_t>(blob.ndim());
