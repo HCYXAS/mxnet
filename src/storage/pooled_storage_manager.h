@@ -88,13 +88,17 @@ class GPUPooledStorageManager final : public StorageManager {
 
  private:
   void DirectFreeNoLock(Storage::Handle handle) {
+    #if defined(__HIP_PLATFORM_HCC__)
     mxnet::common::cuda::DeviceStore device_store(handle.ctx.real_dev_id(), true);
+    #endif
     hipError_t err = hipFree(handle.dptr);
     size_t size = RoundAllocSize(handle.size);
     // ignore unloading error, as memory has already been recycled
+    #if defined(__HIP_PLATFORM_HCC__)
     if (err != hipSuccess && err != hipErrorDeinitialized) {
       LOG(FATAL) << "CUDA: " << hipGetErrorString(err);
     }
+    #endif
     used_memory_ -= size;
   }
 
