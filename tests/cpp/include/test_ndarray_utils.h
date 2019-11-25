@@ -264,12 +264,12 @@ class Array {
     OpContext opContext;
     MXNET_CUDA_ONLY(std::unique_ptr<test::op::GPUStreamScope> gpuScope;);
     switch (ctx.dev_type) {
-#if MNXNET_USE_CUDA
+#if MNXNET_USE_GPU
       case Context::kGPU:
         gpuScope.reset(new test::op::GPUStreamScope(&opContext));
         mxnet::op::CastStorageComputeImpl<gpu>(s, src, dest);
         break;
-#endif  // MNXNET_USE_CUDA
+#endif  // MNXNET_USE_GPU
       default: {  // CPU
         OpContext op_ctx;
         mxnet::op::CastStorageComputeImpl<cpu>(op_ctx, src, *pArray);
@@ -300,13 +300,13 @@ class Array {
     if (array.storage_type() != kDefaultStorage) {
       array = Convert(array.ctx(), array, kDefaultStorage);
     }
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
     if (array.ctx().dev_type == Context::kGPU) {
       NDArray tmp(array.shape(), Context::CPU(-1));
       CopyFromTo(array, &tmp);
       array = tmp;
     }
-#endif  // MXNET_USE_CUDA
+#endif  // MXNET_USE_GPU
     const TBlob blob = array.data();
     DType *p = blob.dptr<DType>();
     CHECK_EQ(shape_.ndim(), 2U);

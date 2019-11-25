@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
+HIPFLAGS = $(shell hipconfig -C)
 TEST_SRC = $(shell find tests/cpp/ -name "*.cc")
 TEST_OBJ = $(patsubst %.cc, build/%.o, $(TEST_SRC))
 TEST = build/tests/cpp/mxnet_unit_tests
@@ -33,6 +33,7 @@ TEST_CFLAGS  += -I/usr/local/include/breakpad
 TEST_LDFLAGS += -lbreakpad_client -lbreakpad
 endif
 
+TEST_CFLAGS +=  $(HIPFLAGS)
 .PHONY: runtest testclean
 
 gtest-all.o : $(GTEST_SRCS_)

@@ -38,7 +38,8 @@ __all__ = ['zeros', 'ones', 'full', 'add', 'subtract', 'multiply', 'divide', 'mo
            'argmin', 'std', 'var', 'indices', 'copysign', 'ravel', 'hanning', 'hamming', 'blackman', 'flip',
            'around', 'hypot', 'rad2deg', 'deg2rad', 'unique', 'lcm', 'tril', 'identity', 'take',
            'ldexp', 'vdot', 'inner', 'outer', 'equal', 'not_equal', 'greater', 'less', 'greater_equal', 'less_equal',
-           'hsplit', 'rot90', 'einsum', 'true_divide', 'nonzero', 'shares_memory', 'may_share_memory', 'diff']
+           'hsplit', 'rot90', 'einsum', 'true_divide', 'nonzero', 'shares_memory', 'may_share_memory', 'diff', 'resize']
+
 
 @set_module('mxnet.ndarray.numpy')
 def zeros(shape, dtype=_np.float32, order='C', ctx=None):
@@ -522,6 +523,14 @@ def add(x1, x2, out=None, **kwargs):
     -------
     add : ndarray or scalar
         The sum of x1 and x2, element-wise. This is a scalar if both x1 and x2 are scalars.
+
+    Notes
+    -----
+    This operator now supports automatic type promotion. The resulting type will be determined
+    according to the following rules:
+        * If both inputs are of floating number types, the output is the more precise type.
+        * If only one of the inputs is floating number type, the result is that type.
+        * If both inputs are of integer types (including boolean), not supported yet.
     """
     return _ufunc_helper(x1, x2, _npi.add, _np.add, _npi.add_scalar, None, out)
 
@@ -548,6 +557,14 @@ def subtract(x1, x2, out=None, **kwargs):
     -------
     subtract : ndarray or scalar
         The difference of x1 and x2, element-wise. This is a scalar if both x1 and x2 are scalars.
+
+    Notes
+    -----
+    This operator now supports automatic type promotion. The resulting type will be determined
+    according to the following rules:
+        * If both inputs are of floating number types, the output is the more precise type.
+        * If only one of the inputs is floating number type, the result is that type.
+        * If both inputs are of integer types (including boolean), not supported yet.
     """
     return _ufunc_helper(x1, x2, _npi.subtract, _np.subtract, _npi.subtract_scalar,
                          _npi.rsubtract_scalar, out)
@@ -575,6 +592,14 @@ def multiply(x1, x2, out=None, **kwargs):
     out : ndarray or scalar
         The multiplication of x1 and x2, element-wise. This is a scalar if both x1 and x2
         are scalars.
+
+    Notes
+    -----
+    This operator now supports automatic type promotion. The resulting type will be determined
+    according to the following rules:
+        * If both inputs are of floating number types, the output is the more precise type.
+        * If only one of the inputs is floating number type, the result is that type.
+        * If both inputs are of integer types (including boolean), not supported yet.
     """
     return _ufunc_helper(x1, x2, _npi.multiply, _np.multiply, _npi.multiply_scalar, None, out)
 
@@ -602,6 +627,14 @@ def divide(x1, x2, out=None, **kwargs):
     -------
     out : ndarray or scalar
         This is a scalar if both x1 and x2 are scalars.
+
+    Notes
+    -----
+    This operator now supports automatic type promotion. The resulting type will be determined
+    according to the following rules:
+        * If both inputs are of floating number types, the output is the more precise type.
+        * If only one of the inputs is floating number type, the result is that type.
+        * If both inputs are of integer types (including boolean), the output is of float32 type.
     """
     return _ufunc_helper(x1, x2, _npi.true_divide, _np.divide, _npi.true_divide_scalar,
                          _npi.rtrue_divide_scalar, out)
@@ -632,6 +665,14 @@ def true_divide(x1, x2, out=None):
     -------
     out : ndarray or scalar
         This is a scalar if both x1 and x2 are scalars.
+
+    Notes
+    -----
+    This operator now supports automatic type promotion. The resulting type will be determined
+    according to the following rules:
+        * If both inputs are of floating number types, the output is the more precise type.
+        * If only one of the inputs is floating number type, the result is that type.
+        * If both inputs are of integer types (including boolean), the output is of float32 type.
     """
     return _ufunc_helper(x1, x2, _npi.true_divide, _np.divide, _npi.true_divide_scalar,
                          _npi.rtrue_divide_scalar, out)
@@ -5070,10 +5111,9 @@ def may_share_memory(a, b, max_work=None):
     return _npi.share_memory(a, b).item()
 
 
+@set_module('mxnet.ndarray.numpy')
 def diff(a, n=1, axis=-1, prepend=None, append=None):  # pylint: disable=redefined-outer-name
     r"""
-    numpy.diff(a, n=1, axis=-1, prepend=<no value>, append=<no value>)
-
     Calculate the n-th discrete difference along the given axis.
 
     Parameters
@@ -5116,3 +5156,55 @@ def diff(a, n=1, axis=-1, prepend=None, append=None):  # pylint: disable=redefin
     if (prepend or append):
         raise NotImplementedError('prepend and append options are not supported yet')
     return _npi.diff(a, n=n, axis=axis)
+
+
+@set_module('mxnet.ndarray.numpy')
+def resize(a, new_shape):
+    """
+    Return a new array with the specified shape.
+    If the new array is larger than the original array, then the new
+    array is filled with repeated copies of `a`.  Note that this behavior
+    is different from a.resize(new_shape) which fills with zeros instead
+    of repeated copies of `a`.
+
+    Parameters
+    ----------
+    a : ndarray
+        Array to be resized.
+    new_shape : int or tuple of int
+        Shape of resized array.
+
+    Returns
+    -------
+    reshaped_array : ndarray
+        The new array is formed from the data in the old array, repeated
+        if necessary to fill out the required number of elements.  The
+        data are repeated in the order that they are stored in memory.
+
+    See Also
+    --------
+    ndarray.resize : resize an array in-place.
+
+    Notes
+    -----
+    Warning: This functionality does **not** consider axes separately,
+    i.e. it does not apply interpolation/extrapolation.
+    It fills the return array with the required number of elements, taken
+    from `a` as they are laid out in memory, disregarding strides and axes.
+    (This is in case the new shape is smaller. For larger, see above.)
+    This functionality is therefore not suitable to resize images,
+    or data where each axis represents a separate and distinct entity.
+
+    Examples
+    --------
+    >>> a = np.array([[0, 1], [2, 3]])
+    >>> np.resize(a, (2, 3))
+    array([[0., 1., 2.],
+           [3., 0., 1.]])
+    >>> np.resize(a, (1, 4))
+    array([[0., 1., 2., 3.]])
+    >>> np.resize(a,(2, 4))
+    array([[0., 1., 2., 3.],
+           [0., 1., 2., 3.]])
+    """
+    return _npi.resize_fallback(a, new_shape=new_shape)

@@ -23,6 +23,7 @@
  * \brief operator unit test utility functions
  * \author Chris Olivier
 */
+#include <hip/hip_runtime.h>
 #include <gtest/gtest.h>
 #include "mxnet/base.h"
 
@@ -50,15 +51,15 @@ bool csv = false;
 }  // namespace test
 }  // namespace mxnet
 
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
 
 static bool checkForWorkingCuda() {
   int device_count = 0;
   bool workingCuda = false;
-  if (cudaSuccess == cudaGetDeviceCount(&device_count)) {
+  if (hipSuccess == hipGetDeviceCount(&device_count)) {
     for (int device = 0; device < device_count; ++device) {
-      cudaDeviceProp prop;
-      if (cudaSuccess == cudaGetDeviceProperties(&prop, device)) {
+      hipDeviceProp_t prop;
+      if (hipSuccess == hipGetDeviceProperties(&prop, device)) {
         std::cout << "Found CUDA Device #: " << device << " properties: " << prop.major
                   << "." << prop.minor << std::endl;
         workingCuda = true;

@@ -68,7 +68,7 @@ class LegacyOperatorExecutor : public OperatorDataInitializer<DType>
 
   /*! \brief Manage test blobs and context */
   LegacyOperatorExecutor(const bool isGPU, const mxnet::ShapeVector& topShapes)
-#if !MXNET_USE_CUDA
+#if !MXNET_USE_GPU
     : isGPU_(false)
 #else
     : isGPU_(isGPU)
@@ -418,7 +418,7 @@ class LegacyOperatorExecutor : public OperatorDataInitializer<DType>
     virtual ~OpData() {}
   };
 
-#if MXNET_USE_CUDA
+#if MXNET_USE_GPU
   class GPUOpData : public OpData {
     GPUOpData() = delete;
     GPUOpData(const GPUOpData& o) = delete;
@@ -447,11 +447,11 @@ class LegacyOperatorExecutor : public OperatorDataInitializer<DType>
                                          gpu_ctx, allocGPUStream_.opContext_.run_ctx);
         }
       }
-      cudaDeviceSynchronize();
+      hipDeviceSynchronize();
     }
     inline ~GPUOpData() {
       // Copy GPU->CPU
-      cudaDeviceSynchronize();
+      hipDeviceSynchronize();
       for (size_t bvt = 0, nbvt = this->all_blob_vects_.size(); bvt < nbvt; ++bvt) {
         std::vector<TBlob>& bv_src = *this->all_blob_vects_[bvt];
         std::vector<TBlob>& bvt_dest = *cpuData_.all_blob_vects_[bvt];
@@ -469,7 +469,7 @@ class LegacyOperatorExecutor : public OperatorDataInitializer<DType>
         }
       }
       gpuBlobs_.clear();  // Force deallocation of the GPU blob data
-      cudaDeviceSynchronize();
+      hipDeviceSynchronize();
     }
 
    private:
@@ -480,7 +480,7 @@ class LegacyOperatorExecutor : public OperatorDataInitializer<DType>
     /*! \brief Scoped GPU stream */
     GPUStreamScope allocGPUStream_;
   };
-#endif  // MXNET_USE_CUDA
+#endif  // MXNET_USE_GPU
 
  protected:
   OpData                    c_;

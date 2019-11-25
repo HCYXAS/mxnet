@@ -119,7 +119,7 @@ TEST(COREOP_PERF, TimingCPU) {
                       COREOP_BWD_OP_NAME_VALUE_NONE);
 }
 
-#if MXNET_USE_CUDA == 1
+#if MXNET_USE_GPU == 1
 /*!
  * \brief ActivationOp timing test for GPU
  */
@@ -133,5 +133,5 @@ TEST(COREOP_PERF, TimingGPU) {
                       "sgd_mom_update",
                       COREOP_BWD_OP_NAME_VALUE_NONE);
 }
-#endif  // MXNET_USE_CUDA == 1
+#endif  // MXNET_USE_GPU == 1
 

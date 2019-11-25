@@ -155,9 +155,9 @@ inline int GetRnnParamSize(int num_layer,
 }
 
 inline int GetRnnBiasSize(int num_layer,
-                           int state_size,
-                           int direction,
-                           int mode) {
+                          int state_size,
+                          int direction,
+                          int mode) {
   int size = 2 * state_size * direction * num_layer;
   switch (mode) {
     case rnn_enum::kRnnRelu:
@@ -195,11 +195,14 @@ inline size_t GetRNNWorkspaceSize(int seq_length,
           seq_length * hidden_size * 8;                    // Used in Backward, Δbx, Δbh
       break;
     case rnn_enum::kGru:
-      size = seq_length * batch_size * hidden_size * direction * 4 + batch_size * hidden_size * 8;
+      // Differs with Lstm, the outputs of three gates are also held in memory
+      size = seq_length * batch_size * hidden_size * direction * (3 + 1) +  // wx*x + inter-y
+          batch_size * hidden_size * (6 + direction);                       // wh*h + h + Ngates
       break;
     case rnn_enum::kRnnRelu:
     case rnn_enum::kRnnTanh:
-      size = seq_length * batch_size * hidden_size * direction * 2 + batch_size * hidden_size * 4;
+      size = seq_length * batch_size * hidden_size * direction * 2 +  // wx*x + inter-y
+          batch_size * hidden_size * (1 + direction);                 // h + Ngates
       break;
     default:
       LOG(FATAL) << "unknown RNN mode " << mode;
@@ -1502,8 +1505,6 @@ class RNNOp {
   bool dgrad_sync_needed_ = false;
    #endif
  };  //  class RNNOp
-
-
 
 template<typename xpu>
 void RNNStatefulCompute(const OpStatePtr& state,

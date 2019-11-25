@@ -1652,6 +1652,69 @@ def test_np_binary_funcs():
 
 @with_seed()
 @use_np
+def test_np_mixed_precision_binary_funcs():
+    def check_mixed_precision_binary_func(func, low, high, lshape, rshape, ltype, rtype):
+        class TestMixedBinary(HybridBlock):
+            def __init__(self, func):
+                super(TestMixedBinary, self).__init__()
+                self._func = func
+
+            def hybrid_forward(self, F, a, b, *args, **kwargs):
+                return getattr(F.np, self._func)(a, b)
+
+        np_func = getattr(_np, func)
+        mx_func = TestMixedBinary(func)
+        np_test_x1 = _np.random.uniform(low, high, lshape).astype(ltype)
+        np_test_x2 = _np.random.uniform(low, high, rshape).astype(rtype)
+        mx_test_x1 = mx.numpy.array(np_test_x1, dtype=ltype)
+        mx_test_x2 = mx.numpy.array(np_test_x2, dtype=rtype)
+        rtol = 1e-2 if ltype is np.float16 or rtype is np.float16 else 1e-3
+        atol = 1e-4 if ltype is np.float16 or rtype is np.float16 else 1e-5
+        for hybridize in [True, False]:
+            if hybridize:
+                mx_func.hybridize()
+            np_out = np_func(np_test_x1, np_test_x2)
+            with mx.autograd.record():
+                y = mx_func(mx_test_x1, mx_test_x2)
+            assert y.shape == np_out.shape
+            assert_almost_equal(y.asnumpy(), np_out.astype(y.dtype), rtol=rtol, atol=atol,
+                                use_broadcast=False, equal_nan=True)
+
+        np_out = getattr(_np, func)(np_test_x1, np_test_x2)
+        mx_out = getattr(mx.np, func)(mx_test_x1, mx_test_x2)
+        assert mx_out.shape == np_out.shape
+        assert_almost_equal(mx_out.asnumpy(), np_out.astype(mx_out.dtype), rtol=rtol, atol=atol,
+                            use_broadcast=False, equal_nan=True)
+
+    funcs = {
+        'add': (-1.0, 1.0),
+        'subtract': (-1.0, 1.0),
+        'multiply': (-1.0, 1.0),
+    }
+    shape_pairs = [((3, 2), (3, 2)),
+                   ((3, 2), (3, 1)),
+                   ((3, 1), (3, 0)),
+                   ((0, 2), (1, 2)),
+                   ((2, 3, 4), (3, 1)),
+                   ((2, 3), ()),
+                   ((), (2, 3))]
+    itypes = [np.bool, np.int8, np.int32, np.int64]
+    ftypes = [np.float16, np.float32, np.float64]
+    for func, func_data in funcs.items():
+        low, high = func_data
+        for lshape, rshape in shape_pairs:
+            for type1, type2 in itertools.product(itypes, ftypes):
+                check_mixed_precision_binary_func(func, low, high, lshape, rshape, type1, type2)
+                check_mixed_precision_binary_func(func, low, high, lshape, rshape, type2, type1)
+
+            for type1, type2 in itertools.product(ftypes, ftypes):
+                if type1 == type2:
+                    continue
+                check_mixed_precision_binary_func(func, low, high, lshape, rshape, type1, type2)
+
+
+@with_seed()
+@use_np
 def test_npx_relu():
     def np_relu(x):
         return _np.maximum(x, 0.0)
@@ -1940,7 +2003,7 @@ def test_np_concat():
 
                     with mx.autograd.record():
                         y = test_concat(a, b, c, d)
-                    
+
                     assert y.shape == expected_ret.shape
                     assert_almost_equal(y.asnumpy(), expected_ret, rtol=1e-3, atol=1e-5)
 
@@ -2933,7 +2996,7 @@ def test_np_linalg_cholesky():
         test_cholesky = TestCholesky()
         if hybridize:
             test_cholesky.hybridize()
-        
+
         # Numerical issue:
         # When backpropagating through Cholesky decomposition, we need to compute the inverse
         # of L according to dA = 0.5 * L**(-T) * copyLTU(L**T * dL) * L**(-1) where A = LL^T.
@@ -3847,12 +3910,14 @@ def test_np_true_divide():
         [(2, 3, 1), (1, 4)],
         [(2, 1, 4, 1), (3, 1, 5)],
     ]
-    dtypes = [np.int8, np.uint8, np.int32, np.int64, np.float16, np.float32, np.float64]
+    dtypes = [np.bool, np.int8, np.uint8, np.int32, np.int64, np.float16, np.float32, np.float64]
+    itypes = [np.bool, np.int8, np.uint8, np.int32, np.int64]
+    ftypes = [np.float16, np.float32, np.float64]
     for shape_pair, dtype in itertools.product(shapes, dtypes):
         a = np.random.uniform(3, 50, size=shape_pair[0]).astype(dtype)
         b = np.random.uniform(3, 50, size=shape_pair[-1]).astype(dtype)
         out_mx = a / b
-        if _np.issubdtype(dtype, _np.integer):
+        if _np.issubdtype(dtype, _np.integer) or (dtype is np.bool):
             assert out_mx.dtype == np.float32
         else:
             assert out_mx.dtype == dtype
@@ -3866,6 +3931,20 @@ def test_np_true_divide():
 
         out_mx = val / a
         out_np = _np.true_divide(val, a.asnumpy())
+        assert_almost_equal(out_mx.asnumpy(), out_np, rtol=1e-3, atol=1e-3, use_broadcast=False)
+
+    for shape_pair, itype, ftype in itertools.product(shapes, itypes, ftypes):
+        i_ = np.random.uniform(3, 50, size=shape_pair[0]).astype(itype)
+        f_ = np.random.uniform(3, 50, size=shape_pair[-1]).astype(ftype)
+
+        out_mx = i_ / f_
+        assert out_mx.dtype == ftype
+        out_np = _np.true_divide(i_.asnumpy(), f_.asnumpy())
+        assert_almost_equal(out_mx.asnumpy(), out_np, rtol=1e-3, atol=1e-3, use_broadcast=False)
+
+        out_mx = f_ / i_
+        assert out_mx.dtype == ftype
+        out_np = _np.true_divide(f_.asnumpy(), i_.asnumpy())
         assert_almost_equal(out_mx.asnumpy(), out_np, rtol=1e-3, atol=1e-3, use_broadcast=False)
 
 
@@ -4111,6 +4190,41 @@ def test_np_column_stack():
         mx_out = np.column_stack(v)
         expected_np = _np.column_stack(v_np)
         assert_almost_equal(mx_out.asnumpy(), expected_np, rtol=rtol, atol=atol)
+
+
+@with_seed()
+@use_np
+def test_np_resize():
+    class TestResize(HybridBlock):
+        def __init__(self, new_shape):
+            super(TestResize, self).__init__()
+            self._new_shape = new_shape
+
+        def hybrid_forward(self, F, x, *args, **kwargs):
+            return F.np.resize(x, self._new_shape)
+
+    dtypes = [np.int8, np.uint8, np.int32, np.int64, np.float16, np.float32, np.float64, np.bool_]
+    shape_config = [
+        [(), (2, 3)],
+        [(2, 3), (2,)],
+        [(2, 3), 2],
+        [(2, 0, 1), (2, 2)],
+        [(2, 0, 1), (3, 4, 5)],
+        [((1,)), ()],
+    ]
+    flags = [True, False]
+    for dtype, shape_pair, hybridize in itertools.product(dtypes, shape_config, flags):
+        a = np.random.uniform(low=0, high=100, size=shape_pair[0], dtype='float64').astype(dtype)
+        test = TestResize(shape_pair[1])
+        if hybridize:
+            test.hybridize()
+        ret = test(a)
+        expected_ret = _np.resize(a.asnumpy(), shape_pair[1])
+        assert_almost_equal(ret.asnumpy(), expected_ret, atol=1e-5, rtol=1e-5, use_broadcast=False)
+
+        # check imperative again
+        ret = np.resize(a, shape_pair[1])
+        assert_almost_equal(ret.asnumpy(), expected_ret, atol=1e-5, rtol=1e-5, use_broadcast=False)
 
 
 if __name__ == '__main__':
