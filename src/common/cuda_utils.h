@@ -420,8 +420,8 @@ inline int SMArch(int device_id) {
  */
 inline int MultiprocessorCount(int device_id) {
   static std::vector<int32_t> sm_counts(kMaxNumGpus, -1);
-  //return cudaAttributeLookup(device_id, &sm_counts,
-  //                           hipDeviceAttributeMultiProcessorCount, "MultiprocessorCount"); //TODO 
+ return cudaAttributeLookup(device_id, &sm_counts,
+	                    hipDeviceAttributeMultiprocessorCount, "MultiprocessorCount");
 }
 
 /*!
