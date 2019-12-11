@@ -28,10 +28,12 @@ namespace mxnet {
 namespace op {
 
 template<typename DType>
-void CheckPvalGPU(DType* input, int prob_length) {
+void CheckPvalGPU(const OpContext& ctx, DType* input, int prob_length) {
   std::vector<DType> pvals_(prob_length);
-  CUDA_CALL(hipMemcpy(&pvals_[0], input, sizeof(DType) * prob_length,
-    hipMemcpyDeviceToHost));
+  hipStream_t stream = mshadow::Stream<gpu>::GetStream(ctx.get_stream<gpu>());
+  CUDA_CALL(hipMemcpyAsync(&pvals_[0], input, sizeof(DType) * prob_length,
+    hipMemcpyDeviceToHost, stream));
+  CUDA_CALL(hipStreamSynchronize(stream));
   DType sum = DType(0.0);
   for (int i = 0; i < prob_length; ++i) {
     sum += pvals_[i];

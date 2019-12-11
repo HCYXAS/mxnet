@@ -24,7 +24,7 @@
 #include <map>
 #include <vector>
 
-#if MXNET_USE_GPU
+#if MXNET_USE_GPU && MXNET_ENABLE_CUDA_RTC
 
 namespace mxnet {
 
@@ -982,11 +982,9 @@ const char kernel_begin[] = R"code(
 const int tid = threadIdx.x + blockIdx.x * blockDim.x;
 for (int i = tid; i < N; i+= gridDim.x * blockDim.x) {
     int offset = i*nvec;
-
 )code";
 
-const char kernel_end[] = R"code(
-}
+const char kernel_end[] = R"code(}
 }
 )code";
 
@@ -994,6 +992,6 @@ const char kernel_end[] = R"code(
 
 }  // namespace mxnet
 
-#endif  // MXNET_USE_GPU
+#endif  // MXNET_USE_GPU && MXNET_ENABLE_CUDA_RTC
 
 #endif  // MXNET_OPERATOR_FUSION_FUSED_OP_INL_H_

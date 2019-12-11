@@ -161,8 +161,6 @@ class CuDNNSoftmaxActivationOp {
                                     input_grad.dptr_,
                                    MIOPEN_SOFTMAX_ACCURATE,
                                     softmax_mode));
-
-
   }
 
  private:

@@ -114,8 +114,9 @@ void SliceDimTwoCsrImpl<gpu>(const mxnet::TShape &begin, const mxnet::TShape &en
                                       Stream<gpu>::GetStream(s));
         // retrieve nnr
         RType nnr = 0;
-        CUDA_CALL(hipMemcpy(&nnr, &out_indptr[indptr_len-1], sizeof(RType),
-            hipMemcpyDeviceToHost));
+        CUDA_CALL(hipMemcpyAsync(&nnr, &out_indptr[indptr_len-1], sizeof(RType),
+                                  hipMemcpyDeviceToHost, mshadow::Stream<gpu>::GetStream(s)));
+        CUDA_CALL(hipStreamSynchronize(mshadow::Stream<gpu>::GetStream(s)));
 
         // returns zeros in csr format if nnr = 0
         if (nnr == 0) {

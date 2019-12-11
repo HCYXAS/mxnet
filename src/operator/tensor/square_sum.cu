@@ -42,7 +42,9 @@ void CheckSameIdx<gpu>(const OpContext& ctx,
     mxnet_op::Kernel<mxnet_op::set_zero, gpu>::Launch(s, 1, is_diff_ptr);
     mxnet_op::Kernel<CheckSameIdxKernel, gpu>::Launch(s, idx_size,
       ograd_idx, in_idx, is_diff_ptr);
-    CUDA_CALL(hipMemcpy(&is_diff, is_diff_ptr, sizeof(int32_t), hipMemcpyDeviceToHost));
+    CUDA_CALL(hipMemcpyAsync(&is_diff, is_diff_ptr, sizeof(int32_t),
+                              hipMemcpyDeviceToHost, mshadow::Stream<gpu>::GetStream(s)));
+    CUDA_CALL(hipStreamSynchronize(mshadow::Stream<gpu>::GetStream(s)));
     CHECK_EQ(is_diff, 0) << "SquareSumRspGradImpl only supports"
                             " equal ograd_row_idx and input_row_idx"
                             " when ograd and input are both"

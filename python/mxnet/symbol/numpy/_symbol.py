@@ -38,11 +38,10 @@ __all__ = ['zeros', 'ones', 'add', 'subtract', 'multiply', 'divide', 'mod', 'rem
            'linspace', 'logspace', 'expand_dims', 'tile', 'arange', 'split', 'vsplit', 'concatenate', 'append',
            'stack', 'vstack', 'column_stack', 'dstack', 'mean', 'maximum', 'minimum', 'swapaxes', 'clip', 'argmax',
            'argmin', 'std', 'var', 'indices', 'copysign', 'ravel', 'hanning', 'hamming', 'blackman', 'flip',
-           'around', 'hypot', 'rad2deg', 'deg2rad', 'unique', 'lcm', 'tril', 'identity', 'take',
-           'ldexp', 'vdot', 'inner', 'outer', 'equal', 'not_equal', 'greater', 'less', 'greater_equal',
+           'around', 'hypot', 'bitwise_xor', 'bitwise_or', 'rad2deg', 'deg2rad', 'unique', 'lcm', 'tril', 'identity',
+           'take', 'ldexp', 'vdot', 'inner', 'outer', 'equal', 'not_equal', 'greater', 'less', 'greater_equal',
            'less_equal', 'hsplit', 'rot90', 'einsum', 'true_divide', 'shares_memory', 'may_share_memory', 'diff',
-           'resize']
-
+           'resize', 'nan_to_num', 'where']
 
 def _num_outputs(sym):
     return len(sym.as_nd_ndarray())
@@ -4058,17 +4057,16 @@ def hypot(x1, x2, out=None, **kwargs):
 
     Parameters
     ----------
-    x1, x2 : array_like
+    x1, x2 : _Symbol or scalar
         Leg of the triangle(s).
-    out : ndarray, None, or tuple of ndarray and None, optional
+    out : _Symbol or None, optional
         A location into which the result is stored. If provided, it must have
         a shape that the inputs broadcast to. If not provided or `None`,
-        a freshly-allocated array is returned. A tuple (possible only as a
-        keyword argument) must have length equal to the number of outputs.
+        a freshly-allocated array is returned.
 
     Returns
     -------
-    z : ndarray
+    z : _Symbol or scalar
         The hypotenuse of the triangle(s).
         This is a scalar if both `x1` and `x2` are scalars.
 
@@ -4078,6 +4076,54 @@ def hypot(x1, x2, out=None, **kwargs):
         - Only support float16, float32 and float64.
     """
     return _ufunc_helper(x1, x2, _npi.hypot, _np.hypot, _npi.hypot_scalar, None, out)
+
+
+@set_module('mxnet.symbol.numpy')
+@wrap_np_binary_func
+def bitwise_xor(x1, x2, out=None, **kwargs):
+    r"""
+    Compute the bit-wise XOR of two arrays element-wise.
+
+    Parameters
+    ----------
+    x1, x2 : _Symbol or scalar
+        Only integer and boolean types are handled. If x1.shape != x2.shape,
+        they must be broadcastable to a common shape (which becomes the shape of the output).
+    out : _Symbol or None, optional
+        A location into which the result is stored. If provided, it must have
+        a shape that the inputs broadcast to. If not provided or `None`,
+        a freshly-allocated array is returned.
+
+    Returns
+    -------
+    out : _Symbol or scalar
+        Result.
+    """
+    return _ufunc_helper(x1, x2, _npi.bitwise_xor, _np.bitwise_xor, _npi.bitwise_xor_scalar, None, out)
+
+
+@set_module('mxnet.symbol.numpy')
+@wrap_np_binary_func
+def bitwise_or(x1, x2, out=None, **kwargs):
+    r"""
+    Compute the bit-wise OR of two arrays element-wise.
+
+    Parameters
+    ----------
+    x1, x2 : _Symbol or scalar
+        Only integer and boolean types are handled. If x1.shape != x2.shape,
+        they must be broadcastable to a common shape (which becomes the shape of the output).
+    out : _Symbol or None, optional
+        A location into which the result is stored. If provided, it must have
+        a shape that the inputs broadcast to. If not provided or `None`,
+        a freshly-allocated array is returned.
+
+    Returns
+    -------
+    out : _Symbol or scalar
+        Result.
+    """
+    return _ufunc_helper(x1, x2, _npi.bitwise_or, _np.bitwise_or, _npi.bitwise_or_scalar, None, out)
 
 
 @set_module('mxnet.symbol.numpy')
@@ -4822,6 +4868,93 @@ def resize(a, new_shape):
            [0., 1., 2., 3.]])
     """
     return _npi.resize_fallback(a, new_shape=new_shape)
+
+
+@set_module('mxnet.symbol.numpy')
+def nan_to_num(x, copy=True, nan=0.0, posinf=None, neginf=None, **kwargs):
+    """
+    Replace NaN with zero and infinity with large finite numbers (default
+    behaviour) or with the numbers defined by the user using the `nan`,
+    `posinf` and/or `neginf` keywords.
+
+    If `x` is inexact, NaN is replaced by zero or by the user defined value in
+    `nan` keyword, infinity is replaced by the largest finite floating point
+    values representable by ``x.dtype`` or by the user defined value in
+    `posinf` keyword and -infinity is replaced by the most negative finite
+    floating point values representable by ``x.dtype`` or by the user defined
+    value in `neginf` keyword.
+
+    For complex dtypes, the above is applied to each of the real and
+    imaginary components of `x` separately.
+
+    If `x` is not inexact, then no replacements are made.
+
+    Parameters
+    ----------
+    x : _Symbol
+        Input data.
+    copy : bool, optional
+        Whether to create a copy of `x` (True) or to replace values
+        in-place (False). The in-place operation only occurs if
+        casting to an array does not require a copy.
+        Default is True.
+    nan : int, float, optional
+        Value to be used to fill NaN values. If no value is passed
+        then NaN values will be replaced with 0.0.
+    posinf : int, float, optional
+        Value to be used to fill positive infinity values. If no value is
+        passed then positive infinity values will be replaced with a very
+        large number.
+    neginf : int, float, optional
+        Value to be used to fill negative infinity values. If no value is
+        passed then negative infinity values will be replaced with a very
+        small (or negative) number.
+
+        .. versionadded:: 1.13
+
+    Returns
+    -------
+    out : _Symbol
+        `x`, with the non-finite values replaced. If `copy` is False, this may
+        be `x` itself.
+
+    Notes
+    -----
+    NumPy uses the IEEE Standard for Binary Floating-Point for Arithmetic
+    (IEEE 754). This means that Not a Number is not equivalent to infinity.
+
+    """
+    if isinstance(x, numeric_types):
+        return _np.nan_to_num(x, copy, nan, posinf, neginf)
+    elif isinstance(x, _Symbol):
+        if not copy:
+            return _npi.nan_to_num(x, copy=copy, nan=nan, posinf=posinf, neginf=neginf, out=x)
+        return _npi.nan_to_num(x, copy=copy, nan=nan, posinf=posinf, neginf=neginf, out=None)
+    else:
+        raise TypeError('type {} not supported'.format(str(type(x))))
+
+
+@set_module('mxnet.symbol.numpy')
+def where(condition, x, y):
+    """
+    Return elements chosen from `x` or `y` depending on `condition`.
+
+    Parameters
+    ----------
+    condition : _Symbol
+        Where True, yield `x`, otherwise yield `y`.
+    x, y : _Symbol
+        Values from which to choose. `x`, `y` and `condition` need to be
+        broadcastable to some shape. `x` and `y` must have the same dtype.
+
+    Returns
+    -------
+    out : _Symbol
+        An array with elements from `x` where `condition` is True, and elements
+        from `y` elsewhere.
+
+    """
+    return _npi.where(condition, x, y, out=None)
 
 
 _set_np_symbol_class(_Symbol)

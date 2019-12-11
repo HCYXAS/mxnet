@@ -28,7 +28,7 @@ from ...context import current_context
 from . import _internal as _npi
 from ..ndarray import NDArray
 
-__all__ = ['zeros', 'ones', 'full', 'add', 'subtract', 'multiply', 'divide', 'mod', 'remainder', 'power',
+__all__ = ['shape', 'zeros', 'ones', 'full', 'add', 'subtract', 'multiply', 'divide', 'mod', 'remainder', 'power',
            'arctan2', 'sin', 'cos', 'tan', 'sinh', 'cosh', 'tanh', 'log10', 'sqrt', 'cbrt', 'abs',
            'absolute', 'exp', 'expm1', 'arcsin', 'arccos', 'arctan', 'sign', 'log', 'degrees', 'log2',
            'log1p', 'rint', 'radians', 'reciprocal', 'square', 'negative', 'fix', 'ceil', 'floor',
@@ -36,13 +36,47 @@ __all__ = ['zeros', 'ones', 'full', 'add', 'subtract', 'multiply', 'divide', 'mo
            'linspace', 'logspace', 'expand_dims', 'tile', 'arange', 'split', 'vsplit', 'concatenate', 'append',
            'stack', 'vstack', 'column_stack', 'dstack', 'mean', 'maximum', 'minimum', 'swapaxes', 'clip', 'argmax',
            'argmin', 'std', 'var', 'indices', 'copysign', 'ravel', 'hanning', 'hamming', 'blackman', 'flip',
-           'around', 'hypot', 'rad2deg', 'deg2rad', 'unique', 'lcm', 'tril', 'identity', 'take',
-           'ldexp', 'vdot', 'inner', 'outer', 'equal', 'not_equal', 'greater', 'less', 'greater_equal', 'less_equal',
-           'hsplit', 'rot90', 'einsum', 'true_divide', 'nonzero', 'shares_memory', 'may_share_memory', 'diff', 'resize']
+           'around', 'hypot', 'bitwise_xor', 'bitwise_or', 'rad2deg', 'deg2rad', 'unique', 'lcm', 'tril', 'identity',
+           'take', 'ldexp', 'vdot', 'inner', 'outer', 'equal', 'not_equal', 'greater', 'less', 'greater_equal',
+           'less_equal', 'hsplit', 'rot90', 'einsum', 'true_divide', 'nonzero', 'shares_memory', 'may_share_memory',
+           'diff', 'resize', 'nan_to_num', 'where']
+
+@set_module('mxnet.ndarray.numpy')
+def shape(a):
+    """
+    Return the shape of an array.
+
+    Parameters
+    ----------
+    a : array_like
+        Input array.
+
+    Returns
+    -------
+    shape : tuple of ints
+        The elements of the shape tuple give the lengths of the
+        corresponding array dimensions.
+
+    See Also
+    --------
+    ndarray.shape : Equivalent array method.
+
+    Examples
+    --------
+    >>> np.shape(np.eye(3))
+    (3, 3)
+    >>> np.shape([[1, 2]])
+    (1, 2)
+    >>> np.shape([0])
+    (1,)
+    >>> np.shape(0)
+    ()
+    """
+    return a.shape
 
 
 @set_module('mxnet.ndarray.numpy')
-def zeros(shape, dtype=_np.float32, order='C', ctx=None):
+def zeros(shape, dtype=_np.float32, order='C', ctx=None):  # pylint: disable=redefined-outer-name
     """Return a new array of given shape and type, filled with zeros.
     This function currently only supports storing multi-dimensional data
     in row-major (C-style).
@@ -76,7 +110,7 @@ def zeros(shape, dtype=_np.float32, order='C', ctx=None):
 
 
 @set_module('mxnet.ndarray.numpy')
-def ones(shape, dtype=_np.float32, order='C', ctx=None):
+def ones(shape, dtype=_np.float32, order='C', ctx=None):  # pylint: disable=redefined-outer-name
     """Return a new array of given shape and type, filled with ones.
     This function currently only supports storing multi-dimensional data
     in row-major (C-style).
@@ -109,8 +143,9 @@ def ones(shape, dtype=_np.float32, order='C', ctx=None):
     return _npi.ones(shape=shape, ctx=ctx, dtype=dtype)
 
 
+# pylint: disable=too-many-arguments, redefined-outer-name
 @set_module('mxnet.ndarray.numpy')
-def full(shape, fill_value, dtype=None, order='C', ctx=None, out=None):  # pylint: disable=too-many-arguments
+def full(shape, fill_value, dtype=None, order='C', ctx=None, out=None):
     """
     Return a new array of given shape and type, filled with `fill_value`.
     Parameters
@@ -162,6 +197,7 @@ def full(shape, fill_value, dtype=None, order='C', ctx=None, out=None):  # pylin
         ctx = current_context()
     dtype = _np.float32 if dtype is None else dtype
     return _npi.full(shape=shape, value=fill_value, ctx=ctx, dtype=dtype, out=out)
+# pylint: enable=too-many-arguments, redefined-outer-name
 
 
 @set_module('mxnet.ndarray.numpy')
@@ -4292,6 +4328,82 @@ def hypot(x1, x2, out=None, **kwargs):
 
 @set_module('mxnet.ndarray.numpy')
 @wrap_np_binary_func
+def bitwise_xor(x1, x2, out=None, **kwargs):
+    r"""
+    Compute the bit-wise XOR of two arrays element-wise.
+
+    Parameters
+    ----------
+    x1, x2 : ndarray or scalar
+        Only integer and boolean types are handled. If x1.shape != x2.shape,
+        they must be broadcastable to a common shape (which becomes the shape of the output).
+    out : ndarray, optional
+        A location into which the result is stored. If provided, it must have a shape that the
+        inputs broadcast to. If not provided or None, a freshly-allocated array is returned.
+
+    Returns
+    -------
+    out : ndarray
+        Result.
+
+    Examples
+    --------
+    >>> np.bitwise_xor(13, 17)
+    28
+
+    >>> np.bitwise_xor(31, 5)
+    26
+    >>> np.bitwise_xor(np.array([31,3], dtype='int32'), 5)
+    array([26,  6])
+
+    >>> np.bitwise_xor(np.array([31,3], dtype='int32'), np.array([5,6], dtype='int32'))
+    array([26,  5])
+    >>> np.bitwise_xor(np.array([True, True], dtype='bool'), np.array([False, True], dtype='bool'))
+    array([ True, False])
+    """
+    return _ufunc_helper(x1, x2, _npi.bitwise_xor, _np.bitwise_xor, _npi.bitwise_xor_scalar, None, out)
+
+
+@set_module('mxnet.ndarray.numpy')
+@wrap_np_binary_func
+def bitwise_or(x1, x2, out=None, **kwargs):
+    r"""
+    Compute the bit-wise OR of two arrays element-wise.
+
+    Parameters
+    ----------
+    x1, x2 : ndarray or scalar
+        Only integer and boolean types are handled. If x1.shape != x2.shape,
+        they must be broadcastable to a common shape (which becomes the shape of the output).
+    out : ndarray, optional
+        A location into which the result is stored. If provided, it must have a shape that the
+        inputs broadcast to. If not provided or None, a freshly-allocated array is returned.
+
+    Returns
+    -------
+    out : ndarray
+        Result.
+
+    Examples
+    --------
+    >>> np.bitwise_or(13, 17)
+    29
+
+    >>> np.bitwise_or(31, 5)
+    31
+    >>> np.bitwise_or(np.array([31,3], dtype='int32'), 5)
+    array([31,  7])
+
+    >>> np.bitwise_or(np.array([31,3], dtype='int32'), np.array([5,6], dtype='int32'))
+    array([31,  7])
+    >>> np.bitwise_or(np.array([True, True], dtype='bool'), np.array([False, True], dtype='bool'))
+    array([ True, True])
+    """
+    return _ufunc_helper(x1, x2, _npi.bitwise_or, _np.bitwise_or, _npi.bitwise_or_scalar, None, out)
+
+
+@set_module('mxnet.ndarray.numpy')
+@wrap_np_binary_func
 def ldexp(x1, x2, out=None, **kwargs):
     """
     Returns x1 * 2**x2, element-wise.
@@ -5208,3 +5320,174 @@ def resize(a, new_shape):
            [0., 1., 2., 3.]])
     """
     return _npi.resize_fallback(a, new_shape=new_shape)
+
+
+@set_module('mxnet.ndarray.numpy')
+def nan_to_num(x, copy=True, nan=0.0, posinf=None, neginf=None, **kwargs):
+    """
+    Replace NaN with zero and infinity with large finite numbers (default
+    behaviour) or with the numbers defined by the user using the `nan`,
+    `posinf` and/or `neginf` keywords.
+
+    If `x` is inexact, NaN is replaced by zero or by the user defined value in
+    `nan` keyword, infinity is replaced by the largest finite floating point
+    values representable by ``x.dtype`` or by the user defined value in
+    `posinf` keyword and -infinity is replaced by the most negative finite
+    floating point values representable by ``x.dtype`` or by the user defined
+    value in `neginf` keyword.
+
+    For complex dtypes, the above is applied to each of the real and
+    imaginary components of `x` separately.
+
+    If `x` is not inexact, then no replacements are made.
+
+    Parameters
+    ----------
+    x : ndarray
+        Input data.
+    copy : bool, optional
+        Whether to create a copy of `x` (True) or to replace values
+        in-place (False). The in-place operation only occurs if
+        casting to an array does not require a copy.
+        Default is True.
+    nan : int, float, optional
+        Value to be used to fill NaN values. If no value is passed
+        then NaN values will be replaced with 0.0.
+    posinf : int, float, optional
+        Value to be used to fill positive infinity values. If no value is
+        passed then positive infinity values will be replaced with a very
+        large number.
+    neginf : int, float, optional
+        Value to be used to fill negative infinity values. If no value is
+        passed then negative infinity values will be replaced with a very
+        small (or negative) number.
+
+        .. versionadded:: 1.13
+
+    Returns
+    -------
+    out : ndarray
+        `x`, with the non-finite values replaced. If `copy` is False, this may
+        be `x` itself.
+
+    Notes
+    -----
+    NumPy uses the IEEE Standard for Binary Floating-Point for Arithmetic
+    (IEEE 754). This means that Not a Number is not equivalent to infinity.
+
+    Examples
+    --------
+    >>> np.nan_to_num(np.inf)
+    1.7976931348623157e+308
+    >>> np.nan_to_num(-np.inf)
+    -1.7976931348623157e+308
+    >>> np.nan_to_num(np.nan)
+    0.0
+    >>> x = np.array([np.inf, -np.inf, np.nan, -128, 128])
+    >>> np.nan_to_num(x)
+    array([ 3.4028235e+38, -3.4028235e+38,  0.0000000e+00, -1.2800000e+02,
+            1.2800000e+02])
+    >>> np.nan_to_num(x, nan=-9999, posinf=33333333, neginf=33333333)
+    array([ 3.3333332e+07,  3.3333332e+07, -9.9990000e+03, -1.2800000e+02,
+            1.2800000e+02])
+    >>> y = np.array([[-1, 0, 1],[9999,234,-14222]],dtype="float64")/0
+    array([[-inf,  nan,  inf],
+        [ inf,  inf, -inf]], dtype=float64)
+    >>> np.nan_to_num(y)
+    array([[-1.79769313e+308,  0.00000000e+000,  1.79769313e+308],
+        [ 1.79769313e+308,  1.79769313e+308, -1.79769313e+308]], dtype=float64)
+    >>> np.nan_to_num(y, nan=111111, posinf=222222)
+    array([[-1.79769313e+308,  1.11111000e+005,  2.22222000e+005],
+        [ 2.22222000e+005,  2.22222000e+005, -1.79769313e+308]], dtype=float64)
+    >>> y
+    array([[-inf,  nan,  inf],
+       [ inf,  inf, -inf]], dtype=float64)
+    >>> np.nan_to_num(y, copy=False, nan=111111, posinf=222222)
+    array([[-1.79769313e+308,  1.11111000e+005,  2.22222000e+005],
+       [ 2.22222000e+005,  2.22222000e+005, -1.79769313e+308]], dtype=float64)
+    >>> y
+    array([[-1.79769313e+308,  1.11111000e+005,  2.22222000e+005],
+       [ 2.22222000e+005,  2.22222000e+005, -1.79769313e+308]], dtype=float64)
+    """
+    if isinstance(x, numeric_types):
+        return _np.nan_to_num(x, copy, nan, posinf, neginf)
+    elif isinstance(x, NDArray):
+        if x.dtype in ['int8', 'uint8', 'int32', 'int64']:
+            return x
+        if not copy:
+            return _npi.nan_to_num(x, copy=copy, nan=nan, posinf=posinf, neginf=neginf, out=x)
+        return _npi.nan_to_num(x, copy=copy, nan=nan, posinf=posinf, neginf=neginf, out=None)
+    else:
+        raise TypeError('type {} not supported'.format(str(type(x))))
+
+
+@set_module('mxnet.ndarray.numpy')
+def where(condition, x=None, y=None):
+    """where(condition, [x, y])
+    Return elements chosen from `x` or `y` depending on `condition`.
+
+    .. note::
+        When only `condition` is provided, this function is a shorthand for
+        ``np.asarray(condition).nonzero()``. The rest of this documentation
+        covers only the case where all three arguments are provided.
+
+    Parameters
+    ----------
+    condition : ndarray
+        Where True, yield `x`, otherwise yield `y`.
+    x, y : ndarray
+        Values from which to choose. `x`, `y` and `condition` need to be
+        broadcastable to some shape. `x` and `y` must have the same dtype.
+
+    Returns
+    -------
+    out : ndarray
+        An array with elements from `x` where `condition` is True, and elements
+        from `y` elsewhere.
+
+    Notes
+    -----
+    If all the arrays are 1-D, `where` is equivalent to::
+
+        [xv if c else yv
+        for c, xv, yv in zip(condition, x, y)]
+
+    Examples
+    --------
+    >>> a = np.arange(10)
+    >>> a
+    array([0., 1., 2., 3., 4., 5., 6., 7., 8., 9.])
+    >>> np.where(a < 5, a, 10*a)
+    array([ 0.,  1.,  2.,  3.,  4., 50., 60., 70., 80., 90.])
+
+    This can be used on multidimensional arrays too:
+
+    >>> cond = np.array([[True, False], [True, True]])
+    >>> x = np.array([[1, 2], [3, 4]])
+    >>> y = np.array([[9, 8], [7, 6]])
+    >>> np.where(cond, x, y)
+    array([[1., 8.],
+           [3., 4.]])
+
+    The shapes of x, y, and the condition are broadcast together:
+
+    >>> x, y = onp.ogrid[:3, :4]
+    >>> x = np.array(x)
+    >>> y = np.array(y)
+    >>> np.where(x < y, x, 10 + y)  # both x and 10+y are broadcast
+    array([[10,  0,  0,  0],
+           [10, 11,  1,  1],
+           [10, 11, 12,  2]], dtype=int64)
+
+    >>> a = np.array([[0, 1, 2],
+    ...               [0, 2, 4],
+    ...               [0, 3, 6]])
+    >>> np.where(a < 4, a, np.array(-1))  # -1 is broadcast
+    array([[ 0.,  1.,  2.],
+           [ 0.,  2., -1.],
+           [ 0.,  3., -1.]])
+    """
+    if x is None and y is None:
+        return nonzero(condition)
+    else:
+        return _npi.where(condition, x, y, out=None)

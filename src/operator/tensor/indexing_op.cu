@@ -154,8 +154,9 @@ bool CheckIndexOutOfBound(mshadow::Stream<gpu> *s, const DType* data_ptr, size_t
   int32_t is_valid = 0;
   Kernel<set_zero, gpu>::Launch(s, 1, is_valid_ptr);
   Kernel<is_valid_check, gpu>::Launch(s, data_size, is_valid_ptr, data_ptr, min, max);
-  CUDA_CALL(hipMemcpy(&is_valid, is_valid_ptr, sizeof(char),
-            hipMemcpyDeviceToHost));
+  CUDA_CALL(hipMemcpyAsync(&is_valid, is_valid_ptr, sizeof(char),
+                            hipMemcpyDeviceToHost, mshadow::Stream<gpu>::GetStream(s)));
+  CUDA_CALL(hipStreamSynchronize(mshadow::Stream<gpu>::GetStream(s)));
   return is_valid == 0;
 }
 
@@ -307,8 +308,9 @@ void SparseEmbeddingDeterministicKernelLaunch(const OpContext& ctx,
       grad_row_idx, grad_row_idx + data_size, data_size, Stream<gpu>::GetStream(s));
 
   dim_t nnr = 0;
-  CUDA_CALL(hipMemcpy(&nnr, grad_row_idx + data_size, sizeof(RType),
-      hipMemcpyDeviceToHost));
+  CUDA_CALL(hipMemcpyAsync(&nnr, grad_row_idx + data_size, sizeof(RType),
+                            hipMemcpyDeviceToHost, mshadow::Stream<gpu>::GetStream(s)));
+  CUDA_CALL(hipStreamSynchronize(mshadow::Stream<gpu>::GetStream(s)));
   CHECK_EQ(output.shape().ndim(), 2) << "Unexcepted ndim";
   output.CheckAndAllocData(Shape2(nnr, output.shape()[1]));
   output.set_aux_shape(kIdx, Shape1(nnr));
@@ -410,8 +412,9 @@ inline void SparseEmbeddingOpBackwardRspImpl<gpu>(const bool deterministic,
                                       num_rows,
                                       mshadow::Stream<gpu>::GetStream(s));
         dim_t nnr = 0;
-        CUDA_CALL(hipMemcpy(&nnr, &prefix_sum[num_rows-1], sizeof(dim_t),
-            hipMemcpyDeviceToHost));
+        CUDA_CALL(hipMemcpyAsync(&nnr, &prefix_sum[num_rows-1], sizeof(dim_t),
+                                  hipMemcpyDeviceToHost, mshadow::Stream<gpu>::GetStream(s)));
+        CUDA_CALL(hipStreamSynchronize(mshadow::Stream<gpu>::GetStream(s)));
         if (nnr == 0) {
           FillZerosRspImpl(s, output);
           return;

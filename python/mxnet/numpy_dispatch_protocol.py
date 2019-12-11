@@ -93,6 +93,8 @@ _NUMPY_ARRAY_FUNCTION_LIST = [
     'concatenate',
     'copy',
     'cumsum',
+    'diag',
+    'diagflat',
     'dot',
     'expand_dims',
     'fix',
@@ -126,6 +128,8 @@ _NUMPY_ARRAY_FUNCTION_LIST = [
     'zeros_like',
     'linalg.norm',
     'linalg.cholesky',
+    'linalg.inv',
+    'shape',
     'trace',
     'tril',
     'meshgrid',
@@ -135,6 +139,7 @@ _NUMPY_ARRAY_FUNCTION_LIST = [
     'may_share_memory',
     'diff',
     'resize',
+    'where',
 ]
 
 
@@ -224,6 +229,8 @@ _NUMPY_ARRAY_UFUNC_LIST = [
     'ceil',
     'trunc',
     'floor',
+    'bitwise_xor',
+    'bitwise_or',
     'logical_not',
     'equal',
     'not_equal',

@@ -190,7 +190,7 @@ namespace cuda {
  * \brief Converts between C++ datatypes and enums/constants needed by cuBLAS.
  */
 template<typename DType>
-struct CublasType;
+struct hipblasType;
 
 // With CUDA v8, cuBLAS adopted use of cudaDataType_t instead of its own
 // datatype cublasDataType_t.  The older cudaDataType_t values could be
@@ -199,50 +199,58 @@ struct CublasType;
 // was not needed.
 
 template<>
-struct CublasType<float> {
+struct hipblasType<float> {
   static const int kFlag = mshadow::kFloat32;
-#if CUDA_VERSION >= 8000
-  static const hipblasDataType_t kCudaFlag =  HIPBLAS_R_32F;
+//#if CUDA_VERSION >= 8000
+#if defined(__HIP_PLATFORM_HCC__) || (defined(__HIP_PLATFORM_NVCC__) && CUDA_VERSION >= 8000)
+
+  static const hipblasDatatype_t kCudaFlag =  HIPBLAS_R_32F;
 #endif
   typedef float ScaleType;
   static const float one;
   static const float zero;
 };
 template<>
-struct CublasType<double> {
+struct hipblasType<double> {
   static const int kFlag = mshadow::kFloat64;
-#if CUDA_VERSION >= 8000
-  static const hipblasDataType_t kCudaFlag = HIPBLAS_R_64F;
+//#if CUDA_VERSION >= 8000
+#if defined(__HIP_PLATFORM_HCC__) || (defined(__HIP_PLATFORM_NVCC__) && CUDA_VERSION >= 8000) 
+  static const hipblasDatatype_t kCudaFlag = HIPBLAS_R_64F;
 #endif
   typedef double ScaleType;
   static const double one;
   static const double zero;
 };
 template<>
-struct CublasType<mshadow::half::half_t> {
+struct hipblasType<mshadow::half::half_t> {
   static const int kFlag = mshadow::kFloat16;
-#if CUDA_VERSION >= 8000
-  static const hipblasDataType_t kCudaFlag = HIPBLAS_R_16F;
+//#if CUDA_VERSION >= 8000
+#if defined(__HIP_PLATFORM_HCC__) || (defined(__HIP_PLATFORM_NVCC__) && CUDA_VERSION >= 8000) 
+
+  static const hipblasDatatype_t kCudaFlag = HIPBLAS_R_16F;
 #endif
   typedef float ScaleType;
   static const mshadow::half::half_t one;
   static const mshadow::half::half_t zero;
 };
 template<>
-struct CublasType<uint8_t> {
+struct hipblasType<uint8_t> {
   static const int kFlag = mshadow::kUint8;
-#if CUDA_VERSION >= 8000
-  static const hipblasDataType_t kCudaFlag = HIPBLAS_R_8I;
+//#if CUDA_VERSION >= 8000
+#if defined(__HIP_PLATFORM_HCC__) || (defined(__HIP_PLATFORM_NVCC__) && CUDA_VERSION >= 8000) 
+  static const hipblasDatatype_t kCudaFlag = HIPBLAS_R_8I;
 #endif
   typedef uint8_t ScaleType;
   static const uint8_t one = 1;
   static const uint8_t zero = 0;
 };
 template<>
-struct CublasType<int32_t> {
+struct hipblasType<int32_t> {
   static const int kFlag = mshadow::kInt32;
-#if CUDA_VERSION >= 8000
-  static const hipblasDataType_t kCudaFlag = HIPBLAS_R_32I;
+//#if CUDA_VERSION >= 8000
+#if defined(__HIP_PLATFORM_HCC__) || (defined(__HIP_PLATFORM_NVCC__) && CUDA_VERSION >= 8000)
+
+  static const hipblasDatatype_t kCudaFlag = HIPBLAS_R_32I;
 #endif
   typedef int32_t ScaleType;
   static const int32_t one = 1;
@@ -280,7 +288,8 @@ inline const char* HipblasGetErrorString(hipblasStatus_t error) {
   return "Unknown hipBLAS status";
 }
 
-#if CUDA_VERSION >= 8000
+//#if CUDA_VERSION >= 8000
+#if defined(__HIP_PLATFORM_HCC__) || (defined(__HIP_PLATFORM_NVCC__) && CUDA_VERSION >= 8000) 
 /*!
  * \brief Create the proper constant for indicating cuBLAS transposition, if desired.
  * \param transpose Whether transposition should be performed.
@@ -494,8 +503,8 @@ inline int SMArch(int device_id) {
  */
 inline int MultiprocessorCount(int device_id) {
   static std::vector<int32_t> sm_counts(kMaxNumGpus, -1);
-  //return cudaAttributeLookup(device_id, &sm_counts,
-  //                           hipDeviceAttributeMultiProcessorCount, "MultiprocessorCount"); //TODO 
+  return cudaAttributeLookup(device_id, &sm_counts,
+                             hipDeviceAttributeMultiprocessorCount, "MultiprocessorCount"); 
 }
 
 /*!

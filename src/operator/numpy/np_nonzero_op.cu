@@ -63,6 +63,7 @@ void NonzeroForwardGPU(const nnvm::NodeAttrs& attrs,
   }
   int32_t valid_num = 0;
   Stream<gpu>* stream = ctx.get_stream<gpu>();
+  hipStream_t cuda_stream = Stream<gpu>::GetStream(stream);
   int32_t* prefix_sum = nullptr;
   void* d_temp_storage = nullptr;
   size_t temp_storage_bytes = 0;
@@ -72,7 +73,7 @@ void NonzeroForwardGPU(const nnvm::NodeAttrs& attrs,
                                 prefix_sum,
                                 prefix_sum,
                                 in_size,
-                                Stream<gpu>::GetStream(stream));
+                                cuda_stream);
   size_t buffer_size = in_size * sizeof(int32_t);
   temp_storage_bytes += buffer_size;
   // Allocate memory on GPU and allocate pointer
@@ -90,9 +91,10 @@ void NonzeroForwardGPU(const nnvm::NodeAttrs& attrs,
                                 prefix_sum,
                                 prefix_sum,
                                 in_size,
-                                Stream<gpu>::GetStream(stream));
-  CUDA_CALL(hipMemcpy(&valid_num, &prefix_sum[in_size - 1], sizeof(int32_t),
-                       hipMemcpyDeviceToHost));
+                                cuda_stream);
+  CUDA_CALL(hipMemcpyAsync(&valid_num, &prefix_sum[in_size - 1], sizeof(int32_t),
+                            hipMemcpyDeviceToHost, cuda_stream));
+  CUDA_CALL(hipStreamSynchronize(cuda_stream));
   // 0-dim
   if (0 == in.shape().ndim()) {
     mxnet::TShape s(2, 1);

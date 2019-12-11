@@ -147,4 +147,33 @@ hipblasStatus_t hipblasStrsm(hipblasHandle_t handle,
                              int ldc)
   {
         return HIPBLAS_STATUS_NOT_SUPPORTED;
-  }
+  
+ }
+hipblasStatus_t hipblasGemmStridedBatchedEx(hipblasHandle_t handle,
+                           hipblasOperation_t transa,
+                           hipblasOperation_t transb,
+                           int m,
+                           int n,
+                           int k,
+                           const void    *alpha,
+                           const void     *A,
+                           hipblasDatatype_t Atype,
+                           int lda,
+                           long long int strideA,
+                           const void     *B,
+                           hipblasDatatype_t Btype,
+                           int ldb,
+                           long long int strideB,
+                           const void    *beta,
+                           void           *C,
+                           hipblasDatatype_t Ctype,
+                           int ldc,
+                           long long int strideC,
+                           int batchCount,
+                           hipblasDatatype_t computeType,
+                           hipblasGemmAlgo_t algo)
+{
+        return HIPBLAS_STATUS_NOT_SUPPORTED;
+
+}
+

@@ -20,7 +20,6 @@
 #ifndef MXNET_OPERATOR_FUSION_FUSED_OP_H_
 #define MXNET_OPERATOR_FUSION_FUSED_OP_H_
 
-
 #include <mxnet/operator.h>
 #include <nnvm/graph.h>
 #include <vector>
@@ -29,10 +28,15 @@
 #include <mutex>
 #include <tuple>
 
-#if MXNET_USE_GPU
-
+#if MXNET_USE_GPU && MXNET_ENABLE_CUDA_RTC
 
 namespace mxnet {
+
+namespace fusion {
+  enum KernelVariants {kGeneral, kShapeOptimized,
+    kNumKernelVariants  // Not a variant- leave this at the end
+  };
+}
 
 struct FusedOpConfig : public dmlc::Parameter<FusedOpConfig> {
   int num_inputs;
@@ -53,6 +57,7 @@ struct FusedOpEntry {
 class FusedOp {
  public:
   static const int NTHREADS = 512;
+  static const int CACHESIZE_WARN_THRESHOLD = 10000;
 
   explicit FusedOp(const nnvm::NodeAttrs* attrs, const FusedOpConfig& config);
   ~FusedOp() {}
@@ -120,20 +125,20 @@ class FusedOp {
   }
 
  private:
-  void GenerateCode(int kernel_index,
-                    const std::vector<OpReqType> &req,
-                    const std::vector<int> &in_dtypes,
-                    const std::vector<int> &out_dtypes,
-                    const std::vector<int> &in_ndims,
-                    const std::vector<int> &out_ndims,
-                    const mxnet::ShapeVector &node_shapes,
-                    const std::vector<int> &node_dtypes,
-                    const int nvec,
-                    const std::string& kernel_name,
-                    std::vector<uint32_t> *check_shapes);
-  void CompileCode(int kernel_index,
-                   const std::string &kernel_name);
-  bool CheckComputeCapability(const OpContext &ctx);
+  std::string GenerateCode(const std::vector<OpReqType> &req,
+                           const std::vector<int> &in_dtypes,
+                           const std::vector<int> &out_dtypes,
+                           const std::vector<int> &in_ndims,
+                           const std::vector<int> &out_ndims,
+                           const mxnet::ShapeVector &node_shapes,
+                           const std::vector<int> &node_dtypes,
+                           const int nvec,
+                           const std::string& kernel_name,
+                           std::vector<uint32_t> *check_shapes);
+
+  hipFunction_t CompileCode(const std::string &code,
+                         const std::string &kernel_name, int dev_id);
+
   void CheckShapesAndTypes(const std::vector<TBlob> &inputs,
                            const std::vector<TBlob> &outputs,
                            std::vector<int> *in_dtypes,
@@ -145,7 +150,6 @@ class FusedOp {
   std::vector<FusedOpEntry> inputs_;
   std::vector<FusedOpEntry> outputs_;
 
-  std::string code_[2];
   nnvm::Graph subgraph_;
 
   template <typename T>
@@ -173,12 +177,9 @@ class FusedOp {
   std::vector<uint32_t> extra_shape_args_;
   std::vector<uint32_t> check_shape_args_;
 
-  std::string ptx_[2];
-  std::string kernel_name_[2];
-  hipFunction_t kernel_[2];
+ hipFunction_t kernel_functions_[fusion::kNumKernelVariants];
   bool initialized_;
-  int cc_major_;
-  int cc_minor_;
+  int kernel_function_dev_id_;
 
   static std::mutex mutex_;
   std::mutex my_mutex_;
@@ -199,5 +200,6 @@ using FusedOpHelperParamPtr = std::shared_ptr<FusedOpHelperParam>;
 
 }  // namespace mxnet
 
-#endif  // MXNET_USE_GPU
+#endif  // MXNET_USE_GPU && MXNET_ENABLE_CUDA_RTC
+
 #endif  // MXNET_OPERATOR_FUSION_FUSED_OP_H_

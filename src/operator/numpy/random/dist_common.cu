@@ -30,13 +30,17 @@ namespace mxnet {
 namespace op {
 
 template <>
-void _copy<gpu>(float *dst, float *src) {
-CUDA_CALL(hipMemcpy(dst, src, sizeof(float), hipMemcpyDeviceToHost));
+void _copy<gpu>(mshadow::Stream<gpu> *s, float *dst, float *src) {
+hipStream_t stream = mshadow::Stream<gpu>::GetStream(s);
+CUDA_CALL(hipMemcpyAsync(dst, src, sizeof(float), hipMemcpyDeviceToHost,stream));
+  CUDA_CALL(hipStreamSynchronize(stream));
 }
 
 template <>
-void _copy<gpu>(double *dst, double *src) {
-CUDA_CALL(hipMemcpy(dst, src, sizeof(double), hipMemcpyDeviceToHost));
+void _copy<gpu>(mshadow::Stream<gpu> *s, double *dst, double *src) {
+ hipStream_t stream = mshadow::Stream<gpu>::GetStream(s);
+CUDA_CALL(hipMemcpyAsync(dst, src, sizeof(double), hipMemcpyDeviceToHost,stream));
+ CUDA_CALL(hipStreamSynchronize(stream));
 }
 
 }  // namespace op
