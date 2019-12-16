@@ -28,8 +28,8 @@
 #include <algorithm>
 #include "./elemwise_binary_op.h"
 #include "../mxnet_op.h"
-#define WARP_SIZE 32
-#define WARP_SIZE_BITS 5
+#define WARP_SIZE 64
+#define WARP_SIZE_BITS 6
 
 namespace mxnet {
 namespace op {

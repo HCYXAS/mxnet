@@ -38,7 +38,7 @@ struct ScalarConvert {
 
 
 // The maximum number of threads in a block
-static const unsigned MAX_BLOCK_SIZE = 512U;
+static const unsigned MAX_BLOCK_SIZE = 256U;
 
 // Number of threads in a block given an input size up to MAX_BLOCK_SIZE
 static unsigned getNumThreads(int nElem, const bool smaller) {

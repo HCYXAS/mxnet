@@ -53,10 +53,10 @@ namespace op {
 namespace batchnorm {
 namespace cuda {
 
-static const unsigned WARP_SIZE = 32;
+static const unsigned WARP_SIZE = 64;
 
 // The maximum number of threads in a block
-static const unsigned MAX_BLOCK_SIZE = 512U;
+static const unsigned MAX_BLOCK_SIZE = 256U;
 
 template<typename In, typename Out>
 struct ScalarConvert {
