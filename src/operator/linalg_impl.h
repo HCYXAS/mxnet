@@ -263,8 +263,6 @@ void linalg_gemm<gpu, mshadow::half::half_t>(const Tensor<gpu, 2, mshadow::half:
 #endif
 
   // pseudo-fp16 (fp32 math with fp16 I/O)
-  float alpha_f = float(alpha);  // NOLINT(*)
-  float beta_f = float(beta);  // NOLINT(*)
 
   // As of cuda8, cublas adopted the cuda datatype, rather than maintaining its own datatype.
 #if defined(__HIP_PLATFORM_HCC__) || (defined(__HIP_PLATFORM_NVCC__) && CUDA_VERSION >= 8000)
@@ -272,15 +270,16 @@ void linalg_gemm<gpu, mshadow::half::half_t>(const Tensor<gpu, 2, mshadow::half:
 #else
   hipblasDatatype_t half_datatype = CUBLAS_DATA_HALF; //not supported
 #endif
-  HIPBLAS_CALL(hipblasSgemm(blas_handle,
+  HIPBLAS_CALL(hipblasHgemm(blas_handle,
                             (tB ? HIPBLAS_OP_T : HIPBLAS_OP_N),
                             (tA ? HIPBLAS_OP_T : HIPBLAS_OP_N),
                             C.size(1), C.size(0), (tB ? B.size(1) : B.size(0)),
-                            &alpha_f,
-                            reinterpret_cast<const float *>(B.dptr_), B.stride_,
-                            reinterpret_cast<const float *>(A.dptr_), A.stride_,
-                            &beta_f,
-                            reinterpret_cast<float *>(C.dptr_), C.stride_));
+                            reinterpret_cast<const hipblasHalf *>(&alpha),
+                           reinterpret_cast<const hipblasHalf *>(B.dptr_), B.stride_,
+                           reinterpret_cast<const hipblasHalf *>(A.dptr_), A.stride_,
+                            reinterpret_cast<const hipblasHalf *>(&beta),
+                           reinterpret_cast<hipblasHalf *>(C.dptr_), C.stride_));
+
 #if (defined(__HIP_PLATFORM_NVCC__) && CUDA_VERSION >= 9000 ) 
   //SetCublasMathMode(blas_handle, previous_math_mode);
 #endif

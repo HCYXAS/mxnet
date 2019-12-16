@@ -69,7 +69,12 @@ int get_load_type(size_t N) {
 }
 
 int get_rows_per_block(size_t row_size, int num_threads_per_block) {
-  const int warp_size = 32;
+  #if defined(__HIP_PLATFORM_HCC__)
+	const int warp_size = 64;
+  #endif
+  #if defined(__HIP_PLATFORM_NVCC__)
+        const int warp_size = 32;
+  #endif       
   CHECK(IsPower2(num_threads_per_block))
     << "Number of threads in a block must be power of 2 to use get_rows_per_block function";
   // How many read instructions should 1 thread at least do
