@@ -325,7 +325,7 @@ void _nms(const mshadow::Tensor<gpu, 2>& boxes,
   dim3 blocks(DIVUP(boxes_num, threadsPerBlock),
               DIVUP(boxes_num, threadsPerBlock));
   dim3 threads(threadsPerBlock);
-  hipLaunchKernelGGL((nms_kernel), dim3(blocks), dim3(threads), 0, 0, boxes_num,
+  hipLaunchKernelGGL(HIP_KERNEL_NAME(nms_kernel), dim3(blocks), dim3(threads), 0, 0, boxes_num,
                                   nms_overlap_thresh,
                                   boxes_dev,
                                   mask_dev);
@@ -465,7 +465,7 @@ class ProposalGPUOp : public Operator{
     dim3 dimGrid((count + kMaxThreadsPerBlock - 1) / kMaxThreadsPerBlock);
     dim3 dimBlock(kMaxThreadsPerBlock);
     CheckLaunchParam(dimGrid, dimBlock, "ProposalGrid");
-    hipLaunchKernelGGL((ProposalGridKernel), dim3(dimGrid), dim3(dimBlock), 0, 0,
+    hipLaunchKernelGGL(HIP_KERNEL_NAME(ProposalGridKernel), dim3(dimGrid), dim3(dimBlock), 0, 0,
       count, num_anchors, height, width, param_.feature_stride,
       scores.dptr_, workspace_proposals.dptr_);
     FRCNN_CUDA_CHECK(hipPeekAtLastError());
@@ -485,12 +485,12 @@ class ProposalGPUOp : public Operator{
     // Transform anchors and bbox_deltas into bboxes
     CheckLaunchParam(dimGrid, dimBlock, "BBoxPred");
     if (param_.iou_loss) {
-      hipLaunchKernelGGL((IoUPredKernel), dim3(dimGrid), dim3(dimBlock), 0, 0,
+      hipLaunchKernelGGL(HIP_KERNEL_NAME(IoUPredKernel), dim3(dimGrid), dim3(dimBlock), 0, 0,
         count, num_anchors, height, width, real_height, real_width,
         cpu_im_info[0], cpu_im_info[1],
         workspace_proposals.dptr_, bbox_deltas.dptr_, workspace_proposals.dptr_);
     } else {
-      hipLaunchKernelGGL((BBoxPredKernel), dim3(dimGrid), dim3(dimBlock), 0, 0,
+      hipLaunchKernelGGL(HIP_KERNEL_NAME(BBoxPredKernel), dim3(dimGrid), dim3(dimBlock), 0, 0,
         count, num_anchors, height, width, real_height, real_width,
         cpu_im_info[0], cpu_im_info[1],
         workspace_proposals.dptr_, bbox_deltas.dptr_, workspace_proposals.dptr_);
@@ -499,7 +499,7 @@ class ProposalGPUOp : public Operator{
 
     // filter boxes with less than rpn_min_size
     CheckLaunchParam(dimGrid, dimBlock, "FilterBox");
-    hipLaunchKernelGGL((FilterBoxKernel), dim3(dimGrid), dim3(dimBlock), 0, 0,
+    hipLaunchKernelGGL(HIP_KERNEL_NAME(FilterBoxKernel), dim3(dimGrid), dim3(dimBlock), 0, 0,
       count, param_.rpn_min_size * cpu_im_info[2], workspace_proposals.dptr_);
     FRCNN_CUDA_CHECK(hipPeekAtLastError());
 
@@ -533,7 +533,7 @@ class ProposalGPUOp : public Operator{
 
     dimGrid.x = (rpn_pre_nms_top_n + kMaxThreadsPerBlock - 1) / kMaxThreadsPerBlock;
     CheckLaunchParam(dimGrid, dimBlock, "ReorderProposals");
-    hipLaunchKernelGGL((ReorderProposalsKernel), dim3(dimGrid), dim3(dimBlock), 0, 0,
+    hipLaunchKernelGGL(HIP_KERNEL_NAME(ReorderProposalsKernel), dim3(dimGrid), dim3(dimBlock), 0, 0,
       rpn_pre_nms_top_n, workspace_proposals.dptr_, order.dptr_, workspace_ordered_proposals.dptr_);
     FRCNN_CUDA_CHECK(hipPeekAtLastError());
 
@@ -559,7 +559,7 @@ class ProposalGPUOp : public Operator{
     // copy results after nms
     dimGrid.x = (param_.rpn_post_nms_top_n + kMaxThreadsPerBlock - 1) / kMaxThreadsPerBlock;
     CheckLaunchParam(dimGrid, dimBlock, "PrepareOutput");
-    hipLaunchKernelGGL((PrepareOutput), dim3(dimGrid), dim3(dimBlock), 0, 0,
+    hipLaunchKernelGGL(HIP_KERNEL_NAME(PrepareOutput), dim3(dimGrid), dim3(dimBlock), 0, 0,
       param_.rpn_post_nms_top_n, workspace_ordered_proposals.dptr_, keep, out_size,
       out.dptr_, out_score.dptr_);
     FRCNN_CUDA_CHECK(hipPeekAtLastError());

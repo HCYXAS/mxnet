@@ -344,7 +344,7 @@ void _nms(const mshadow::Tensor<gpu, 2>& boxes,
   dim3 blocks(DIVUP(boxes_num, threadsPerBlock),
               DIVUP(boxes_num, threadsPerBlock));
   dim3 threads(threadsPerBlock);
-  hipLaunchKernelGGL((nms_kernel), dim3(blocks), dim3(threads), 0, 0, boxes_num,
+  hipLaunchKernelGGL(HIP_KERNEL_NAME(nms_kernel), dim3(blocks), dim3(threads), 0, 0, boxes_num,
                                   nms_overlap_thresh,
                                   boxes_dev,
                                   mask_dev);
@@ -484,7 +484,7 @@ class MultiProposalGPUOp : public Operator{
     dim3 dimGrid((count + kMaxThreadsPerBlock - 1) / kMaxThreadsPerBlock);
     dim3 dimBlock(kMaxThreadsPerBlock);
     CheckLaunchParam(dimGrid, dimBlock, "ProposalGrid");
-    hipLaunchKernelGGL((ProposalGridKernel), dim3(dimGrid), dim3(dimBlock), 0, 0,\
+    hipLaunchKernelGGL(HIP_KERNEL_NAME(ProposalGridKernel), dim3(dimGrid), dim3(dimBlock), 0, 0,\
     static_cast<const int>(count),\
     static_cast<const int>(num_anchors),\
     static_cast<const int>(height),\
@@ -497,13 +497,13 @@ class MultiProposalGPUOp : public Operator{
     // Transform anchors and bbox_deltas into bboxes
     CheckLaunchParam(dimGrid, dimBlock, "BBoxPred");
     if (param_.iou_loss) {
-      hipLaunchKernelGGL((IoUPredKernel), dim3(dimGrid), dim3(dimBlock), 0, 0,
+      hipLaunchKernelGGL(HIP_KERNEL_NAME(IoUPredKernel), dim3(dimGrid), dim3(dimBlock), 0, 0,
         static_cast<const int>(count), static_cast<const int>(num_anchors), static_cast<const int>(height), static_cast<const int>(width),
         static_cast<const int>(param_.feature_stride), static_cast<const float*>(im_info.dptr_),
         static_cast<const float*>(workspace_proposals.dptr_), static_cast<const float*>(bbox_deltas.dptr_),
         static_cast<float*>(workspace_proposals.dptr_));
     } else {
-      hipLaunchKernelGGL((BBoxPredKernel), dim3(dimGrid), dim3(dimBlock), 0, 0,
+      hipLaunchKernelGGL(HIP_KERNEL_NAME(BBoxPredKernel), dim3(dimGrid), dim3(dimBlock), 0, 0,
         static_cast<const int>(count), static_cast<const int>(num_anchors), static_cast<const int>(height), static_cast<const int>(width),             static_cast<const int>(param_.feature_stride), static_cast<const float*>(im_info.dptr_),
         static_cast<const float*>(workspace_proposals.dptr_), static_cast<const float*>(bbox_deltas.dptr_),
         static_cast<float*>(workspace_proposals.dptr_));
@@ -512,7 +512,7 @@ class MultiProposalGPUOp : public Operator{
 
     // filter boxes with less than rpn_min_size
     CheckLaunchParam(dimGrid, dimBlock, "FilterBox");
-    hipLaunchKernelGGL((FilterBoxKernel), dim3(dimGrid), dim3(dimBlock), 0, 0,
+    hipLaunchKernelGGL(HIP_KERNEL_NAME(FilterBoxKernel), dim3(dimGrid), dim3(dimBlock), 0, 0,
       static_cast<const int>(count), static_cast<const int>(count_anchors), static_cast<const float>(param_.rpn_min_size),
       static_cast<const float*>(im_info.dptr_), static_cast<float*>(workspace_proposals.dptr_));
     FRCNN_CUDA_CHECK(hipPeekAtLastError());

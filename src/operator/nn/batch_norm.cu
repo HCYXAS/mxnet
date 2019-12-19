@@ -521,12 +521,12 @@ static void BatchNormalizationUpdateOutput(mshadow::Stream<gpu> *s,
   if ((flags & IS_TRAINING_FLAG) == 0 || (flags & USE_GLOBAL_STATS_FLAG) != 0) {
     dim3 blocks(input.ChannelCount());
     dim3 threads(batchnorm::cuda::getNumThreads(input.InnerSize(), false));
-      hipLaunchKernelGGL((BatchNormalizationUpdateOutputInferenceKernel<DType, AccReal, DeviceTensor1,batchnorm::BNTensor3<DType>>),       dim3(blocks), dim3(threads), 0, mshadow::Stream<gpu>::GetStream(s),input, output, runningMean, runningVar, saveMean,
+      hipLaunchKernelGGL(HIP_KERNEL_NAME(BatchNormalizationUpdateOutputInferenceKernel<DType, AccReal, DeviceTensor1,batchnorm::BNTensor3<DType>>),       dim3(blocks), dim3(threads), 0, mshadow::Stream<gpu>::GetStream(s),input, output, runningMean, runningVar, saveMean,
       saveInvStd, weight, bias, eps, flags);
   } else {
     dim3 blocks(input.ChannelCount());
     dim3 threads(batchnorm::cuda::getNumThreads(input.InnerSize(), false));
-     hipLaunchKernelGGL((BatchNormalizationUpdateOutputKernel<DType, AccReal, DeviceTensor1,batchnorm::BNTensor3<DType>>), dim3(blocks),dim3(threads), 0, mshadow::Stream<gpu>::GetStream(s) , input, output, weight, bias, eps, momentum, runningMean, runningVar,saveMean, saveInvStd, flags);
+     hipLaunchKernelGGL(HIP_KERNEL_NAME(BatchNormalizationUpdateOutputKernel<DType, AccReal, DeviceTensor1,batchnorm::BNTensor3<DType>>), dim3(blocks),dim3(threads), 0, mshadow::Stream<gpu>::GetStream(s) , input, output, weight, bias, eps, momentum, runningMean, runningVar,saveMean, saveInvStd, flags);
   }
   MSHADOW_CUDA_POST_KERNEL_CHECK(BatchNormalizationUpdateOutput);
 }
@@ -570,7 +570,7 @@ static void BatchNormalizationBackward(mshadow::Stream<gpu> *s,
 #endif
   dim3 blocks(gradOutput.ChannelCount());
   dim3 threads(batchnorm::cuda::getNumThreads(gradOutput.InnerSize(), SMALLER_THREADS));
-  hipLaunchKernelGGL((BatchNormalizationBackwardKernel<DType, AccReal, DeviceTensor1, batchnorm::BNTensor3<DType>>), dim3(blocks), dim3(threads), 0, mshadow::Stream<gpu>::GetStream(s) ,
+  hipLaunchKernelGGL(HIP_KERNEL_NAME(BatchNormalizationBackwardKernel<DType, AccReal, DeviceTensor1, batchnorm::BNTensor3<DType>>), dim3(blocks), dim3(threads), 0, mshadow::Stream<gpu>::GetStream(s) ,
     input, gradOutput, gradInput, tensors, flags, momentum, eps);
   MSHADOW_CUDA_POST_KERNEL_CHECK(BatchNormalizationBackward);
 }

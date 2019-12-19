@@ -21,7 +21,7 @@
 * \file image_random.cu
 * \brief GPU Implementation of image transformation operators
 */
-#include <hip/hip_runtime.h>
+#include <hip/hip_runtime_api.h>
 #include "./image_random-inl.h"
 #include "../elemwise_op_common.h"
 

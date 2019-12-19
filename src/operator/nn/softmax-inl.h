@@ -427,11 +427,11 @@ inline void Softmax(Stream<gpu> *s, DType *in, OType *out, IType *length,
                                                                    softmax_threads_per_block);
       int nblocks = (N + rows_per_block - 1) / rows_per_block;
       CHECK_LE(sizeof(DType), sizeof(LType));
-      hipLaunchKernelGGL((softmax_stride1_compute_kernel<OP, negate, AType, LType>),dim3(nblocks), dim3(softmax_threads_per_block), 0, mshadow::Stream<gpu>::GetStream(s),in, out, length, M, temperature, rows_per_block, N);
+      hipLaunchKernelGGL(HIP_KERNEL_NAME(softmax_stride1_compute_kernel<OP, negate, AType, LType>),dim3(nblocks), dim3(softmax_threads_per_block), 0, mshadow::Stream<gpu>::GetStream(s),in, out, length, M, temperature, rows_per_block, N);
     });
     MSHADOW_CUDA_POST_KERNEL_CHECK(softmax_stride1_compute_kernel);
   } else {
-    hipLaunchKernelGGL((softmax_compute_kernel<x_bits, OP, negate, AType, ndim>),dim3(N), dim3(x_size), 0, mshadow::Stream<gpu>::GetStream(s),in, out, length, M, axis, sshape, stride, temperature);
+    hipLaunchKernelGGL(HIP_KERNEL_NAME(softmax_compute_kernel<x_bits, OP, negate, AType, ndim>),dim3(N), dim3(x_size), 0, mshadow::Stream<gpu>::GetStream(s),in, out, length, M, axis, sshape, stride, temperature);
   MSHADOW_CUDA_POST_KERNEL_CHECK(softmax_compute_kernel);
   }
 }
@@ -446,13 +446,7 @@ __global__ void softmax_stride1_grad_kernel(const OType *out, const OType *ograd
                                             const index_t total_rows) {
   __shared__ AType scratch[softmax_threads_per_block];
   __shared__ LType persistent_storage[20 * 1024 / sizeof(LType)];
- #if defined(__HIP_PLATFORM_HCC__)
-        const int warp_size = 64;
-  #endif
-  #if defined(__HIP_PLATFORM_NVCC__)
-        const int warp_size = 32;
-  #endif
-
+  const int warp_size = 32;
   const int threads_per_row = softmax_threads_per_block / rows_per_block;
   const int my_local_row = threadIdx.x / threads_per_row;
   const int my_row = blockIdx.x * rows_per_block + my_local_row;
@@ -584,12 +578,12 @@ inline void SoftmaxGrad(Stream<gpu> *s, OType *out, OType *ograd,
                                                                    softmax_threads_per_block);
       int nblocks = (N + rows_per_block - 1) / rows_per_block;
       CHECK_LE(sizeof(DType), sizeof(LType));
-       hipLaunchKernelGGL((softmax_stride1_grad_kernel<OP1, OP2, Req, negate, AType, LType>),dim3(nblocks), dim3(softmax_threads_per_block), 0, mshadow::Stream<gpu>::GetStream(s),out, ograd, igrad,length, M, temperature, rows_per_block, N);
+       hipLaunchKernelGGL(HIP_KERNEL_NAME(softmax_stride1_grad_kernel<OP1, OP2, Req, negate, AType, LType>),dim3(nblocks), dim3(softmax_threads_per_block), 0, mshadow::Stream<gpu>::GetStream(s),out, ograd, igrad,length, M, temperature, rows_per_block, N);
     });
     MSHADOW_CUDA_POST_KERNEL_CHECK(softmax_stride1_grad_kernel);
   } else {
     
-  hipLaunchKernelGGL((softmax_grad_kernel<x_bits, OP1, OP2, Req, negate, AType, ndim>),dim3(N), dim3(x_size), 0, mshadow::Stream<gpu>::GetStream(s),out, ograd, igrad,length, M, axis, sshape, stride, temperature);
+  hipLaunchKernelGGL(HIP_KERNEL_NAME(softmax_grad_kernel<x_bits, OP1, OP2, Req, negate, AType, ndim>),dim3(N), dim3(x_size), 0, mshadow::Stream<gpu>::GetStream(s),out, ograd, igrad,length, M, axis, sshape, stride, temperature);
   MSHADOW_CUDA_POST_KERNEL_CHECK(softmax_grad_kernel);
 
   }

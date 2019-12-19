@@ -232,25 +232,25 @@ inline void AddTakeGradLargeBatchKernelLaunch(mshadow::Tensor<gpu, 2, DType> dst
 
   switch (SZ) {
     case 1:
-    hipLaunchKernelGGL((AddTakeGradLargeBatchKernel<1, DType>), dim3(dimGrid), dim3(dimBlock), shmem_size, stream, dst.dptr_, sum_counts_ptr, num_runs_ptr,
+    hipLaunchKernelGGL(HIP_KERNEL_NAME(AddTakeGradLargeBatchKernel<1, DType>), dim3(dimGrid), dim3(dimBlock), shmem_size, stream, dst.dptr_, sum_counts_ptr, num_runs_ptr,
          sorted.dptr_, index.dptr_, src.dptr_,
          static_cast<int>(src.size(0)),
          static_cast<int>(src.size(1)));
     break;
     case 2:
-    hipLaunchKernelGGL((AddTakeGradLargeBatchKernel<2, DType>), dim3(dimGrid), dim3(dimBlock), shmem_size, stream, dst.dptr_, sum_counts_ptr, num_runs_ptr,
+    hipLaunchKernelGGL(HIP_KERNEL_NAME(AddTakeGradLargeBatchKernel<2, DType>), dim3(dimGrid), dim3(dimBlock), shmem_size, stream, dst.dptr_, sum_counts_ptr, num_runs_ptr,
          sorted.dptr_, index.dptr_, src.dptr_,
          static_cast<int>(src.size(0)),
          static_cast<int>(src.size(1)));
     break;
     case 3:
-    hipLaunchKernelGGL((AddTakeGradLargeBatchKernel<3, DType>), dim3(dimGrid), dim3(dimBlock), shmem_size, stream, dst.dptr_, sum_counts_ptr, num_runs_ptr,
+    hipLaunchKernelGGL(HIP_KERNEL_NAME(AddTakeGradLargeBatchKernel<3, DType>), dim3(dimGrid), dim3(dimBlock), shmem_size, stream, dst.dptr_, sum_counts_ptr, num_runs_ptr,
          sorted.dptr_, index.dptr_, src.dptr_,
          static_cast<int>(src.size(0)),
          static_cast<int>(src.size(1)));
     break;
     case 4:
-    hipLaunchKernelGGL((AddTakeGradLargeBatchKernel<4, DType>), dim3(dimGrid), dim3(dimBlock), shmem_size, stream, dst.dptr_, sum_counts_ptr, num_runs_ptr,
+    hipLaunchKernelGGL(HIP_KERNEL_NAME(AddTakeGradLargeBatchKernel<4, DType>), dim3(dimGrid), dim3(dimBlock), shmem_size, stream, dst.dptr_, sum_counts_ptr, num_runs_ptr,
          sorted.dptr_, index.dptr_, src.dptr_,
          static_cast<int>(src.size(0)),
          static_cast<int>(src.size(1)));

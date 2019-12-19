@@ -423,7 +423,7 @@ struct DataType<int8_t> {
   static const hipblasDatatype_t kCudaFlag = HIPBLAS_R_8I;
 #endif
 #if MSHADOW_USE_MIOPEN == 1 
-  static const miopenDataType_t kCudnnFlag = miopenFloat;
+  static const miopenDataType_t kCudnnFlag = miopenInt8;
   typedef int8_t ScaleType;
 #endif
 #if (MSHADOW_USE_CUDNN == 1 && CUDNN_MAJOR >= 6)
@@ -441,7 +441,7 @@ struct DataType<int32_t> {
   static const hipblasDatatype_t kCudaFlag = HIPBLAS_R_32I;
 #endif
 #if MSHADOW_USE_MIOPEN == 1
-  static const miopenDataType_t kCudnnFlag = miopenFloat;
+  static const miopenDataType_t kCudnnFlag = miopenInt32;
   typedef int32_t ScaleType;
 #endif
 #if (MSHADOW_USE_CUDNN == 1 && CUDNN_MAJOR >= 6)

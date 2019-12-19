@@ -203,7 +203,7 @@ class Tuple {
     // when assuming that (X - c) > X is always false [-Werror=strict-overflow]
     #pragma GCC diagnostic push
     #pragma GCC diagnostic ignored "-Wstrict-overflow"
-    //CHECK(i >= 0 && i < ndim()) << "index = " << i << " must be in range [0, " << ndim() << ")";
+    CHECK(i >= 0 && i < ndim()) << "index = " << i << " must be in range [0, " << ndim() << ")";
     #pragma GCC diagnostic pop
     return begin()[i];
   }

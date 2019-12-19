@@ -63,7 +63,7 @@ inline void L1_SVM(const DType & margin,
   dim3 dimBlock(cuda::kBaseThreadNum);
   dim3 dimGrid(dst.size(0));
   hipStream_t stream = Stream<gpu>::GetStream(dst.stream_);
-  hipLaunchKernelGGL((L1_SVMKernel<cuda::kBaseThreadBits, DType>), dim3(dimGrid), dim3(dimBlock), 0, stream , margin, reg_coef, dst, label, src);
+  hipLaunchKernelGGL(HIP_KERNEL_NAME(L1_SVMKernel<cuda::kBaseThreadBits, DType>), dim3(dimGrid), dim3(dimBlock), 0, stream , margin, reg_coef, dst, label, src);
   MSHADOW_CUDA_POST_KERNEL_CHECK(L1_SVMKernel);
 }
 
@@ -99,7 +99,7 @@ inline void L2_SVM(const DType & margin,
   dim3 dimBlock(cuda::kBaseThreadNum);
   dim3 dimGrid(dst.size(0));
   hipStream_t stream = Stream<gpu>::GetStream(dst.stream_);
-  hipLaunchKernelGGL((L2_SVMKernel<cuda::kBaseThreadBits, DType>), dim3(dimGrid), dim3(dimBlock), 0, stream , margin, reg_coef, dst, label, src);
+  hipLaunchKernelGGL(HIP_KERNEL_NAME(L2_SVMKernel<cuda::kBaseThreadBits, DType>), dim3(dimGrid), dim3(dimBlock), 0, stream , margin, reg_coef, dst, label, src);
   MSHADOW_CUDA_POST_KERNEL_CHECK(L2_SVMKernel);
 }
 }  // namespace mshadow

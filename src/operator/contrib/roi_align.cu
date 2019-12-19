@@ -389,7 +389,7 @@ void ROIAlignForwardCompute(const nnvm::NodeAttrs& attrs,
     const DType *bottom_data = in_data[roialign::kData].dptr<DType>();
     const DType *bottom_rois = in_data[roialign::kBox].dptr<DType>();
     DType *top_data = out_data[roialign::kOut].dptr<DType>();
-    hipLaunchKernelGGL((RoIAlignForwardKernel<DType>), dim3(ROI_GET_BLOCKS(count)), dim3(kMaxThreadsPerBlock), 0, stream,
+    hipLaunchKernelGGL(HIP_KERNEL_NAME(RoIAlignForwardKernel<DType>), dim3(ROI_GET_BLOCKS(count)), dim3(kMaxThreadsPerBlock), 0, stream,
           count,
           bottom_data,
           param.spatial_scale,
@@ -453,7 +453,7 @@ void ROIAlignBackwardCompute(const nnvm::NodeAttrs& attrs,
     if (kWriteTo == req[roialign::kData]) {
       Fill<false>(s, outputs[0], kWriteTo, static_cast<DType>(0));
     }
-    hipLaunchKernelGGL((RoIAlignBackwardKernel<DType>), dim3(ROI_GET_BLOCKS(count)), dim3(kMaxThreadsPerBlock), 0, stream,
+    hipLaunchKernelGGL(HIP_KERNEL_NAME(RoIAlignBackwardKernel<DType>), dim3(ROI_GET_BLOCKS(count)), dim3(kMaxThreadsPerBlock), 0, stream,
         count,
         top_diff,
         num_rois,

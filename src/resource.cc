@@ -418,7 +418,7 @@ void* Resource::get_host_space_internal(size_t size) const {
   return static_cast<resource::SpaceAllocator*>(ptr_)->GetHostSpace(size);
 }
 
-#if MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 7
+#if MXNET_USE_CUDNN == 1 
 void Resource::get_cudnn_dropout_desc(
     cudnnDropoutDescriptor_t* dropout_desc,
     mshadow::Stream<gpu> *stream,
@@ -451,7 +451,7 @@ void Resource::get_cudnn_dropout_desc(
                                              seed));
   }
 }
-#endif  // MXNET_USE_CUDNN == 1 && CUDNN_MAJOR >= 7
+#endif  // MXNET_USE_CUDNN == 1
 
 ResourceManager* ResourceManager::Get() {
   typedef dmlc::ThreadLocalStore<resource::ResourceManagerImpl> inst;

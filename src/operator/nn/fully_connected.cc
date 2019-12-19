@@ -186,11 +186,11 @@ struct FullyConnectedGradGrad {
   }
 };
 
-inline static bool FCStorageType(const nnvm::NodeAttrs& attrs,
-                                 const int dev_mask,
-                                 DispatchMode* dispatch_mode,
-                                 std::vector<int> *in_attrs,
-                                 std::vector<int> *out_attrs) {
+static bool FCStorageType(const nnvm::NodeAttrs& attrs,
+                          const int dev_mask,
+                          DispatchMode* dispatch_mode,
+                          std::vector<int> *in_attrs,
+                          std::vector<int> *out_attrs) {
   const FullyConnectedParam& param = nnvm::get<FullyConnectedParam>(attrs.parsed);
   const bool valid_data = in_attrs->at(0) == kDefaultStorage;
   const bool valid_weight = in_attrs->at(1) == kDefaultStorage ||
@@ -220,11 +220,11 @@ inline static bool FCStorageType(const nnvm::NodeAttrs& attrs,
   return dispatched;
 }
 
-inline static bool BackwardFCStorageType(const nnvm::NodeAttrs& attrs,
-                                         const int dev_mask,
-                                         DispatchMode* dispatch_mode,
-                                         std::vector<int> *in_attrs,
-                                         std::vector<int> *out_attrs) {
+static bool BackwardFCStorageType(const nnvm::NodeAttrs& attrs,
+                                  const int dev_mask,
+                                  DispatchMode* dispatch_mode,
+                                  std::vector<int> *in_attrs,
+                                  std::vector<int> *out_attrs) {
   const FullyConnectedParam& param = nnvm::get<FullyConnectedParam>(attrs.parsed);
   uint32_t out_expected = param.no_bias ? 2 : 3;
   CHECK_EQ(in_attrs->size(), 3U);

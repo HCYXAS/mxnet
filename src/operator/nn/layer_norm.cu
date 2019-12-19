@@ -316,7 +316,7 @@ void LayerNormGPUContig(const LayerNormParam param,
     int nshared = nthread_y > 1 ? nthread_y * 32 * sizeof(AType)
                                   + (nthread_y / 2) * 32 * sizeof(int) : 0;
     CheckLaunchParam(dimGrid, dimBlock);
-    hipLaunchKernelGGL((LayerNormFusedForwardKernelContig<AType, DType, int>), dim3(dimGrid), dim3(dimBlock), nshared, stream,
+    hipLaunchKernelGGL(HIP_KERNEL_NAME(LayerNormFusedForwardKernelContig<AType, DType, int>), dim3(dimGrid), dim3(dimBlock), nshared, stream,
 			nbatch, nchannel, static_cast<AType>(eps), in_data.dptr<DType>(), gamma.dptr<DType>(), beta.dptr<DType>(),
 		        out_data.dptr<DType>(), mean_data.dptr<DType>(), std_data.dptr<DType>());
 });
@@ -517,7 +517,7 @@ __global__ void LayerNormFusedBackwardKernel_Data(const int nbatch,
     AType invstd_eps = AType(1) / static_cast<AType>(std_data[bid]);
     int l = LOAD_UNROLL * tid;
     for (; l + LOAD_UNROLL - 1 < nchannel; l += nthread * LOAD_UNROLL) {
-//#pragma unroll
+#pragma unroll
       for (int i = 0; i < LOAD_UNROLL; ++i) {
         AType ele_og = static_cast<AType>(out_grad[bid * nchannel + l + i]);
         AType ele_x = static_cast<AType>(in_data[bid * nchannel + l + i]);
@@ -651,21 +651,21 @@ void LayerNormGradGPUContig(const LayerNormParam param,
       const int nshared_K2 = 2 * gb_block_dim.x * gb_block_dim.y * sizeof(AType);
       DType* gamma_grad_ptr = (gamma_grad_req != kNullOp) ? gamma_grad.dptr<DType>() : nullptr;
       DType* beta_grad_ptr = (beta_grad_req != kNullOp) ? beta_grad.dptr<DType>() : nullptr;
-      hipLaunchKernelGGL((LayerNormFusedBackwardKernel_PartGammaBeta),dim3(part_grad_grid_dim), dim3(part_grad_block_dim),nshared_K1, stream,
+      hipLaunchKernelGGL(HIP_KERNEL_NAME(LayerNormFusedBackwardKernel_PartGammaBeta),dim3(part_grad_grid_dim), dim3(part_grad_block_dim),nshared_K1, stream,
 		       nbatch, nchannel, in_data.dptr<DType>(), out_grad.dptr<DType>(), mean_data.dptr<DType>(), std_data.dptr<DType>(),
 			part_gamma_grad_ptr, part_beta_grad_ptr);
       MSHADOW_CUDA_POST_KERNEL_CHECK(LayerNormFusedBackwardKernel_PartGammaBeta);
       if (gamma_grad_req == kAddTo && beta_grad_req != kAddTo) {
-        hipLaunchKernelGGL((LayerNormFusedBackwardKernel_GammaBeta<true, false>), dim3(gb_grid_dim), dim3(gb_block_dim),nshared_K2, stream,
+        hipLaunchKernelGGL(HIP_KERNEL_NAME(LayerNormFusedBackwardKernel_GammaBeta<true, false>), dim3(gb_grid_dim), dim3(gb_block_dim),nshared_K2, stream,
  		nbatch, nchannel, npart, part_gamma_grad_ptr, part_beta_grad_ptr, gamma_grad_ptr, beta_grad_ptr);
       } else if (gamma_grad_req != kAddTo && beta_grad_req == kAddTo) {
-        hipLaunchKernelGGL((LayerNormFusedBackwardKernel_GammaBeta<false, true>),dim3(gb_grid_dim), dim3(gb_block_dim), nshared_K2, stream,
+        hipLaunchKernelGGL(HIP_KERNEL_NAME(LayerNormFusedBackwardKernel_GammaBeta<false, true>),dim3(gb_grid_dim), dim3(gb_block_dim), nshared_K2, stream,
           		 nbatch, nchannel, npart, part_gamma_grad_ptr, part_beta_grad_ptr, gamma_grad_ptr, beta_grad_ptr);
       } else if (gamma_grad_req == kAddTo && beta_grad_req == kAddTo) {
-	hipLaunchKernelGGL((LayerNormFusedBackwardKernel_GammaBeta<true, true>), dim3(gb_grid_dim), dim3(gb_block_dim), nshared_K2, stream,
+	hipLaunchKernelGGL(HIP_KERNEL_NAME(LayerNormFusedBackwardKernel_GammaBeta<true, true>), dim3(gb_grid_dim), dim3(gb_block_dim), nshared_K2, stream,
           	    nbatch, nchannel, npart, part_gamma_grad_ptr, part_beta_grad_ptr, gamma_grad_ptr, beta_grad_ptr);
       } else {
-        hipLaunchKernelGGL((LayerNormFusedBackwardKernel_GammaBeta<false, false>), dim3(gb_grid_dim), dim3(gb_block_dim), nshared_K2, stream,
+        hipLaunchKernelGGL(HIP_KERNEL_NAME(LayerNormFusedBackwardKernel_GammaBeta<false, false>), dim3(gb_grid_dim), dim3(gb_block_dim), nshared_K2, stream,
           	   nbatch, nchannel, npart, part_gamma_grad_ptr, part_beta_grad_ptr, gamma_grad_ptr, beta_grad_ptr);
       }
     });

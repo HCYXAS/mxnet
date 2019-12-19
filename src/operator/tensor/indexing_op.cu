@@ -715,10 +715,7 @@ void EmbeddingGradKernelCaller(const OpContext& ctx,
   // Find lower & upper bounds of each possible index
   const int threads_block_bounds = 128;
   const int nblocks_bounds = (vocab_dim + threads_block_bounds - 1) / threads_block_bounds;
-  /*EmbeddingFindBounds<<<nblocks_bounds, threads_block_bounds, 0, Stream<gpu>::GetStream(s)>>>(
-                  sorted_data.dptr_, bounds_index.dptr_, data_dim, vocab_dim);*/
- hipLaunchKernelGGL((EmbeddingFindBounds),dim3(nblocks_bounds),threads_block_bounds,0,Stream<gpu>::GetStream(s),sorted_data.dptr_, bounds_index.dptr_,data_dim, vocab_dim );
- MSHADOW_CUDA_POST_KERNEL_CHECK(EmbeddingFindBounds);
+  hipLaunchKernelGGL(HIP_KERNEL_NAME(EmbeddingFindBounds),dim3(nblocks_bounds),threads_block_bounds,0,Stream<gpu>::GetStream(s),sorted_data.dptr_, bounds_index.dptr_,data_dim, vocab_dim );
 
   // Compute Gradient
   int ltype = mxnet::common::cuda::get_load_type(embbedding_dim * sizeof(DType));
@@ -731,19 +728,12 @@ void EmbeddingGradKernelCaller(const OpContext& ctx,
       threads_block_grad += 32;
     size_t required_shared = threads_block_grad * sizeof(LType);
     dim3 blocks(vocab_dim, 1);
-    /*EmbeddingGradKernel<LType><<<blocks, threads_block_grad, required_shared,
-                  Stream<gpu>::GetStream(s)>>>(
-                  grad_in.dptr_, original_index.dptr_,
-                  bounds_index.dptr_, grad_out.dptr_,
-                  embbedding_dim, vocab_dim,
-                  req[embedding::kWeight]);*/
-   hipLaunchKernelGGL((EmbeddingGradKernel<LType>),blocks, threads_block_grad, required_shared,
+     hipLaunchKernelGGL(HIP_KERNEL_NAME(EmbeddingGradKernel<LType>),blocks, threads_block_grad, required_shared,
                   Stream<gpu>::GetStream(s),
                   grad_in.dptr_, original_index.dptr_,
                   bounds_index.dptr_, grad_out.dptr_,
                   embbedding_dim, vocab_dim,
                   req[embedding::kWeight]);
-   MSHADOW_CUDA_POST_KERNEL_CHECK(EmbeddingGradKernel);
   });
 }
 

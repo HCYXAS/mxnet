@@ -201,8 +201,8 @@ inline const char* HipblasGetErrorString(hipblasStatus_t error) {
     return "HIPBLAS_STATUS_ALLOC_FAILED";
   case HIPBLAS_STATUS_INVALID_VALUE:
     return "HIPBLAS_STATUS_INVALID_VALUE";
-  /*case HIPBLAS_STATUS_ARCH_MISMATCH:
-    return "HIPBLAS_STATUS_ARCH_MISMATCH";*/ //not supported
+  case HIPBLAS_STATUS_ARCH_MISMATCH:
+    return "HIPBLAS_STATUS_ARCH_MISMATCH";
   case HIPBLAS_STATUS_MAPPING_ERROR:
     return "HIPBLAS_STATUS_MAPPING_ERROR";
   case HIPBLAS_STATUS_EXECUTION_FAILED:
@@ -267,8 +267,8 @@ inline const char* HiprandGetErrorString(hiprandStatus_t status) {
     return "HIPRAND_STATUS_OUT_OF_RANGE";
   case HIPRAND_STATUS_LENGTH_NOT_MULTIPLE:
     return "HIPRAND_STATUS_LENGTH_NOT_MULTIPLE";
-//  case HIPRNG_STATUS_DOUBLE_PRECISION_REQUIRED: // NOT SUPPORTED YET
-//    return "HIPRNG_STATUS_DOUBLE_PRECISION_REQUIRED";
+  case HIPRAND_STATUS_DOUBLE_PRECISION_REQUIRED:  
+    return "HIPRNGD_STATUS_DOUBLE_PRECISION_REQUIRED";
   case HIPRAND_STATUS_LAUNCH_FAILURE:
     return "HIPRAND_STATUS_LAUNCH_FAILURE";
   case HIPRAND_STATUS_PREEXISTING_FAILURE:
@@ -564,6 +564,7 @@ static_assert(CUDNN_PATCHLEVEL < 100 && CUDNN_MINOR < 10,
  *         want to populate.
  */
 inline int MaxForwardAlgos(cudnnHandle_t cudnn_handle) {
+  STATIC_ASSERT_CUDNN_VERSION_GE(7000);
   int max_algos = 0;
   CUDNN_CALL(cudnnGetConvolutionForwardAlgorithmMaxCount(cudnn_handle, &max_algos));
   return max_algos;
@@ -577,6 +578,7 @@ inline int MaxForwardAlgos(cudnnHandle_t cudnn_handle) {
  *         want to populate.
  */
 inline int MaxBackwardFilterAlgos(cudnnHandle_t cudnn_handle) {
+  STATIC_ASSERT_CUDNN_VERSION_GE(7000);
   int max_algos = 0;
   CUDNN_CALL(cudnnGetConvolutionBackwardFilterAlgorithmMaxCount(cudnn_handle, &max_algos));
   return max_algos;

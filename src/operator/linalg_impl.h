@@ -826,7 +826,7 @@ void linalg_potri<gpu, DType>(const Tensor<gpu, 2, DType>& A, bool lower, Stream
   using namespace mshadow::cuda; \
   int ngrid = std::min(kMaxGridNum, \
                        static_cast<int>((A.MSize() + kBaseThreadNum - 1) / kBaseThreadNum)); \
-  hipLaunchKernelGGL((linalgInitIdentityGPU<DType>), dim3(ngrid), dim3(kBaseThreadNum), 0, mshadow::Stream<gpu>::GetStream(s), static_cast<DType *>(buffer.dptr), A.MSize(), A.stride_, A.MSize());  \
+  hipLaunchKernelGGL(HIP_KERNEL_NAME(linalgInitIdentityGPU<DType>), dim3(ngrid), dim3(kBaseThreadNum), 0, mshadow::Stream<gpu>::GetStream(s), static_cast<DType *>(buffer.dptr), A.MSize(), A.stride_, A.MSize());  \
   MSHADOW_CUDA_POST_KERNEL_CHECK(linalgInitIdentityGPU); \
   Tensor<gpu, 2, DType> B((DType *)buffer.dptr, A.shape_, A.stride_, s); \
   linalg_trsm(A, B, DType(1.0), false, lower, !lower, s); \
@@ -849,7 +849,7 @@ void linalg_batch_potri<gpu, DType>(const Tensor<gpu, 3, DType>& A, bool lower, 
   using namespace mshadow::cuda; \
   int ngrid = std::min(kMaxGridNum, \
                        static_cast<int>((A.MSize() + kBaseThreadNum - 1) / kBaseThreadNum)); \
-  hipLaunchKernelGGL((linalgInitIdentityGPU<DType>), dim3(ngrid), dim3(kBaseThreadNum), 0, mshadow::Stream<gpu>::GetStream(s), static_cast<DType *>(buffer.dptr), A.size(1)*A.stride_, A.stride_, A.MSize()); \
+  hipLaunchKernelGGL(HIP_KERNEL_NAME(linalgInitIdentityGPU<DType>), dim3(ngrid), dim3(kBaseThreadNum), 0, mshadow::Stream<gpu>::GetStream(s), static_cast<DType *>(buffer.dptr), A.size(1)*A.stride_, A.stride_, A.MSize()); \
   MSHADOW_CUDA_POST_KERNEL_CHECK(linalgInitIdentityGPU); \
   Tensor<gpu, 3, DType> B((DType *)buffer.dptr, A.shape_, A.stride_, s); \
   linalg_batch_trsm(A, B, DType(1.0), false, lower, !lower, s); \

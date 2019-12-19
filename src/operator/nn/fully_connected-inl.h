@@ -128,7 +128,12 @@ namespace {
   constexpr int nthreads_addbias = 256;
   constexpr int nthreads_addbiasgrad_phase1 = 512;
   constexpr int nthreads_addbiasgrad_phase2 = 128;
+#if defined(__HIP_PLATFORM_NVCC__)
   constexpr int threads_per_warp = 32;
+#endif
+#if defined(__HIP_PLATFORM_HCC__)
+  constexpr int threads_per_warp = 64;
+#endif
 
   inline int ceil_div(int x, int y) {
     return (x + y - 1) / y;
@@ -162,20 +167,13 @@ void AddBias(Tensor<gpu, 1, DType> bias, Tensor<gpu, 2, DType> data,
              Tensor<gpu, 2, DType> out, Stream<gpu>* s) {
     int ltype = mxnet::common::cuda::get_load_type(bias.shape_[0] * sizeof(DType));
     MXNET_LOAD_TYPE_SWITCH(ltype, LType, {
-    /*add_bias_kernel<DType, LType><<<data.size(0),
-                                    nthreads_addbias,
-                                    0,
-                                    Stream<gpu>::GetStream(s)>>>(out.dptr_,
-                                                                 bias.dptr_,
-                                                                 data.size(0),
-                                                                 bias.shape_[0]);*/
+    
 
           hipLaunchKernelGGl((add_bias_kernel<DType, LType>),data.size(0), nthreads_addbias, 0,Stream<gpu>::GetStream(s),out.dptr_,
                                                                                     bias.dptr_,
                                                                                     data.size(0),
                                                                                      bias.shape_[0]); 
     });
-    MSHADOW_CUDA_POST_KERNEL_CHECK(add_bias_kernel);
 }
 
 #endif  // __HIPCC__
@@ -330,29 +328,16 @@ void AddBiasGrad(const TBlob& in_grad,
     auto scratch_space = ctx.requested[fullc::kTempSpace]
                             .get_space_typed<gpu, 1, AType>(mshadow::Shape1(N * blocks_y), s);
     auto stream = mshadow::Stream<gpu>::GetStream(s);
-    /*AddBiasGradKernelPhase1<LType><<<n_blocks,
-                                     nthreads_addbiasgrad_phase1,
-                                     0,
-                                     stream>>>(scratch_space.dptr_,
-                                               grad.dptr_, N, M);*/
- hipLaunchKernelGGL((AddBiasGradKernelPhase1<LType>),dim3(n_blocks),nthreads_addbiasgrad_phase1,0,stream,scratch_space.dptr_,grad.dptr_, N, M );
+    hipLaunchKernelGGL((AddBiasGradKernelPhase1<LType>),dim3(n_blocks),nthreads_addbiasgrad_phase1,0,stream,scratch_space.dptr_,grad.dptr_, N, M );
  MSHADOW_CUDA_POST_KERNEL_CHECK(AddBiasGradKernelPhase1);
     const int nblocks_phase2 = ceil_div(N, nthreads_addbiasgrad_phase2);
-    /*AddBiasGradKernelPhase2<<<nblocks_phase2,
-                              nthreads_addbiasgrad_phase2,
-                              0,
-                              stream>>>(scratch_space.dptr_,
-                                        gbias.dptr_, N,
-                                        blocks_y, req);*/
-
-          hipLaunchKernelGGL((AddBiasGradKernelPhase2),nblocks_phase2,
+    hipLaunchKernelGGL((AddBiasGradKernelPhase2),nblocks_phase2,
                                         nthreads_addbiasgrad_phase2,
                                           0,
                                          stream,scratch_space.dptr_,
                                         gbias.dptr_, N,
                                         blocks_y, req);
-        MSHADOW_CUDA_POST_KERNEL_CHECK(AddBiasGradKernelPhase2);
-  });
+      });
 }
 #endif
 
