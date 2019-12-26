@@ -221,7 +221,7 @@ void SparseEmbeddingOpForwardRspImpl<gpu>(const OpContext& ctx,
   if (weight.aux_shape(kIdx)[0] == weight.shape()[0]) {
     EmbeddingOpForwardDnsImpl<gpu>(s, data, weight.data(), req, output);
   } else {
-    EmbeddingOpForwardRspImpl<gpu>(s, data, weight, req, output);
+    //EmbeddingOpForwardRspImpl<gpu>(s, data, weight, req, output);
   }
 }
 

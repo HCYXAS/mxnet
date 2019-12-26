@@ -119,7 +119,7 @@ class CuDNNRNNOp : public Operator {
     MIOPEN_CALL(miopenCreateTensorDescriptor(&dw_desc_));
 
     MIOPEN_CALL(miopenCreateRNNDescriptor(&rnn_desc_)); 
-   /*CUDNN_CALL(cudnnCreateDropoutDescriptor(&dropout_desc_)); */ //TODO cudnnCreateDropoutDescriptor not supported in MIOpen
+    MIOPEN_CALL(miopenCreateDropoutDescriptor(&dropout_desc_));
 
    /* #if USE_CUDNN_LSTM_PROJ
     CUDNN_CALL(cudnnCreateRNNDataDescriptor(&x_data_desc_)); 
@@ -142,7 +142,7 @@ class CuDNNRNNOp : public Operator {
     MIOPEN_CALL(miopenDestroyTensorDescriptor(w_desc_));
     MIOPEN_CALL(miopenDestroyTensorDescriptor(dw_desc_));
     MIOPEN_CALL(miopenDestroyRNNDescriptor(rnn_desc_));
-    //CUDNN_CALL(cudnnDestroyDropoutDescriptor(dropout_desc_));
+    MIOPEN_CALL(miopenDestroyDropoutDescriptor(dropout_desc_));
 
     if (init_cudnn_) {
       for (size_t i = 0; i < x_desc_vec_.size(); ++i) {
@@ -709,18 +709,21 @@ class CuDNNRNNOp : public Operator {
                                             strideA));
 
       // Create Dropout descriptors
-      /*if (param_.p > 0) {
-        CUDNN_CALL(cudnnDropoutGetStatesSize(s->dnn_handle_, &dropout_byte_));
+      if (param_.p > 0) {
+        MIOPEN_CALL(miopenDropoutGetStatesSize(s->dnn_handle_, &dropout_byte_));
         dropout_size_ = dropout_byte_ / sizeof(DType);
         dropout_states_ = Storage::Get()->Alloc(dropout_byte_, Context::GPU());
       } else {
         dropout_states_ = {};
         dropout_byte_ = 0;
       }
-      CUDNN_CALL(cudnnSetDropoutDescriptor(dropout_desc_, s->dnn_handle_,
+      bool use_mask = false;
+      bool state_evo = false;
+      miopenRNGType_t rng_mode = MIOPEN_RNG_PSEUDO_XORWOW;
+      MIOPEN_CALL(miopenSetDropoutDescriptor(dropout_desc_, s->dnn_handle_,
                                            param_.p,  // discard probability
                                            dropout_states_.dptr, dropout_byte_,
-                                           seed_));*/ //TODO MIOpen does not support Dropout
+                                           seed_, use_mask, state_evo, rng_mode));
       // RNN descriptors
       MIOPEN_CALL(miopenSetRNNDescriptor(rnn_desc_,
                                        param_.state_size,
@@ -839,7 +842,7 @@ class CuDNNRNNOp : public Operator {
   miopenRNNMode_t mode_;
   miopenRNNDirectionMode_t direction_;
   miopenRNNInputMode_t input_mode_;
-  //cudnnDropoutDescriptor_t dropout_desc_; //TODO commented as unsupported in MIOpen
+  miopenDropoutDescriptor_t dropout_desc_;
   Storage::Handle dropout_states_, reserve_space_;
   uint64_t seed_ = 17 + rand() % 4096;  // NOLINT(runtime/threadsafe_fn)
   size_t workspace_byte_, reserve_space_byte_, dropout_byte_;
