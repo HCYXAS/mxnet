@@ -92,7 +92,7 @@ class ResourceManagerImpl : public ResourceManager {
     gpu_temp_space_copy_ = dmlc::GetEnv("MXNET_GPU_TEMP_COPY", 1);
     cpu_native_rand_copy_ = dmlc::GetEnv("MXNET_CPU_PARALLEL_RAND_COPY", 1);
     gpu_native_rand_copy_ = dmlc::GetEnv("MXNET_GPU_PARALLEL_RAND_COPY", 4);
-#if MXNET_USE_CUDNN == 1
+#if MXNET_USE_CUDNN == 1 || MXNET_USE_MIOPEN == 1
     gpu_cudnn_dropout_state_copy_ = dmlc::GetEnv("MXNET_GPU_CUDNN_DROPOUT_STATE_COPY", 4);
 #endif  // MXNET_USE_CUDNN == 1
     engine_ref_ = Engine::_GetSharedRef();
@@ -113,7 +113,7 @@ class ResourceManagerImpl : public ResourceManager {
     gpu_rand_.Clear();
     gpu_space_.Clear();
     gpu_parallel_rand_.Clear();
-#if MXNET_USE_CUDNN == 1
+#if MXNET_USE_CUDNN == 1 || MXNET_USE_MIOPEN == 1
     gpu_cudnn_dropout_state_.Clear();
 #endif  // MXNET_USE_CUDNN == 1
 #endif
@@ -153,7 +153,7 @@ class ResourceManagerImpl : public ResourceManager {
             return new ResourceParallelRandom<gpu>(ctx, gpu_native_rand_copy_, global_seed_);
           })->GetNext();
         }
-#if MXNET_USE_CUDNN == 1
+#if MXNET_USE_CUDNN == 1 || MXNET_USE_MIOPEN == 1
         case ResourceRequest::kCuDNNDropoutDesc: {
           return gpu_cudnn_dropout_state_.Get(ctx.dev_id, [ctx, this]() {
             return new ResourceTempSpace<ResourceRequest::kCuDNNDropoutDesc>(
@@ -399,7 +399,7 @@ class ResourceManagerImpl : public ResourceManager {
   common::LazyAllocArray<ResourceTempSpace<ResourceRequest::kTempSpace>> gpu_space_;
   /*! \brief GPU parallel (on device) random number resources */
   common::LazyAllocArray<ResourceParallelRandom<gpu> > gpu_parallel_rand_;
-#if MXNET_USE_CUDNN == 1
+#if MXNET_USE_CUDNN == 1 || MXNET_USE_MIOPEN == 1 
   /*! \brief number of copies in GPU cudnn dropout descriptor resources */
   int gpu_cudnn_dropout_state_copy_;
   /*! \brief GPU parallel (on device) random number resources */
@@ -418,7 +418,7 @@ void* Resource::get_host_space_internal(size_t size) const {
   return static_cast<resource::SpaceAllocator*>(ptr_)->GetHostSpace(size);
 }
 
-#if MXNET_USE_CUDNN == 1 
+#if MXNET_USE_CUDNN == 1   
 void Resource::get_cudnn_dropout_desc(
     cudnnDropoutDescriptor_t* dropout_desc,
     mshadow::Stream<gpu> *stream,
@@ -449,10 +449,52 @@ void Resource::get_cudnn_dropout_desc(
                                              state_space->handle.dptr,
                                              state_space->handle.size,
                                              seed));
+
   }
 }
 #endif  // MXNET_USE_CUDNN == 1
 
+#if  MXNET_USE_MIOPEN == 1 
+void Resource::get_cudnn_dropout_desc(
+    miopenDropoutDescriptor_t* dropout_desc,
+    mshadow::Stream<gpu> *stream,
+    const float dropout,
+    uint64_t seed) const {
+
+  CHECK_EQ(req.type, ResourceRequest::kCuDNNDropoutDesc);
+  auto state_space = static_cast<resource::SpaceAllocator*>(ptr_);
+  CHECK_EQ(state_space->ctx.dev_id, stream->dev_id)
+    << "The device id of cudnn dropout state space doesn't match that from stream.";
+  if (!state_space->handle.size) {
+    // not initialized yet.
+      size_t dropout_state_size;
+    MIOPEN_CALL(miopenDropoutGetStatesSize(stream->dnn_handle_, &dropout_state_size));
+    // reserve GPU space
+    Storage::Get()->DirectFree(
+       Storage::Get()->Alloc(dropout_state_size, state_space->ctx));
+
+      bool use_mask = false;
+      bool state_evo = false;
+      miopenRNGType_t rng_mode = MIOPEN_RNG_PSEUDO_XORWOW;
+      MIOPEN_CALL(miopenSetDropoutDescriptor(*dropout_desc, stream->dnn_handle_,
+                                         dropout,
+                                         state_space->GetSpace(dropout_state_size),
+                                         dropout_state_size,
+                                         seed,use_mask,state_evo,rng_mode));
+  } else {
+    // cudnnRestoreDropoutDescriptor() introduced with cuDNN v7
+     bool use_mask = false;
+      bool state_evo = false;
+      miopenRNGType_t rng_mode = MIOPEN_RNG_PSEUDO_XORWOW;
+      MIOPEN_CALL(miopenRestoreDropoutDescriptor(*dropout_desc, stream->dnn_handle_,
+                                             dropout,
+                                             state_space->handle.dptr,
+                                             state_space->handle.size,
+                                             seed,use_mask,state_evo,rng_mode));
+
+  }
+}
+#endif
 ResourceManager* ResourceManager::Get() {
   typedef dmlc::ThreadLocalStore<resource::ResourceManagerImpl> inst;
   return inst::Get();

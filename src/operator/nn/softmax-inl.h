@@ -446,7 +446,12 @@ __global__ void softmax_stride1_grad_kernel(const OType *out, const OType *ograd
                                             const index_t total_rows) {
   __shared__ AType scratch[softmax_threads_per_block];
   __shared__ LType persistent_storage[20 * 1024 / sizeof(LType)];
-  const int warp_size = 32;
+  #if defined(__HIP_PLATFORM_HCC__)
+        const int warp_size = 64;
+  #endif
+  #if defined(__HIP_PLATFORM_NVCC__)
+        const int warp_size = 32;
+  #endif
   const int threads_per_row = softmax_threads_per_block / rows_per_block;
   const int my_local_row = threadIdx.x / threads_per_row;
   const int my_row = blockIdx.x * rows_per_block + my_local_row;

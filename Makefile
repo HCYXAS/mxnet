@@ -583,18 +583,18 @@ ifeq ($(USE_GPU), 1)
 	endif
 	# Make sure to add stubs as fallback in order to be able to build
 	# without full CUDA install (especially if run without nvidia-docker)
-	ifeq ($(USE_NCCL), 1)
-		ifneq ($(USE_NCCL_PATH), NONE)
-			CFLAGS += -I$(USE_NCCL_PATH)/include
-			LDFLAGS += -L$(USE_NCCL_PATH)/lib
+	ifeq ($(USE_RCCL), 1)
+		ifneq ($(USE_RCCL_PATH), NONE)
+			CFLAGS += -I$(USE_RCCL_PATH)/include
+			LDFLAGS += -L$(USE_RCCL_PATH)/lib
 		endif
-		LDFLAGS += -lnccl
-		CFLAGS += -DMXNET_USE_NCCL=1
+		LDFLAGS += -lrccl
+		CFLAGS += -DMXNET_USE_RCCL=1
 	else
-		CFLAGS += -DMXNET_USE_NCCL=0
+		CFLAGS += -DMXNET_USE_RCCL=0
 	endif
 else
-	CFLAGS += -DMXNET_USE_NCCL=0
+	CFLAGS += -DMXNET_USE_RCCL=0
 endif
 
 ifeq ($(USE_LIBJPEG_TURBO), 1)

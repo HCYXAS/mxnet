@@ -59,9 +59,9 @@ inline void GPUDeviceStorage::Alloc(Storage::Handle* handle) {
   if (size == 0) return;
 #if MXNET_USE_GPU
   mxnet::common::cuda::DeviceStore device_store(handle->ctx.real_dev_id(), true);
-#if MXNET_USE_NCCL
+#if MXNET_USE_RCCL
   std::lock_guard<std::mutex> l(Storage::Get()->GetMutex(Context::kGPU));
-#endif  // MXNET_USE_NCCL
+#endif  // MXNET_USE_RCCL
   hipError_t e = hipMalloc(&handle->dptr, size);
   if (e != hipSuccess && e != hipErrorDeinitialized)
     LOG(FATAL) << "CUDA: " << hipGetErrorString(e);
@@ -73,9 +73,9 @@ inline void GPUDeviceStorage::Alloc(Storage::Handle* handle) {
 inline void GPUDeviceStorage::Free(Storage::Handle handle) {
 #if MXNET_USE_GPU
   mxnet::common::cuda::DeviceStore device_store(handle.ctx.real_dev_id(), true);
-#if MXNET_USE_NCCL
+#if MXNET_USE_RCCL
   std::lock_guard<std::mutex> l(Storage::Get()->GetMutex(Context::kGPU));
-#endif  // MXNET_USE_NCCL
+#endif  // MXNET_USE_RCCL
   // throw special exception for caller to catch.
   hipError_t err = hipFree(handle.dptr);
   // ignore unloading error, as memory has already been recycled

@@ -38,7 +38,7 @@ class FeatureSet {
     // GPU
     feature_bits.set(CUDA, MXNET_USE_GPU);
     feature_bits.set(CUDNN, MXNET_USE_CUDNN);
-    feature_bits.set(NCCL, MXNET_USE_NCCL);
+    feature_bits.set(NCCL, MXNET_USE_RCCL);
     feature_bits.set(CUDA_RTC, MXNET_ENABLE_CUDA_RTC);
     feature_bits.set(TENSORRT, MXNET_USE_TENSORRT);
 

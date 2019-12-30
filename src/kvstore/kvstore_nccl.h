@@ -24,7 +24,7 @@
 #ifndef MXNET_KVSTORE_KVSTORE_NCCL_H_
 #define MXNET_KVSTORE_KVSTORE_NCCL_H_
 
-#if MXNET_USE_NCCL
+#if MXNET_USE_RCCL
 
 #include <mxnet/kvstore.h>
 #include <nccl.h>
@@ -551,5 +551,5 @@ class KVStoreNCCL : public KVStoreLocal {
 };
 }  // namespace kvstore
 }  // namespace mxnet
-#endif  // MXNET_USE_NCCL
+#endif  // MXNET_USE_RCCL
 #endif  // MXNET_KVSTORE_KVSTORE_NCCL_H_

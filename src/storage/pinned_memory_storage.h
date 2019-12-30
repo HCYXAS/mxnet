@@ -54,7 +54,7 @@ inline void PinnedMemoryStorage::Alloc(Storage::Handle* handle) {
   const size_t size = handle->size;
   if (size == 0) return;
 
-#if MXNET_USE_NCCL
+#if MXNET_USE_RCCL
   std::lock_guard<std::mutex> lock(Storage::Get()->GetMutex(Context::kGPU));
 #endif
   mxnet::common::cuda::DeviceStore device_store(handle->ctx.real_dev_id(), true);
@@ -63,7 +63,7 @@ inline void PinnedMemoryStorage::Alloc(Storage::Handle* handle) {
 }
 
 inline void PinnedMemoryStorage::Free(Storage::Handle handle) {
-#if MXNET_USE_NCCL
+#if MXNET_USE_RCCL
   std::lock_guard<std::mutex> lock(Storage::Get()->GetMutex(Context::kGPU));
 #endif
   mxnet::common::cuda::DeviceStore device_store(handle.ctx.real_dev_id(), true);

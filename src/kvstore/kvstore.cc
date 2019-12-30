@@ -31,9 +31,9 @@
 #include "./kvstore_dist.h"
 std::atomic<int> mxnet::kvstore::KVStoreDist::customer_id_{0};
 #endif  // MXNET_USE_DIST_KVSTORE
-#if MXNET_USE_NCCL
+#if MXNET_USE_RCCL
 #include "./kvstore_nccl.h"
-#endif  // MXNET_USE_NCCL
+#endif  // MXNET_USE_RCCL
 
 namespace mxnet {
 
@@ -62,10 +62,10 @@ KVStore* KVStore::Create(const char *type_name) {
 #endif  // MXNET_USE_DIST_KVSTORE
   } else {
     if (has("nccl")) {
-#if MXNET_USE_NCCL
+#if MXNET_USE_RCCL
       kv = new kvstore::KVStoreNCCL();
 #else
-      LOG(FATAL) << "compile with USE_NCCL=1 to use " << tname;
+      LOG(FATAL) << "compile with USE_RCCL=1 to use " << tname;
       return nullptr;
 #endif
     } else {
